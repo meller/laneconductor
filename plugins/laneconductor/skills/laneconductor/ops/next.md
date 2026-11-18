@@ -164,54 +164,43 @@ else is ever stored: there is no counter and no write on a plain run.
 In S02, S03 and S04 there is nothing to rank yet, so the card is followed, once per session, by the optional add-ons that fit this
 project and are not installed. Show them; never run an install. An add-on that is already installed is not offered (the board has one more sentence, below), and one
 already offered in this session (by setup, for example) or declined is not offered again. Later runs, with tracks, never offer
-add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. An add-on is offered once because an installed plugin cannot be detected without reading outside the project, which the base never does; if the person says it is installed already, take their word and stop offering it.
+add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. Detect an installed add-on from the skills list and `claude plugin list` (read only); if you still cannot tell and the person says it is installed already, take their word and stop offering it.
 
 The board is the one add-on that is also named when it is installed. In S02, S03 and S04 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop from there is: open the board, copy the step, run it here, ask for a refresh.
 
-After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
-the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
-that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
-nothing about it. If nothing fits, say nothing and go on.
+After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say for each, in one short paragraph, why it fits.
+Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
+nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
+If the person says later, record nothing: each item is offered again at its own moment, as `/laneconductor:suggest-skills` describes.
 
-How to offer one:
+How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run). Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you still cannot tell and the person says it is installed, take their word.
 
-- Show its two install commands exactly as written below, each alone in its own bash block, then the reload step. You only show them:
-  never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
-- Say plainly what it installs, from the note under its name.
-- Mention each plugin once in this session. If the person declines, do not bring it up again.
-- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
+- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor` It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
+- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It counts as installed when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
 
-**`laneconductor-parallel`**: Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed.
-
-```bash
-claude plugin marketplace add meller/laneconductor
-```
-
-```bash
-claude plugin install laneconductor-parallel@laneconductor
-```
-
-Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
-
-**`laneconductor-board`**: The board, one private page of every track by lane, which Claude publishes as an artifact. It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. It counts as installed when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`.
-
-```bash
-claude plugin marketplace add meller/laneconductor
-```
-
-```bash
-claude plugin install laneconductor-board@laneconductor
-```
-
-Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
-
-When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing, after the offers above, also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
+When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing. You only show it, never run an install command yourself, and install nothing unless the person says yes. It is for use inside this session, where the base is already installed.
 
 Both add-ons in one line:
 
 ```bash
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
+
+## A skill tip
+
+After the card, add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`, `~/.claude/skills/`; an older name counts). Say nothing when nothing is missing or the person declined it (the file `skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints), and never show a command here. It never replaces the step.
+
+**The current track** is, in this order: the track named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, matched to its folder under `conductor/tracks/`); the track this session has running (`**Lane Status**: running`, and with the connector `**Run By**` names this client). With one in play, its lane, `**Type**` and stack apply; with none, no track is in play and skill offers go by the stack only (a KPI block belongs to a marketing or sales track, so there is none to write).
+
+Skills that fit each step's lane:
+
+- brainstorm: `superpowers`
+- plan: `frontend-design`, `marketing-skills`, `superpowers`, `customer-support`, `data`
+- implement: `laneconductor-parallel`, `frontend-design`, `marketing-skills`, `superpowers`, `firebase`, `cloudflare`, `customer-support`, `data`
+- review: `laneconductor-parallel`, `superpowers`, `pr-review-toolkit`
+- quality-gate: `marketing-skills`, `superpowers`, `security-guidance`, `playwright`
+- merge: `superpowers`
+- deploy: `firebase`, `cloudflare`
 
 For "look around" (S02, path c): say in four sentences what LaneConductor is (the plan-first process, tracks as files in git, five
 lanes, nothing to install but this plugin), show the list from `help`, write nothing, and end by saying that `next` can be asked

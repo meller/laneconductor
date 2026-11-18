@@ -39,6 +39,21 @@ An optional deepening step before implement: ask the human clarifying questions 
    implies at least one test case (or the human says "go ahead"), run the plan lane on the
    track: it reads `conversation.md` and updates `spec.md`, `plan.md` and `test.md` from the dialogue.
 
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule** (full procedure: `/laneconductor:suggest-skills`). Plain text, never a form, never blocking.
+- Look first: a skill is installed when it is in the session's skills list, `claude plugin list` (read only), `.claude/skills/` or `~/.claude/skills/`; an older name counts. Then say "you have `<skill>` installed, use it before writing the content" and use it.
+- Offer only what is missing and fits this lane, the track's `**Type**` (dev if none) and the stack; else say nothing. At most two, ours first, never twice in a session, never one on the declined list (`skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints).
+- One or two plain sentences (what, why here, program or only knowledge), each install command alone in its own bash block, no leading `$`.
+- `prerequisite`: ask, in the same sentence, whether to install first or carry on; otherwise a one-line tip. No answer: carry on.
+- Never run an install yourself: the person runs it, then `/reload-plugins`. "Do not ask again": after a yes, add the entry name to the declined file.
+
+Candidates for the `brainstorm` lane:
+
+- `superpowers`: skills brainstorming, writing-plans. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+
 #### Skills that help here
 
 These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill

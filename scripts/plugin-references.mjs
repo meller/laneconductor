@@ -3,10 +3,12 @@
 // appended under "Reference", whole when the command needs the whole file, otherwise only the sections it uses. Nothing is written by hand:
 // every piece is cut from the shipped skill text. A new pointer in a command needs a new entry here, and a test catches the gap.
 import { section, shift, relink } from './plugin-inline.mjs';
-import { installBlock } from './plugin-texts.mjs';
+import { installBlock, SHORT_RULE } from './plugin-texts.mjs';
 
 const W = (file) => ({ file });
 const T = (file, ...heads) => ({ file, heads });
+/** new-project is no lane and creates no non-dev track, so the skill offers of the guide and of newTrack it carries are left out of its copy. */
+const NO_OFFERS = (ref) => ({ ...ref, drop: [/## Offer a missing skill[\s\S]*?(?=## Skills that help here)/, /Look first \(the session skills list[\s\S]*?(?=\n5\. Create `history\.md`)/] });
 const PARTS = (file, from, to) => ({ file, from, to });
 const ADDON = { title: 'The add-on\'s install commands', text: () => `Show these as written when the add-on is missing and I ask for parallel work or isolation; never run them.\n\n${installBlock('parallel')}` };
 const TRACKS_SEARCH = T('ops/tracks.md', '## Search first: the default is update, not create');
@@ -29,7 +31,7 @@ export const REFERENCES = {
   setup: { why: 'setup writes the conductor files after the reply "ok" from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
     W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**')] },
   'new-project': { why: 'new-project writes the conductor files from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
-    W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**'), T('ops/tracks.md', NEWTRACK), W('lanes/brainstorm.md')] },
+    W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK)), NO_OFFERS(W('lanes/brainstorm.md'))] },
   plan: lane('plan', [TRACK_FILES]),
   brainstorm: lane('brainstorm', [TRACKS_SEARCH]),
   implement: lane('implement', [W('ops/working-a-track.md'), ADDON]),
@@ -81,6 +83,7 @@ function render(item, readSkill) {
   } else {
     body = shift(text.replace(/^# .*\n+/, '').replace(/\s+$/, ''), 2);
   }
+  for (const re of item.drop ?? []) body = body.replace(re, '');
   return `### ${label}\n\n${tidy(relink(body, item.file))}`;
 }
 
@@ -89,7 +92,11 @@ export function referenceBlock(name, readSkill) {
   const spec = REFERENCES[name];
   if (!spec) return null;
   const heading = name === 'setup' || name === 'new-project' ? '## Reference: scaffold' : '## Reference';
-  return `${heading}\n\nFrom the skill files this command names, copied here: whole files, or only the sections the command uses.\n\n${spec.refs.map((r) => render(r, readSkill)).join('\n\n')}`;
+  const body = spec.refs.map((r) => render(r, readSkill)).join('\n\n');
+  // `run` carries five lane guides: the offer rule is written once, at its first appearance, and the later guides point back at it
+  const [first, ...later] = body.split(SHORT_RULE);
+  const once = later.length ? [first, ...later].reduce((out, part, i) => (i === 0 ? part : `${out}${i === 1 ? SHORT_RULE : '**Offer rule**: as in the first lane guide above.'}${part}`), '') : body;
+  return `${heading}\n\nFrom the skill files this command names, copied here: whole files, or only the sections the command uses.\n\n${once}`;
 }
 
 /** Puts the notice after the first paragraph of a command body (its opening line), so it is read before the steps. */

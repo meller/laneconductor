@@ -368,13 +368,13 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
   for (const rel of filesOf(BASE).filter((r) => /\.md$/.test(r))) {
     const text = read(rel);
     // Every shell command is alone in a ```bash fence: no `$` prompt, one line, nothing else inside.
-    for (const m of text.matchAll(/```(\w*)\n([\s\S]*?)\n```/g)) {
+    for (const m of text.matchAll(/^```(\w*)\n([\s\S]*?)\n```$/gm)) { // fences at the start of a line (an indented fence inside a list item is not one of ours)
       if (!/claude plugin/.test(m[2])) continue;
       assert.equal(m[1], 'bash', `${rel}: a claude plugin command sits in a bash fence`);
       assert.ok(!m[2].includes('\n') && !m[2].startsWith('$') && /^claude plugin (marketplace add|install|uninstall|update)\b/.test(m[2]), `${rel}: one command per fence, no $: ${m[2]}`);
     }
     // No install command outside a bash fence (the README's inline notes about updating are not installs).
-    const outside = text.replace(/```[\s\S]*?```/g, '');
+    const outside = text.replace(/```[\s\S]*?```/g, '').split('\n').filter((l) => !/^- `[a-z0-9-]+`.*`claude plugin (install|marketplace add) /.test(l)).join('\n'); // a candidate line of the skill offers carries its commands in inline code; Claude shows each alone in its own bash block
     assert.ok(!/claude plugin (install|marketplace add)/.test(outside.replace(/`claude plugin install laneconductor@laneconductor`/g, '')), `${rel}: an install command outside a bash fence`);
     // Advice, not an instruction to run: nothing tells Claude to run an install.
     assert.ok(!/\b(now|then|please|you should|go ahead and)\s+run\s+`?claude plugin/i.test(text), `${rel} tells Claude to run an install command`);
@@ -397,7 +397,7 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
   // Without any add-on, run explains parallel work by hand and what the add-on adds, and otherwise mentions nothing.
   const run = read('commands/run.md');
   assert.match(run, /git worktree add \.worktrees\/track-<number> -b track-<number>/, 'run explains the by-hand worktree');
-  assert.match(run, /isolated sub-agents, one per track in its own worktree, and safe shared state/, 'run says what the add-on adds');
+  assert.match(run, /sub-agents per track in worktrees, conflict-checked track writes/, 'run says what the add-on adds');
   assert.match(run, /It installs an MCP server .* on your computer, from the owner's marketplace/, 'and that it installs a local program');
   assert.match(run, /Otherwise mention nothing/);
 });

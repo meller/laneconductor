@@ -69,6 +69,12 @@ to resolve a conflict between the track branch and `main`. `workflow.json` stays
 for target lanes (how a target is read, and `done:queue` against `done:success`, is in
 [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md)).
 
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+<!-- generated: skill offers for this lane -->
+
 ## Skills that help here
 
 These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill

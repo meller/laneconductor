@@ -47,12 +47,12 @@ test('the daemon-era setup text lives only under legacy/, which the plugin does 
   assert.ok(!fs.existsSync(path.join(BASE, 'skills/laneconductor/legacy')), 'legacy/ is not shipped');
 });
 
-test('the generated /laneconductor:setup command follows new-project; `scaffold` goes straight to scaffold.md; the hook point for the starter set is in both procedures', () => {
+test('the generated /laneconductor:setup command follows new-project; `scaffold` goes straight to scaffold.md; the starter set is in both procedures', () => {
   const cmd = fs.readFileSync(path.join(BASE, 'commands/setup.md'), 'utf8');
   assert.match(cmd, /ops\/new-project\.md/);
   assert.match(cmd, /`\/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow the scaffold text under "Reference: scaffold"/);
   assert.match(cmd, /runs only because I named it/);
   assert.ok(!/make install|laneconductorrc/.test(cmd), 'the command carries no daemon-era install text');
   const skill = path.join(BASE, 'skills/laneconductor');
-  for (const rel of ['setup/setup.md', 'ops/new-project.md']) assert.match(fs.readFileSync(path.join(skill, rel), 'utf8'), /<!-- Starter set: reserved for the skill advisor -->/, rel);
+  for (const rel of ['setup/setup.md', 'ops/new-project.md']) assert.match(fs.readFileSync(path.join(skill, rel), 'utf8'), /offer a STARTER SET/, rel);
 });

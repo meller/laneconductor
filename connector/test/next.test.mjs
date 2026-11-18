@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { REPO, RELS, NAMES, buildPlugin, diffAgainstDisk, setupRecommendBlock, RECOMMEND_MARKER, ADDONS, NEXT_JOURNEY } from '../../scripts/build-plugin.mjs';
-import { ADDONS_INSTALL } from '../../scripts/plugin-texts.mjs';
+import { ADDONS_INSTALL, STARTER, installCommands } from '../../scripts/plugin-texts.mjs';
 import { COMMANDS, GROUPS, helpText, helpLines, fillProcedure } from '../src/commands.mjs';
 import { buildInstructions } from '../src/instructions.mjs';
 import { buildFixture, FIXTURES, RANKING } from './helpers/next-fixtures.mjs';
@@ -159,12 +159,11 @@ test('stale project-level skill: next.md and setup.md name the one sentence, the
   }
 });
 
-test('TC-5: setup and new-project end by pointing at next, and still carry the generated recommendation marker and the starter-set hook', () => {
+test('TC-5: setup and new-project end by pointing at next, and still carry the generated recommendation marker (the starter set)', () => {
   for (const f of ['setup/setup.md', 'ops/new-project.md']) {
     const t = read(path.join(SRC, f));
     assert.match(t, /Next: run `\/laneconductor:next`/, f);
     assert.ok(t.includes(RECOMMEND_MARKER), f);
-    assert.match(t, /Starter set: reserved for the skill advisor/, f);
   }
 });
 
@@ -206,26 +205,25 @@ test('TC-8, TC-29: the generated next command is read only: it carries the argum
 
 test('TC-9, TC-10: the parallel add-on offers next as a prompt, and the plugin map lists it for the base and the add-on; the build is current', () => {
   const map = read(path.join(REPO, 'docs/plugin-map.md'));
-  assert.match(map, /`next`, `help`, `plan`/, 'MCP prompts');
+  assert.match(map, /`next`, `suggest-skills`, `help`, `plan`/, 'MCP prompts');
   assert.match(map, /\(`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`/);
   assert.deepEqual(diffAgainstDisk(REPO), []);
 });
 
-test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block, from the one catalog, with four install commands and the one-line add-ons install, each in its own bash block', () => {
-  const block = setupRecommendBlock();
+test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block for the add-ons, from the one catalog, with their commands and the one-line add-ons install in its own bash block', () => {
+  const block = setupRecommendBlock(ADDONS); // next keeps the add-ons offer of the front door; the full starter set is setup's and new-project's
   for (const profile of ['base']) {
     const files = buildPlugin(REPO, profile);
     const text = String(files.get('skills/laneconductor/ops/next.md').content);
     assert.ok(text.includes(block), 'next.md carries the setup block verbatim');
-    assert.ok(String(files.get('skills/laneconductor/setup/setup.md').content).includes(block));
+    assert.ok(String(files.get('skills/laneconductor/setup/setup.md').content).includes(setupRecommendBlock()));
     assert.ok(!text.includes(RECOMMEND_MARKER), 'the marker is replaced');
   }
   assert.ok(NEXT_MD.includes(RECOMMEND_MARKER), 'the source holds the marker, not the text');
   for (const e of ADDONS) assert.ok(!NEXT_MD.includes(e.name), `the source ops/next.md names no add-on by hand (${e.name})`);
   const fences = [...block.matchAll(/```bash\n([^\n]+)\n```/g)].map((m) => m[1]);
-  assert.equal(fences.length, 5);
-  assert.equal(fences[4], ADDONS_INSTALL, 'the fifth is the one-line install of both add-ons');
-  assert.ok(ADDONS.every((e) => fences.some((f) => f.includes(`install ${e.name}@`))));
+  assert.deepEqual(fences, [ADDONS_INSTALL], 'the one fence is the one-line install of both add-ons');
+  assert.ok(ADDONS.every((e) => installCommands(e.name).every((c) => block.includes(`\`${c}\``))), 'each add-on line carries its commands in inline code');
 });
 
 test('TC-14, TC-15: the habits carry the two edits; the server instructions point to next and stay under the limit', () => {

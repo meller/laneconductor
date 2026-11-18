@@ -4,7 +4,7 @@ LaneConductor teaches Claude a plan-first way of working on a project whose plan
 under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
 to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 1.7.0.
+Version 1.8.0.
 
 ## Getting started
 
@@ -33,6 +33,10 @@ no pre-approved tools.
 It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
 policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
 
+## Skill suggestions: nothing is installed without your yes
+
+`/laneconductor:suggest-skills` and the start of each lane may suggest a skill. **It installs nothing without your yes and never runs an install itself**: it shows the commands for you to run. To look, it runs only `claude plugin list` and `git rev-parse --git-common-dir` and reads `.claude/skills/` and `~/.claude/skills/`. Sources, all public: `meller/laneconductor`, `anthropics/claude-plugins-official`, `cloudflare/skills`, `coreyhaines31/marketingskills`, `anthropics/knowledge-work-plugins`. A plugin that installs a program or a hosted connection says so first.
+
 ## Optional add-ons
 
 Optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. None is needed, they have
@@ -47,7 +51,7 @@ use it; when it is missing, LaneConductor mentions it at most once per session, 
 
 ### `laneconductor-parallel`
 
-Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+Parallel work: sub-agents per track in worktrees, conflict-checked track writes. It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor
@@ -61,7 +65,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 
 ### `laneconductor-board`
 
-The board, one private page of every track by lane, which Claude publishes as an artifact. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+The board: one private page of every track by lane. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor
@@ -94,7 +98,7 @@ The full version in one line:
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor@laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
 
-Add `--scope local` to install it for one project only (just for you), or `--scope user` for every project. Or use "Upload plugin"
+Add `--scope local` to install it for one project only, or `--scope user` for all. Or use "Upload plugin"
 in Claude (desktop app or claude.ai: Customize, Plugins, Add) with `laneconductor-<version>.zip` from the Releases page of
 https://github.com/meller/laneconductor. Update with `claude plugin marketplace update laneconductor`, then
 `claude plugin update laneconductor@laneconductor`. If you keep a copy of the LaneConductor skill in your own project
@@ -102,10 +106,8 @@ https://github.com/meller/laneconductor. Update with `claude plugin marketplace 
 
 ## Moving from the all-in-one plugin (versions 0.x)
 
-Before version 1.0.0 `laneconductor` was one plugin that also held the connector and the board. It is now this Markdown-only base,
-plus the two add-ons above. If you are on 0.x, the connector and the board are no longer in `laneconductor`. Uninstall the old one,
-install the base and the add-ons you want, and restart your sessions (a running connector process keeps the version it started
-with):
+Before 1.0.0 `laneconductor` also held the connector and the board; they are now the two add-ons above. On 0.x, uninstall the old
+plugin, install the base and the add-ons you want, and restart your sessions:
 
 ```bash
 claude plugin uninstall laneconductor
@@ -115,8 +117,7 @@ claude plugin uninstall laneconductor
 claude plugin install laneconductor@laneconductor
 ```
 
-Then install `laneconductor-parallel` and `laneconductor-board` as shown above if you want them. The files in git are unchanged,
-so nothing is lost: your tracks are the same.
+Your tracks are unchanged.
 
 ## If Claude Code asks about reading a file
 

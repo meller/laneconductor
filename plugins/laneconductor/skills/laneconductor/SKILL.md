@@ -22,9 +22,10 @@ advice can be fixed or pruned. Two things are firm because breaking them corrupt
 overrides the human: the file formats and base-commit checks below, and the human's authority
 (ask before merge or push, never handle secrets).
 
-Each lane guide ends with "Skills that help here": skills worth using at that lane if they are installed, plus any the
-project lists under `skills` in `conductor/workflow.json`. LaneConductor only knows which skills help; it does not
-wrap or bundle them.
+Each lane guide ends with "Offer a missing skill" and "Skills that help here": skills worth using at that lane if they are
+installed, plus any the project lists under `skills` in `conductor/workflow.json`; a skill that is missing is offered once, in
+plain text, with the install commands shown and never run ([ops/suggest-skills.md](ops/suggest-skills.md)). LaneConductor only knows which skills
+help; it does not wrap or bundle them.
 
 ## How to run a command
 
@@ -38,6 +39,7 @@ wrap or bundle them.
 | Command | Read | May start unprompted |
 |---------|------|----------------------|
 | `next` | [ops/next.md](ops/next.md) ("what's next", "what now"; names the one next step for this project and explains it; read only) | yes, read only |
+| `suggest-skills` | [ops/suggest-skills.md](ops/suggest-skills.md) (which skills fit this lane, track Type and stack, and what is missing; shows install commands, never runs them) | yes, read only |
 | `plan` | [lanes/plan.md](lanes/plan.md) | yes |
 | `brainstorm` | [lanes/brainstorm.md](lanes/brainstorm.md) | yes |
 | `implement` | [lanes/implement.md](lanes/implement.md) | yes |
@@ -71,6 +73,12 @@ lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-p
 `setup` adds LaneConductor to a project that already exists: the same procedure, but it reads `package.json`, the README and
 the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
 imports no older tracks silently ([setup/setup.md](setup/setup.md)).
+
+## Work without a track
+
+When the person asks for real work (it changes files, or takes more than a quick answer) and no track is in play, say so in one sentence and offer three ways in, in plain text: update the nearest existing track (search first: `list_tracks` when the connector tools are there, else the folders under `conductor/tracks/`; the default wording is "Update track N?"), create a new track, or go on without a track. Never block: when the work is clearly small, go ahead without asking. Create or change a track only after a yes. A question, reading, a one-line or typo fix gets no offer, and "no track" once, or a choice to go on without one, means no more track offers this session.
+
+**The current track** is, in this order: the track named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, matched to its folder under `conductor/tracks/`); the track this session has running (`**Lane Status**: running`, and with the connector `**Run By**` names this client). With one in play, its lane, `**Type**` and stack apply; with none, no track is in play and skill offers go by the stack only (a KPI block belongs to a marketing or sales track, so there is none to write).
 
 ## Finding a track
 
@@ -186,4 +194,4 @@ Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): 
 
 ## Add-ons (mention rarely)
 
-LaneConductor is complete on its own. Optional add-ons exist (read [ADD-ONS.md](ADD-ONS.md)). Tell what is installed from what you can see: `laneconductor-parallel` (parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes) is there when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed; `laneconductor-board` (the board, one private page of every track by lane, which Claude publishes as an artifact) is there when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`. When one is there, use it and recommend nothing. When it is missing, mention it only when its trigger applies: for `laneconductor-parallel`, the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report; for `laneconductor-board`, the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). Then say in one or two sentences what it adds and that it installs a local program, and show its install commands from ADD-ONS.md as written. Once per session, as an option, never nagging; if the person declines, do not bring it up again. NEVER run an install command yourself.
+LaneConductor is complete on its own. Optional add-ons exist (read [ADD-ONS.md](ADD-ONS.md)). Tell what is installed from what you can see: `laneconductor-parallel` (parallel work: sub-agents per track in worktrees, conflict-checked track writes) is there when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed; `laneconductor-board` (the board: one private page of every track by lane) is there when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`. When one is there, use it and recommend nothing. When it is missing, mention it only when its trigger applies: for `laneconductor-parallel`, several sessions, people or sub-agents write the same tracks, or overwrites are a worry; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report; for `laneconductor-board`, the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). Then say in one or two sentences what it adds and that it installs a local program, and show its install commands from ADD-ONS.md as written. Once per session, as an option, never nagging; if the person declines, do not bring it up again. NEVER run an install command yourself.

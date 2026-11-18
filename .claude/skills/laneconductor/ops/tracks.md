@@ -77,9 +77,12 @@ markers). By hand:
    track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
    that already exists without the markers keeps the old fallbacks.
 3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing` or `sales`, look in `.claude/skills/` for the recommended
-   skills (marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`;
-   sales: `sales-enablement`, `cold-email`) and tell the user which are missing.
+4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
+   name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
+
+   <!-- generated: skill offers for non-dev types -->
+
 5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
 6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
 

@@ -1,18 +1,63 @@
 {
   "comment": "The ONE source of every recommendation LaneConductor makes (track AM-10128; track AM-10124's skill advisor, skill packs and third-party skills will add entries here, not text). scripts/plugin-texts.mjs generates from it: the Add-ons paragraph of the base SKILL.md, ADD-ONS.md, the fallback text of the board commands, the worktree pointer in run/implement/review, ops/board.md's 'missing' section and the README blocks. Fields: name (the plugin id); kind (addon | skillpack | thirdparty); display; source { marketplace: the marketplace name, add: what `claude plugin marketplace add` takes, plugin: the plugin id in it }; installs_code (true when the plugin ships a script or an MCP server: the generated note then says so plainly); installs (what it installs, one phrase, used when installs_code is true); why (one line: what it adds); adds (bullets); setup_fit (one line: the project facts that make it worth offering at setup; the setup step says 'It fits when ...' from it); detect (how Claude can tell it is installed); triggers (the only moments to mention it; a person asking, never a nag). connector/test/recommendations.test.mjs checks that every plugin named in the generated text is an entry here and that the install commands match .claude-plugin/marketplace.json. Never run an install: the commands are shown, the person runs them. `bundles` (AM-10128, owner decision 2026-11-18) names the plugins of the two one-line installs, in order; scripts/plugin-texts.mjs derives each line from these names and the marketplace in the entries, so no command is typed twice: full_install is for use OUTSIDE Claude (the website, the READMEs: the base and both add-ons), addons_install is for use INSIDE a Claude session where the base is already installed (both add-ons). A test checks that addons_install names exactly the kind addon entries.",
+  "checked": "2026-11-18",
+  "stack_tags": {
+    "ui": "a front-end stack (React, Vue, Svelte, Next.js, a Vite config, .html, .css or .tsx files), or the track's plan names screens or pages",
+    "dashboard": "the track or its plan is about a dashboard, charts or a data page",
+    "firebase": "`firebase.json` or `.firebaserc`, or Firebase named in conductor/tech-stack.md",
+    "cloudflare": "`wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare named in conductor/tech-stack.md"
+  },
   "bundles": {
-    "full_install": ["laneconductor", "laneconductor-board", "laneconductor-parallel"],
-    "addons_install": ["laneconductor-board", "laneconductor-parallel"]
+    "full_install": [
+      "laneconductor",
+      "laneconductor-board",
+      "laneconductor-parallel"
+    ],
+    "addons_install": [
+      "laneconductor-board",
+      "laneconductor-parallel"
+    ]
+  },
+  "fallback": {
+    "name": "find-skills",
+    "source": "vercel-labs/skills",
+    "repo": "vercel-labs/skills",
+    "skill_path": "skills/find-skills/SKILL.md",
+    "licence": "MIT",
+    "install": [
+      "npx skills add vercel-labs/skills --skill find-skills -a claude-code"
+    ],
+    "note": "third-party and not vetted by LaneConductor: it runs the `skills` command-line program from npm with npx, searches an outside directory (skills.sh) for community skills, and its own text says it may install them with the prompts skipped (-y); never install what it finds without reading it",
+    "verified": "2026-11-18: vercel-labs/skills (MIT, public); skills/find-skills/SKILL.md read in full (Markdown, tells Claude to run npx skills find and npx skills add); the npm package `skills` 1.9.0 is MIT; vetting verdict: usable as a named fallback only with the note above"
   },
   "entries": [
     {
       "name": "laneconductor-parallel",
       "kind": "addon",
       "display": "LaneConductor Parallel",
-      "source": { "marketplace": "laneconductor", "add": "meller/laneconductor", "plugin": "laneconductor-parallel" },
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-parallel"
+      },
+      "licence": "Elastic-2.0",
       "installs_code": true,
-      "installs": "an MCP server (the connector, a Node.js program) and a scaffold script",
-      "why": "parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes",
+      "installs": "an MCP server (a Node.js program) and a scaffold script",
+      "why": "parallel work: sub-agents per track in worktrees, conflict-checked track writes",
+      "lanes": [
+        "implement",
+        "review"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-parallel@laneconductor"
+      ],
+      "skills": [],
       "adds": [
         "conflict-checked writes (a write is refused if someone edited first, so several sessions, people or sub-agents can write the same tracks at once)",
         "automatic commits of the track changes it makes, and freshness warnings",
@@ -23,21 +68,43 @@
         "the `track-runner` sub-agent: one per track, each in its own git worktree"
       ],
       "setup_fit": "the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents",
-      "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed",
+      "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed",
       "triggers": [
-        "the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites",
+        "several sessions, people or sub-agents write the same tracks, or overwrites are a worry",
         "the person mentions worktrees or running tracks in parallel",
         "the person asks for automatic commits, a privacy scan or a health report"
-      ]
+      ],
+      "verified": "2026-11-18: ours; the marketplace file of meller/laneconductor lists it (check-catalog --online)"
     },
     {
       "name": "laneconductor-board",
       "kind": "addon",
       "display": "LaneConductor Board",
-      "source": { "marketplace": "laneconductor", "add": "meller/laneconductor", "plugin": "laneconductor-board" },
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-board"
+      },
+      "licence": "Elastic-2.0",
       "installs_code": true,
       "installs": "a script (a Node.js program, no packages) and its page",
-      "why": "the board, one private page of every track by lane, which Claude publishes as an artifact",
+      "why": "the board: one private page of every track by lane",
+      "lanes": [
+        "setup"
+      ],
+      "types": [
+        "dev",
+        "marketing",
+        "sales",
+        "support"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-board@laneconductor"
+      ],
+      "skills": [],
       "adds": [
         "the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval",
         "it works with or without the other add-on"
@@ -46,7 +113,569 @@
       "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`",
       "triggers": [
         "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`)"
-      ]
+      ],
+      "verified": "2026-11-18: ours; the marketplace file of meller/laneconductor lists it (check-catalog --online)"
+    },
+    {
+      "name": "superpowers",
+      "kind": "thirdparty",
+      "display": "Superpowers",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "superpowers"
+      },
+      "licence": "MIT",
+      "installs_code": true,
+      "installs": "a session-start hook script, plus Markdown skills",
+      "why": "process skills: plans, test-first, debugging, sub-agents, worktrees, review, verification",
+      "lanes": [
+        "setup",
+        "brainstorm",
+        "plan",
+        "implement",
+        "review",
+        "quality-gate",
+        "merge"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin install superpowers@claude-plugins-official"
+      ],
+      "skills": [
+        {
+          "name": "brainstorming",
+          "lanes": [
+            "brainstorm",
+            "plan"
+          ]
+        },
+        {
+          "name": "writing-plans",
+          "lanes": [
+            "brainstorm",
+            "plan"
+          ]
+        },
+        {
+          "name": "test-driven-development",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "systematic-debugging",
+          "lanes": [
+            "implement",
+            "quality-gate"
+          ]
+        },
+        {
+          "name": "subagent-driven-development",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "using-git-worktrees",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "requesting-code-review",
+          "lanes": [
+            "review"
+          ]
+        },
+        {
+          "name": "receiving-code-review",
+          "lanes": [
+            "review"
+          ]
+        },
+        {
+          "name": "verification-before-completion",
+          "lanes": [
+            "quality-gate"
+          ]
+        },
+        {
+          "name": "finishing-a-development-branch",
+          "lanes": [
+            "merge"
+          ]
+        }
+      ],
+      "detect": "one of its skills (for example `test-driven-development`) is in the session's skills list, or `claude plugin list` shows `superpowers@claude-plugins-official`",
+      "setup_fit": "the project writes code: it adds the brainstorm, plan, test-first, debugging and review skills the lanes use",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (source obra/superpowers, MIT); every named skill found under skills/ at the listed commit (check-catalog --online)"
+    },
+    {
+      "name": "frontend-design",
+      "kind": "thirdparty",
+      "display": "Frontend Design",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "frontend-design"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": false,
+      "why": "design direction for UI: typography, layout, no templated defaults",
+      "lanes": [
+        "setup",
+        "plan",
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "ui"
+      ],
+      "level": "prerequisite",
+      "install": [
+        "claude plugin install frontend-design@claude-plugins-official"
+      ],
+      "skills": [
+        {
+          "name": "frontend-design",
+          "lanes": [
+            "plan",
+            "implement"
+          ]
+        }
+      ],
+      "detect": "a skill named `frontend-design` is in the session's skills list (it may show as `frontend-design:frontend-design`), or `claude plugin list` shows `frontend-design@claude-plugins-official`",
+      "setup_fit": "the project has a front end (React, Vue, Vite, HTML pages) or tracks that plan screens",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path plugins/frontend-design, Apache-2.0); skills/frontend-design/SKILL.md found (check-catalog --online); read in the plugin cache: no hooks, no MCP"
+    },
+    {
+      "name": "pr-review-toolkit",
+      "kind": "thirdparty",
+      "display": "PR Review Toolkit",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "pr-review-toolkit"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": false,
+      "why": "review agents: comments, tests, error handling, types, simplification",
+      "lanes": [
+        "review"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin install pr-review-toolkit@claude-plugins-official"
+      ],
+      "skills": [
+        {
+          "name": "review-pr",
+          "lanes": [
+            "review"
+          ]
+        }
+      ],
+      "detect": "the command `/pr-review-toolkit:review-pr` exists, or `claude plugin list` shows `pr-review-toolkit@claude-plugins-official`",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path plugins/pr-review-toolkit, Apache-2.0); commands/review-pr.md found (check-catalog --online); read in the marketplace clone: agents and a command only, no hooks, no MCP"
+    },
+    {
+      "name": "security-guidance",
+      "kind": "thirdparty",
+      "display": "Security Guidance",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "security-guidance"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "a Python hook script that checks edits",
+      "why": "security warnings on edits and a diff review when a turn ends",
+      "lanes": [
+        "quality-gate"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin install security-guidance@claude-plugins-official"
+      ],
+      "skills": [],
+      "detect": "`claude plugin list` shows `security-guidance`",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path plugins/security-guidance, Apache-2.0); hooks/hooks.json and a Python hook found in the plugin cache (read only)"
+    },
+    {
+      "name": "playwright",
+      "kind": "thirdparty",
+      "display": "Playwright",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "playwright"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "an MCP server (Node.js, via npx) that drives a browser",
+      "why": "drives a real browser to check a UI flow and take screenshots",
+      "lanes": [
+        "setup",
+        "quality-gate"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "ui"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin install playwright@claude-plugins-official"
+      ],
+      "skills": [],
+      "detect": "its tools start with `mcp__plugin_playwright_playwright__`, or `claude plugin list` shows it",
+      "setup_fit": "the project has a web UI that a person checks in a browser",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path external_plugins/playwright, repository Apache-2.0); its .mcp.json runs npx @playwright/mcp (npm: Apache-2.0)"
+    },
+    {
+      "name": "firebase",
+      "kind": "thirdparty",
+      "display": "Firebase",
+      "source": {
+        "marketplace": "claude-plugins-official",
+        "add": "anthropics/claude-plugins-official",
+        "plugin": "firebase"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "an MCP server (firebase-tools, via npx) that can change your Firebase project",
+      "why": "Firebase tools: Firestore, auth, functions, hosting, and hosting deploys",
+      "lanes": [
+        "setup",
+        "implement",
+        "deploy"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "firebase"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin install firebase@claude-plugins-official"
+      ],
+      "skills": [],
+      "detect": "its tools start with `mcp__plugin_firebase_firebase__`, or `claude plugin list` shows it",
+      "setup_fit": "the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack",
+      "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path external_plugins/firebase, repository Apache-2.0); its .mcp.json runs npx firebase-tools mcp (npm: MIT)"
+    },
+    {
+      "name": "cloudflare",
+      "kind": "thirdparty",
+      "display": "Cloudflare",
+      "source": {
+        "marketplace": "cloudflare",
+        "add": "cloudflare/skills",
+        "plugin": "cloudflare"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "a connection to Cloudflare's hosted MCP server, plus skills",
+      "why": "Cloudflare skills and hosted MCP server for edge functions and deploys",
+      "lanes": [
+        "setup",
+        "implement",
+        "deploy"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "cloudflare"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add cloudflare/skills",
+        "claude plugin install cloudflare@cloudflare"
+      ],
+      "skills": [
+        {
+          "name": "cloudflare",
+          "lanes": [
+            "implement",
+            "deploy"
+          ]
+        }
+      ],
+      "detect": "a skill named `cloudflare` is in the session's skills list, or `claude plugin list` shows `cloudflare@cloudflare`",
+      "setup_fit": "the project has `wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare in its tech stack",
+      "verified": "2026-11-18: marketplace file of cloudflare/skills (Apache-2.0) lists it; skills/cloudflare/SKILL.md found (check-catalog --online); its .mcp.json is a hosted http server, no command"
+    },
+    {
+      "name": "marketing-skills",
+      "kind": "thirdparty",
+      "display": "Marketing Skills",
+      "source": {
+        "marketplace": "marketingskills",
+        "add": "coreyhaines31/marketingskills",
+        "plugin": "marketing-skills"
+      },
+      "licence": "MIT",
+      "installs_code": false,
+      "why": "marketing and sales skills: strategy, launch, copy, social, cold email, analytics",
+      "lanes": [
+        "setup",
+        "plan",
+        "implement",
+        "quality-gate"
+      ],
+      "types": [
+        "marketing",
+        "sales"
+      ],
+      "stack": [],
+      "level": "prerequisite",
+      "install": [
+        "claude plugin marketplace add coreyhaines31/marketingskills",
+        "claude plugin install marketing-skills@marketingskills"
+      ],
+      "skills": [
+        {
+          "name": "content-strategy",
+          "lanes": [
+            "plan"
+          ],
+          "types": [
+            "marketing"
+          ]
+        },
+        {
+          "name": "launch",
+          "aliases": [
+            "launch-strategy"
+          ],
+          "lanes": [
+            "plan"
+          ],
+          "types": [
+            "marketing"
+          ]
+        },
+        {
+          "name": "copywriting",
+          "lanes": [
+            "implement"
+          ],
+          "types": [
+            "marketing"
+          ]
+        },
+        {
+          "name": "social",
+          "aliases": [
+            "social-content"
+          ],
+          "lanes": [
+            "implement"
+          ],
+          "types": [
+            "marketing"
+          ]
+        },
+        {
+          "name": "sales-enablement",
+          "lanes": [
+            "implement"
+          ],
+          "types": [
+            "sales"
+          ]
+        },
+        {
+          "name": "cold-email",
+          "lanes": [
+            "implement"
+          ],
+          "types": [
+            "sales"
+          ]
+        },
+        {
+          "name": "prospecting",
+          "lanes": [
+            "plan"
+          ],
+          "types": [
+            "sales"
+          ]
+        },
+        {
+          "name": "revops",
+          "lanes": [
+            "plan"
+          ],
+          "types": [
+            "sales"
+          ]
+        },
+        {
+          "name": "analytics",
+          "aliases": [
+            "analytics-tracking"
+          ],
+          "lanes": [
+            "plan",
+            "quality-gate"
+          ],
+          "types": [
+            "marketing"
+          ]
+        },
+        {
+          "name": "ab-testing",
+          "aliases": [
+            "ab-test-setup"
+          ],
+          "lanes": [
+            "plan",
+            "quality-gate"
+          ],
+          "types": [
+            "marketing"
+          ]
+        }
+      ],
+      "detect": "a skill from it (for example `copywriting` or `cold-email`) is in the session's skills list, in `.claude/skills` or `~/.claude/skills`, or `claude plugin list` shows `marketing-skills@marketingskills`",
+      "setup_fit": "the project's tracks are marketing or sales work (copy, launch, outreach), or it is a product that needs a website and a launch",
+      "verified": "2026-11-18: coreyhaines31/marketingskills (MIT, public); marketplace.json lists marketing-skills (source ./, skills ./skills); every named skill found under skills/ (check-catalog --online); the four aliases are the names before its v2.0 renames of 2026-05-14 (commit 30f9b9a7), which is how older installs list them"
+    },
+    {
+      "name": "customer-support",
+      "kind": "thirdparty",
+      "display": "Customer Support",
+      "source": {
+        "marketplace": "knowledge-work-plugins",
+        "add": "anthropics/knowledge-work-plugins",
+        "plugin": "customer-support"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "connections to hosted services (Slack, Intercom and more), plus skills",
+      "why": "support skills: ticket triage, draft replies, knowledge-base articles, escalations",
+      "lanes": [
+        "plan",
+        "implement"
+      ],
+      "types": [
+        "support"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add anthropics/knowledge-work-plugins",
+        "claude plugin install customer-support@knowledge-work-plugins"
+      ],
+      "skills": [
+        {
+          "name": "ticket-triage",
+          "lanes": [
+            "plan",
+            "implement"
+          ]
+        },
+        {
+          "name": "draft-response",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "kb-article",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "customer-escalation",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "customer-research",
+          "lanes": [
+            "plan"
+          ]
+        }
+      ],
+      "detect": "a skill from it (for example `ticket-triage`) is in the session's skills list, or `claude plugin list` shows `customer-support@knowledge-work-plugins`",
+      "verified": "2026-11-18: marketplace file of anthropics/knowledge-work-plugins (Apache-2.0) lists it; the five named skills found (check-catalog --online); its .mcp.json holds only hosted http servers, no command"
+    },
+    {
+      "name": "data",
+      "kind": "thirdparty",
+      "display": "Data",
+      "source": {
+        "marketplace": "knowledge-work-plugins",
+        "add": "anthropics/knowledge-work-plugins",
+        "plugin": "data"
+      },
+      "licence": "Apache-2.0",
+      "installs_code": true,
+      "installs": "connections to hosted data services, plus skills",
+      "why": "data skills: dashboards, charts, exploring and validating data",
+      "lanes": [
+        "plan",
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "dashboard"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add anthropics/knowledge-work-plugins",
+        "claude plugin install data@knowledge-work-plugins"
+      ],
+      "skills": [
+        {
+          "name": "build-dashboard",
+          "lanes": [
+            "plan",
+            "implement"
+          ]
+        },
+        {
+          "name": "create-viz",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "data-visualization",
+          "lanes": [
+            "plan",
+            "implement"
+          ]
+        }
+      ],
+      "detect": "a skill from it (for example `build-dashboard`) is in the session's skills list, or `claude plugin list` shows `data@knowledge-work-plugins`",
+      "verified": "2026-11-18: marketplace file of anthropics/knowledge-work-plugins (Apache-2.0) lists it; the three named skills found (check-catalog --online); its .mcp.json holds only hosted http servers, no command"
     }
   ]
 }

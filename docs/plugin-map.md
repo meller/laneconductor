@@ -6,14 +6,14 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 
 | | `laneconductor` (base) | `laneconductor-parallel` (add-on) | `laneconductor-board` (add-on) |
 | :--- | :--- | :--- | :--- |
-| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `workflow`) | none (the add-ons ship no commands; the base commands detect them) | none (the add-ons ship no commands; the base commands detect them) |
+| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the add-ons ship no commands; the base commands detect them) | none (the add-ons ship no commands; the base commands detect them) |
 | Skills | `laneconductor` | none | none |
 | Agents | `plan-reviewer` | `track-runner` (isolation: worktree) | none |
 | MCP tools | none | `append_conversation`, `create_track`, `get_context`, `get_track`, `health_report`, `help`, `list_tracks`, `report_outcome`, `update_track`; named `mcp__plugin_laneconductor-parallel_lc__<tool>` | none |
-| MCP prompts | none | `next`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `setup`, `deploy` (the command catalog, served by the connector) | none |
+| MCP prompts | none | `next`, `suggest-skills`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `setup`, `deploy` (the command catalog, served by the connector) | none |
 | Scripts | none | `server/bin/lc-connector.mjs`, `server/bin/lc-scaffold.mjs` | `server/bin/lc-board.mjs` |
 | Files | Markdown, JSON and one PNG only (what the directory portal accepts) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) |
-| Installs code | no | yes: an MCP server (the connector, a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
+| Installs code | no | yes: an MCP server (a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
 | Needs the others | no: each works alone | no: each works alone | no: each works alone |
 
 The base is the plugin prepared for Anthropic's directory; the add-ons are installed from the marketplace `meller/laneconductor` only. No plugin depends on another: the base looks at what is installed (the tools by their prefix, the agent by name, the board script by Glob), uses it when present and recommends nothing; when it is missing it mentions the add-on once, only when relevant, shows the install commands and never runs them.
@@ -23,6 +23,7 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | Command | Works alone | Uses `laneconductor-parallel` when present | Needs `laneconductor-board` |
 | :--- | :---: | :--- | :--- |
 | `next` | yes | its tools (`list_tracks`, `get_track`) | no |
+| `suggest-skills` | yes | nothing | no |
 | `help` | yes | nothing | no |
 | `plan` | yes | its tools (`get_context`, `get_track`, `list_tracks`, `update_track`) | no |
 | `brainstorm` | yes | its tools (`get_context`, `get_track`, `list_tracks`, `update_track`) | no |

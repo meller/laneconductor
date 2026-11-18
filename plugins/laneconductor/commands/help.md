@@ -8,6 +8,7 @@ Not sure where to go? Use `next`: it reads this project and names the one step.
 
 Start here
 - next [explain | short | track number]: Name the one next step for this project and explain it (read only). Example: "what's next"
+- suggest-skills [all | dry-run | lane]: What could help with this track: skills you already have that apply, and ones worth installing. Example: "what skills help with this track"
 - help: List every LaneConductor command with an example phrase. Example: "what can LaneConductor do"
 
 Plan and deliver

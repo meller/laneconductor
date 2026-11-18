@@ -77,9 +77,17 @@ markers). By hand:
    track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
    that already exists without the markers keeps the old fallbacks.
 3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing` or `sales`, look in `.claude/skills/` for the recommended
-   skills (marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`;
-   sales: `sales-enablement`, `cold-email`) and tell the user which are missing.
+4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
+   name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
+
+   Look first (the session skills list, `claude plugin list`, `.claude/skills/`, `~/.claude/skills/`; an older name counts) and offer only what is missing: at most two, plain text, each install command alone in its own bash block, never run an install, never block, nothing twice in a session or on the declined list. Offer when the track is created, planned and implemented.
+
+Candidates for these Types:
+
+- `marketing-skills` (prerequisite; Type marketing/sales): skills content-strategy, launch (was launch-strategy), copywriting, social (was social-content), sales-enablement, cold-email, prospecting, revops, analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
+- `customer-support` (Type support): skills ticket-triage, draft-response, kb-article, customer-escalation, customer-research. Installs connections to hosted services (Slack, Intercom and more), plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install customer-support@knowledge-work-plugins`
+
 5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
 6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
 

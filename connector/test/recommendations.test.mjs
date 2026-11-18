@@ -22,23 +22,26 @@ const facts = Object.fromEntries(PROFILES.map((p) => [p, pluginFacts(p, buildPlu
 
 test('the catalog: one entry per recommended plugin with every field, unique names, a known kind', () => {
   assert.deepEqual(RECOMMENDED, catalog.entries);
-  assert.deepEqual(RECOMMENDED.map((e) => e.name), ['laneconductor-parallel', 'laneconductor-board']);
+  assert.deepEqual(RECOMMENDED.slice(0, 2).map((e) => e.name), ['laneconductor-parallel', 'laneconductor-board'], 'our own entries come first');
   assert.equal(new Set(RECOMMENDED.map((e) => e.name)).size, RECOMMENDED.length);
   for (const e of RECOMMENDED) {
     assert.ok(['addon', 'skillpack', 'thirdparty'].includes(e.kind), `${e.name}: kind`);
-    for (const k of ['name', 'display', 'why', 'detect']) assert.ok(typeof e[k] === 'string' && e[k].length > 10, `${e.name}.${k}`);
+    for (const k of ['name', 'display', 'why', 'detect']) assert.ok(typeof e[k] === 'string' && e[k].length > (k === 'name' || k === 'display' ? 3 : 10), `${e.name}.${k}`);
     assert.ok(typeof e.source.marketplace === 'string' && typeof e.source.add === 'string' && typeof e.source.plugin === 'string', `${e.name}: source`);
     assert.equal(typeof e.installs_code, 'boolean', `${e.name}: installs_code`);
     if (e.installs_code) assert.ok(e.installs.length > 10, `${e.name}: says what it installs`);
+    assert.ok(!e.why.includes('\n') && e.why.length < 300, `${e.name}: why is one line`);
+  }
+  for (const e of ADDONS) {
     assert.ok(Array.isArray(e.triggers) && e.triggers.length > 0 && e.triggers.every((t) => t.length > 10), `${e.name}: triggers`);
     assert.ok(Array.isArray(e.adds) && e.adds.length > 0, `${e.name}: adds`);
-    assert.ok(!e.why.includes('\n') && e.why.length < 200, `${e.name}: why is one line`);
   }
   assert.deepEqual(ADDONS.map((e) => e.name), ['laneconductor-parallel', 'laneconductor-board']);
 });
 
 test('every plugin named anywhere in the generated text is a catalog entry (or the base itself)', () => {
   const known = new Set([...RECOMMENDED.map((e) => e.name), NAMES.base]);
+  const marketplaces = new Set([market.name, ...RECOMMENDED.map((e) => e.source.marketplace)]);
   const unknown = [];
   for (const [rel, text] of generated()) {
     for (const m of text.matchAll(/\blaneconductor-([a-z][a-z-]*)\b/g)) {
@@ -47,12 +50,12 @@ test('every plugin named anywhere in the generated text is a catalog entry (or t
     }
     for (const m of text.matchAll(/claude plugin (?:install|uninstall|update) ([a-z-]+)(?:@([a-z-]+))?/g)) {
       if (!known.has(m[1])) unknown.push(`${rel}: ${m[0]}`);
-      if (m[2] && m[2] !== market.name) unknown.push(`${rel}: marketplace ${m[2]}`);
+      if (m[2] && !marketplaces.has(m[2])) unknown.push(`${rel}: marketplace ${m[2]}`);
     }
   }
   assert.deepEqual(unknown, [], 'a plugin is named that has no entry in recommended-plugins.json');
-  // And the other way: every entry is mentioned where it should be (the funnel, the notes, the base README).
-  for (const e of RECOMMENDED) {
+  // And the other way: every add-on is mentioned where it should be (the funnel, the notes, the base README).
+  for (const e of ADDONS) {
     const skill = fs.readFileSync(path.join(BASE, 'skills/laneconductor/SKILL.md'), 'utf8');
     assert.ok(skill.includes(`\`${e.name}\``) && skill.includes(e.detect), `${e.name}: SKILL.md funnel`);
     for (const t of e.triggers) assert.ok(skill.includes(t), `${e.name}: trigger "${t}" in the funnel paragraph`);
@@ -82,12 +85,15 @@ test('the entries\' install commands match the marketplace file', () => {
 test('an entry that installs code says so plainly, everywhere the install commands are shown; installs_code matches what the folder really ships', () => {
   for (const e of RECOMMENDED) {
     const profile = PROFILES.find((p) => NAMES[p] === e.name);
-    assert.equal(facts[profile].program, e.installs_code, `${e.name}: installs_code is ${e.installs_code} but the folder ${facts[profile].program ? 'ships' : 'does not ship'} a program`);
+    if (profile) assert.equal(facts[profile].program, e.installs_code, `${e.name}: installs_code is ${e.installs_code} but the folder ${facts[profile].program ? 'ships' : 'does not ship'} a program`);
     const note = installsNote(e.name);
-    if (e.installs_code) {
+    if (e.installs_code && profile) {
       assert.match(note, /^It installs .* on your computer, from the owner's marketplace \(`meller\/laneconductor`\), not from Anthropic's directory\.$/);
       assert.ok(note.includes(e.installs));
-    } else assert.match(note, /Markdown only: it installs no program/);
+    } else if (e.installs_code) {
+      assert.match(note, /^It installs .* on your computer, from `[^`]+`, (Anthropic's official marketplace|a third-party source, not LaneConductor)\.$/, `${e.name}: a third-party program is described as third-party`);
+      assert.ok(note.includes(e.installs));
+    } else assert.match(note, /Markdown only: it (adds knowledge and )?installs no program/);
     // Every file that shows this entry's install block also carries the note, right before it.
     for (const [rel, text] of generated()) {
       if (!text.includes(installBlock(e.name))) continue;

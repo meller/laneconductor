@@ -6,7 +6,7 @@
 // the source and the reference; nothing is written by hand twice. The other commands still point at the lane guides (see the track).
 import path from 'node:path';
 
-export const INLINED_COMMANDS = ['setup', 'next', 'new-project'];
+export const INLINED_COMMANDS = ['setup', 'next', 'new-project', 'suggest-skills'];
 
 const levelOf = (line) => line.match(/^(#+) /)?.[1].length ?? 0;
 /** The heading level of each line; a `#` line inside a code fence (the templates hold many) is not a heading. */
@@ -75,6 +75,7 @@ const SOURCES = {
   setup: 'the skill file `setup/setup.md`, then the existing-repository path of `ops/new-project.md` (in "The path in detail"), with the recommendation block',
   'new-project': 'the skill file `ops/new-project.md`, in full',
   next: 'the skill file `ops/next.md`, in full, then what it needs from `ops/lanes-and-statuses.md` (in "Reference")',
+  'suggest-skills': 'the skill file `ops/suggest-skills.md`, in full, with the catalog',
 };
 const notice = (name) => `This command carries its whole procedure below: it is the text of ${SOURCES[name]}. Do not Glob or Read the plugin's install folder (\`~/.claude/plugins/...\`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the text are references only.`;
 
@@ -122,6 +123,14 @@ export function inlineBody(name, readSkill) {
       'What\'s next: `$ARGUMENTS` (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. In Claude Code, type it as `/laneconductor:next`; the commands in the card are written in that form.',
       notice('next'),
       `${detectNoGlob(next)}\n\n## Reference: lanes, statuses and transitions\n\nFrom \`ops/lanes-and-statuses.md\`; the whole reference you need for the card.\n\n${pieces}`,
+    ].join('\n\n');
+  }
+  if (name === 'suggest-skills') {
+    const text = relink(readSkill('ops/suggest-skills.md'), 'ops/suggest-skills.md').replace(/^# .*\n+/, '');
+    return [
+      'Suggest skills: `$ARGUMENTS` (nothing given means what fits the work in front of you). Read only: change no track file, install nothing and push nothing. In Claude Code, type it as `/laneconductor:suggest-skills`.',
+      notice('suggest-skills'),
+      detectNoGlob(text.replace(/\s+$/, '')),
     ].join('\n\n');
   }
   throw new Error(`inline: not an inlined command: ${name}`);

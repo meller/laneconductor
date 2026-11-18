@@ -67,6 +67,14 @@ it shows the install commands (one per bash block; the person runs them) and nev
 listings that exist mainly as advertising, so the base is useful alone and the pointers are short. The text is written once (the
 `BASE_HABITS` funnel paragraph and `ADD_ONS_MD` in `scripts/plugin-texts.mjs`).
 
+THE SKILL ADVISOR (AM-10124) is the same pattern for skills: one dated, public catalog (`connector/plugin-extras/recommended-plugins.json`: our add-ons
+and third-party skill plugins as ordinary entries, with their lanes, track Types, stack tags, level and install commands), checked by
+`node scripts/check-catalog.mjs` (offline in `npm test`; `--online` resolves every source on the public internet and must pass before an entry
+ships). The base reads no catalog file at run time: `scripts/plugin-texts.mjs` writes the entries into the lane guides, `ops/suggest-skills.md`,
+setup and `next` at build time, so the base stays Markdown and its commands carry their text. It detects what is installed (the session's skills
+list, `claude plugin list`, `.claude/skills` and `~/.claude/skills`), offers only what is missing in plain text, and never runs an install. No
+connector tool was added for it (the tool descriptions are at the size limit).
+
 The commands and agents of the add-ons use the connector's tools; the base's fall back to editing the track files directly. Hooks will not
 go into any of them: they will be a separate, opt-in extension, `laneconductor-hooks` (scripts only), not yet available, because hooks
 run on every session and tool call and must be removable by uninstalling them.

@@ -7,7 +7,7 @@ Run track `$ARGUMENTS` end to end. The guardrails are the skill file `ops/workin
 This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.
 
 1. Find the track's folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`. Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.
-2. If the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding. Show the exact dispatch, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes; It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing. One dispatch per lane, one agent per track.
+2. If the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding. Show the exact dispatch, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: sub-agents per track in worktrees, conflict-checked track writes; It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing. One dispatch per lane, one agent per track.
 3. Change state by editing the track files directly, following the skill's `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change. Ask me before any merge or push.
 4. If I ask for the board along the way, follow the `board` command; building it needs the board add-on.
 
@@ -273,6 +273,25 @@ The track's progress is derived from these checkboxes, so keep them accurate.
 - [ ] No regressions in related features
 ```
 
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule** (full procedure: `/laneconductor:suggest-skills`). Plain text, never a form, never blocking.
+- Look first: a skill is installed when it is in the session's skills list, `claude plugin list` (read only), `.claude/skills/` or `~/.claude/skills/`; an older name counts. Then say "you have `<skill>` installed, use it before writing the content" and use it.
+- Offer only what is missing and fits this lane, the track's `**Type**` (dev if none) and the stack; else say nothing. At most two, ours first, never twice in a session, never one on the declined list (`skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints).
+- One or two plain sentences (what, why here, program or only knowledge), each install command alone in its own bash block, no leading `$`.
+- `prerequisite`: ask, in the same sentence, whether to install first or carry on; otherwise a one-line tip. No answer: carry on.
+- Never run an install yourself: the person runs it, then `/reload-plugins`. "Do not ask again": after a yes, add the entry name to the declined file.
+
+Candidates for the `plan` lane (stack tags: ui, dashboard):
+
+- `frontend-design` (prerequisite; stack ui): skills frontend-design. Markdown only. `claude plugin install frontend-design@claude-plugins-official`
+- `marketing-skills` (prerequisite; Type marketing/sales): skills content-strategy, launch (was launch-strategy), prospecting, revops, analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
+- `superpowers`: skills brainstorming, writing-plans. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+- `customer-support` (Type support): skills ticket-triage, customer-research. Installs connections to hosted services (Slack, Intercom and more), plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install customer-support@knowledge-work-plugins`
+- `data` (stack dashboard): skills build-dashboard, data-visualization. Installs connections to hosted data services, plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install data@knowledge-work-plugins`
+
 #### Skills that help here
 
 These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
@@ -331,10 +350,11 @@ commits go.
    - TDD is recommended because `test.md` is written for it: per phase, write the test, watch it
      fail, write the minimal code, watch it pass.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
-   - Check `.claude/skills/` for recommended skills (marketing: `social-content`, `copywriting`,
-     `content-strategy`, `launch-strategy`; sales: `sales-enablement`, `cold-email`). Print
-     `⚠️ Track type '<type>' works best with [skill] - not found in .claude/skills/` for each
-     missing one and `💡 Invoke /[skill] before writing content` for each present one.
+   - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
+     `ab-testing`; sales: `sales-enablement`, `cold-email`, `prospecting`, `revops`; support: `ticket-triage`, `draft-response`,
+     `kb-article`). A skill is installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or
+     `~/.claude/skills/` (an older name counts: `social-content`, `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one
+     installed, say "you have `<skill>` installed, use it before writing the content". Offer the missing ones as "Offer a missing skill" says.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
      `### Publish Instructions` to the user.
    - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
@@ -385,6 +405,23 @@ commits go.
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in `ops/lanes-and-statuses.md`, never by feel. On exit, `**Lane Status**`
 should end as `success` or `queue` according to the outcome.
+
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule**: as in the first lane guide above.
+
+Candidates for the `implement` lane (stack tags: ui, firebase, cloudflare, dashboard):
+
+- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor`
+- `frontend-design` (prerequisite; stack ui): skills frontend-design. Markdown only. `claude plugin install frontend-design@claude-plugins-official`
+- `marketing-skills` (prerequisite; Type marketing/sales): skills copywriting, social (was social-content), sales-enablement, cold-email. Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
+- `superpowers`: skills test-driven-development, systematic-debugging, subagent-driven-development, using-git-worktrees. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+- `firebase` (stack firebase): Firebase tools: Firestore, auth, functions, hosting, and hosting deploys. Installs an MCP server (firebase-tools, via npx) that can change your Firebase project. `claude plugin install firebase@claude-plugins-official`
+- `cloudflare` (stack cloudflare): skills cloudflare. Installs a connection to Cloudflare's hosted MCP server, plus skills. `claude plugin marketplace add cloudflare/skills`, `claude plugin install cloudflare@cloudflare`
+- `customer-support` (Type support): skills ticket-triage, draft-response, kb-article, customer-escalation. Installs connections to hosted services (Slack, Intercom and more), plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install customer-support@knowledge-work-plugins`
+- `data` (stack dashboard): skills build-dashboard, create-viz, data-visualization. Installs connections to hosted data services, plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install data@knowledge-work-plugins`
 
 #### Skills that help here
 
@@ -440,6 +477,18 @@ the implement lane's retry loop, so write them up as gaps instead.
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
+
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule**: as in the first lane guide above.
+
+Candidates for the `review` lane:
+
+- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor`
+- `superpowers`: skills requesting-code-review, receiving-code-review. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+- `pr-review-toolkit`: skills review-pr. Markdown only. `claude plugin install pr-review-toolkit@claude-plugins-official`
 
 #### Skills that help here
 
@@ -559,6 +608,19 @@ code is on `main`.
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
 
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule**: as in the first lane guide above.
+
+Candidates for the `quality-gate` lane (stack tags: ui):
+
+- `marketing-skills` (prerequisite; Type marketing/sales): skills analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
+- `superpowers`: skills systematic-debugging, verification-before-completion. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+- `security-guidance`: security warnings on edits and a diff review when a turn ends. Installs a Python hook script that checks edits. `claude plugin install security-guidance@claude-plugins-official`
+- `playwright` (stack ui): drives a real browser to check a UI flow and take screenshots. Installs an MCP server (Node.js, via npx) that drives a browser. `claude plugin install playwright@claude-plugins-official`
+
 #### Skills that help here
 
 These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
@@ -641,6 +703,16 @@ quality-gate. Write no feature code here; the only code changes it should make a
 to resolve a conflict between the track branch and `main`. `workflow.json` stays the authority
 for target lanes (how a target is read, and `done:queue` against `done:success`, is in
 `ops/lanes-and-statuses.md`).
+
+#### Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+**Offer rule**: as in the first lane guide above.
+
+Candidates for the `merge` lane:
+
+- `superpowers`: skills finishing-a-development-branch. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
 
 #### Skills that help here
 

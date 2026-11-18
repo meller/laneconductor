@@ -22,6 +22,12 @@ An optional deepening step before implement: ask the human clarifying questions 
    implies at least one test case (or the human says "go ahead"), run the plan lane on the
    track: it reads `conversation.md` and updates `spec.md`, `plan.md` and `test.md` from the dialogue.
 
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+<!-- generated: skill offers for this lane -->
+
 ## Skills that help here
 
 These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill

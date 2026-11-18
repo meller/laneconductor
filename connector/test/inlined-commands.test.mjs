@@ -16,8 +16,8 @@ const src = (rel) => fs.readFileSync(path.join(SKILL, rel), 'utf8');
 const NO_READ = [...new Set([...INLINED_COMMANDS, ...REFERENCE_COMMANDS])].filter((n) => !BOARD_SCRIPT_COMMANDS.includes(n));
 const withoutNotice = (t) => t.split('\n\n').filter((p) => !p.startsWith('This command carries')).join('\n\n');
 
-test('exactly setup, next and new-project are inlined', () => {
-  assert.deepEqual([...INLINED_COMMANDS].sort(), ['new-project', 'next', 'setup']);
+test('exactly setup, next, new-project and suggest-skills are inlined', () => {
+  assert.deepEqual([...INLINED_COMMANDS].sort(), ['new-project', 'next', 'setup', 'suggest-skills']);
   for (const f of fs.readdirSync(path.join(BASE, 'commands'))) {
     const n = f.replace(/\.md$/, '');
     assert.equal(cmd(n).includes('This command carries its whole procedure below'), INLINED_COMMANDS.includes(n), n);
@@ -28,7 +28,7 @@ test('setup carries the interview, the existing-repository path, the permission 
   const t = cmd('setup');
   for (const part of ['## What setup does', '## What else fits this project', '## setup scaffold', '## The path in detail', '#### Existing repository', '### Create the files',
     'Reply ok, or tell me what differs', 'Write nothing until that reply', 'allows it this one time', 'Never ask anyone to change their permission settings',
-    'Starter set: reserved for the skill advisor', 'Next: run `/laneconductor:next`']) {
+    'offer a STARTER SET', 'Next: run `/laneconductor:next`']) {
     assert.ok(t.includes(part), `setup lacks: ${part}`);
   }
   assert.ok(t.includes(setupRecommendBlock().split('\n').slice(0, 3).join('\n')), 'the generated recommendation block is inlined');
@@ -73,7 +73,7 @@ test('no command that carries its text tells the model to read or search a plugi
     for (const m of t.matchAll(/`((?:ops|lanes|setup|deploy)\/[A-Za-z0-9._-]+)`/g)) assert.ok(fs.existsSync(path.join(BASE, 'skills/laneconductor', m[1])), `${n} names ${m[1]}, which does not ship`);
   }
   assert.match(cmd('setup'), /Do not Glob or Read the plugin's install folder/);
-  assert.ok(NO_READ.length === 19, `${NO_READ.length} commands carry their text`);
+  assert.ok(NO_READ.length === 20, `${NO_READ.length} commands carry their text`);
 });
 
 test('the inlined bodies are built from the shipped skill: change the source and the command changes (no hand-written copy)', () => {
@@ -85,7 +85,7 @@ test('the inlined bodies are built from the shipped skill: change the source and
 });
 
 test('every skill file a command names is carried in the command: under Reference, or as the source of its body', () => {
-  const carried = new Set(['setup/setup.md', 'ops/new-project.md', 'ops/next.md', 'ops/lanes-and-statuses.md']); // sources of the three full bodies
+  const carried = new Set(['setup/setup.md', 'ops/new-project.md', 'ops/next.md', 'ops/lanes-and-statuses.md', 'ops/suggest-skills.md']); // sources of the full bodies
   for (const f of fs.readdirSync(path.join(BASE, 'commands'))) {
     const n = f.replace(/\.md$/, '');
     const t = cmd(n);

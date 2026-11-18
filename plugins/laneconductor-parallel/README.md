@@ -4,7 +4,7 @@ LaneConductor Parallel is an optional add-on for LaneConductor, which keeps a pr
 track under `conductor/tracks/`). It lets several Claude sessions, people or sub-agents work on tracks at the same time without
 overwriting each other, each track in its own git worktree.
 
-Version 1.7.0. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory, and it has no
+Version 1.8.0. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory, and it has no
 dependency on the base plugin: it works alone (its tools and the sub-agent), and best together with the base `laneconductor`.
 
 | Plugin | Provides |
@@ -29,7 +29,7 @@ connector's tools and prompts and the subagent still work.
 
 ## Install
 
-It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

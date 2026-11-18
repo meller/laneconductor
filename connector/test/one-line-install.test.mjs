@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, NAMES, PROFILES, RECOMMENDED, ADDONS, CATALOG_REL, buildPlugin, setupRecommendBlock } from '../../scripts/build-plugin.mjs';
-import { FULL_INSTALL, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
+import { STARTER, FULL_INSTALL, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
 
 const catalog = JSON.parse(fs.readFileSync(path.join(REPO, CATALOG_REL), 'utf8'));
 const market = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin/marketplace.json'), 'utf8'));
@@ -55,7 +55,7 @@ test('the shared setup/next block carries addons_install alone in its own bash f
   assert.match(block, /never run an install command yourself/);
   assert.match(block, /install nothing unless the person says yes/);
   assert.ok(!/\b(now|then|please)\s+run\s+`?claude plugin/i.test(block));
-  for (const e of RECOMMENDED) assert.ok(block.includes(`claude plugin install ${e.source.plugin}@${e.source.marketplace}`), `the per-add-on commands stay (${e.name})`);
+  for (const e of STARTER) assert.ok(block.includes(`claude plugin install ${e.source.plugin}@${e.source.marketplace}`), `the per-entry commands stay (${e.name})`);
 });
 
 test('the block is for the case where BOTH add-ons are missing; with one add-on the offer is the single one and adds nothing', () => {
@@ -66,7 +66,7 @@ test('the block is for the case where BOTH add-ons are missing; with one add-on 
   // a catalog with a single add-on offers no combined line
   const one = setupRecommendBlock(RECOMMENDED.slice(0, 1));
   assert.ok(!one.includes('Both add-ons in one line') && !bashFences(one).includes(ADDONS_INSTALL));
-  assert.equal(bashFences(one).length, 2, 'only the two per-add-on commands');
+  assert.equal(bashFences(one).length, 0, 'the per-add-on commands are inline code, there is no combined fence');
   // a catalog where the second entry is a skill pack, not an add-on, offers none either
   const withPack = setupRecommendBlock([RECOMMENDED[0], { ...RECOMMENDED[1], kind: 'skillpack' }]);
   assert.ok(!withPack.includes('Both add-ons in one line'));
@@ -76,13 +76,14 @@ test('the generated texts carry the block: ops/next.md (S02-S04 through "The fro
   const files = ['skills/laneconductor/ops/next.md', 'skills/laneconductor/setup/setup.md', 'skills/laneconductor/ops/new-project.md', 'commands/setup.md', 'commands/next.md', 'commands/new-project.md'];
   for (const f of files) {
     const text = generated(`${RELS.base}/${f}`);
-    const both = setupRecommendBlock().slice(setupRecommendBlock().indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
+    const shared = f.includes('next') ? setupRecommendBlock(ADDONS) : setupRecommendBlock(); // next keeps the add-ons offer of the front door; setup and new-project carry the starter set
+    const both = shared.slice(shared.indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
     assert.ok(text.includes(both), `${f} carries the one-line part of the shared block`);
-    if (f.startsWith('skills/')) assert.ok(text.includes(setupRecommendBlock()), `${f} carries the shared block`);
+    if (f.startsWith('skills/')) assert.ok(text.includes(shared), `${f} carries the shared block`);
     assert.ok(text.includes(`Both add-ons in one line:\n\n\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``), f);
   }
   const source = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops/next.md'), 'utf8');
-  assert.ok(!source.includes('claude plugin') && !source.includes('Both add-ons in one line'), 'the source ops/next.md has the block only through the marker');
+  assert.ok(!/claude plugin (install|marketplace)/.test(source) && !source.includes('Both add-ons in one line'), 'the source ops/next.md has the block only through the marker');
   const added = setupRecommendBlock().split('When BOTH add-ons')[1];
   assert.ok(!/\bAM-\d+|\btrack \d{3,}/i.test(added), 'no track number in the added text');
 });

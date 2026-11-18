@@ -44,10 +44,11 @@ commits go.
    - TDD is recommended because `test.md` is written for it: per phase, write the test, watch it
      fail, write the minimal code, watch it pass.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
-   - Check `.claude/skills/` for recommended skills (marketing: `social-content`, `copywriting`,
-     `content-strategy`, `launch-strategy`; sales: `sales-enablement`, `cold-email`). Print
-     `⚠️ Track type '<type>' works best with [skill] - not found in .claude/skills/` for each
-     missing one and `💡 Invoke /[skill] before writing content` for each present one.
+   - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
+     `ab-testing`; sales: `sales-enablement`, `cold-email`, `prospecting`, `revops`; support: `ticket-triage`, `draft-response`,
+     `kb-article`). A skill is installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or
+     `~/.claude/skills/` (an older name counts: `social-content`, `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one
+     installed, say "you have `<skill>` installed, use it before writing the content". Offer the missing ones as "Offer a missing skill" says.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
      `### Publish Instructions` to the user.
    - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
@@ -98,6 +99,12 @@ commits go.
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md), never by feel. On exit, `**Lane Status**`
 should end as `success` or `queue` according to the outcome.
+
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
+
+<!-- generated: skill offers for this lane -->
 
 ## Skills that help here
 
