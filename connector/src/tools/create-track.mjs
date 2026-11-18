@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
-import { baseMarkers, projectField, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity } from './common.mjs';
+import { baseMarkers, projectField, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
 import { buildTrackFiles, defaultInitials, nextNumber } from '../tracks.mjs';
 import { blobSha } from '../blob.mjs';
+import { nearestLane } from '../vocabulary.mjs';
 
 const input = z.object({
   project: projectField,
@@ -29,10 +30,12 @@ export const createTrack = {
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await store.transaction(async (tx) => {
         const dirs = (await tx.listDir(TRACKS_DIR)).filter((e) => e.type === 'dir').map((e) => e.name);
+        // A project that names its planning lane otherwise (otralingo: `planning`) gets that name, not `plan`.
+        const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
         const number = nextNumber(dirs, await tx.upstreamDirs?.(TRACKS_DIR) ?? []);
         const t = buildTrackFiles({
           number, initials: defaultInitials(dirs, args.author_initials), title: args.title, problem: args.problem,
-          type: args.type ?? 'dev', trackKind: args.track_kind, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,
+          type: args.type ?? 'dev', trackKind: args.track_kind, lane: initialLane, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,
         });
         const changes = FILE_NAMES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
         const preconditions = changes.map((c) => ({ path: c.path, sha: null }));
@@ -40,7 +43,7 @@ export const createTrack = {
         if (sum) changes.push(sum);
         const msg = `chore(track-${number}): create_track ${changes.map((c) => c.path.split('/').pop()).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
         const r = await tx.commitFiles({ preconditions, changes, message: msg });
-        return { r, t, number, msg };
+        return { r, t, number, msg, lane: initialLane };
       });
       if (!res.r.ok) {
         lastConflict = res.r.conflict;
@@ -63,7 +66,7 @@ export const createTrack = {
           },
         },
         warnings,
-        summary: `Created track ${res.t.id} (${res.t.folder}) in lane plan.`,
+        summary: `Created track ${res.t.id} (${res.t.folder}) in lane ${res.lane}.`,
       };
     }
     throw fail('NUMBER_COLLISION', 'Could not allocate a free track number after 3 attempts', { details: lastConflict, hint: 'Another session is creating tracks at the same time; retry.' });

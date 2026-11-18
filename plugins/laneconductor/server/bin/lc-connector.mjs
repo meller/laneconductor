@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createConnectorServer } from '../src/server.mjs';
+import { installProcessGuards } from '../src/process-guards.mjs';
 import { readPushPolicy } from '../src/push-policy.mjs';
 import { resolveRepoSource } from '../src/repo-source.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
@@ -49,20 +50,26 @@ const USAGE = `Usage: lc-connector.mjs [--repo <path>]... [--state-branch <branc
                          the current branch if it is main or master; else main. Writes are refused on any other branch.
 `;
 
+// Uncaught errors are logged and the server keeps serving; every exit leaves a reason line (track AM-10128).
+const guards = installProcessGuards({ log: err });
+
 let args;
 try {
   args = parseArgs(process.argv.slice(2));
 } catch (e) {
   err(e.message);
   process.stderr.write(USAGE);
+  guards.exitBecause('bad arguments');
   process.exit(2);
 }
 if (args.help) {
   process.stderr.write(USAGE);
+  guards.exitBecause('--help');
   process.exit(0);
 }
 if (args.version) {
   process.stderr.write(`${pkg.version}\n`);
+  guards.exitBecause('--version');
   process.exit(0);
 }
 
@@ -73,11 +80,13 @@ try {
   err(`repo ${repos.join(', ')} (chosen by ${{ flag: '--repo flag', env: 'CLAUDE_PROJECT_DIR', cwd: 'current directory' }[resolved.source]})`);
 } catch (e) {
   err(e.message);
+  guards.exitBecause('no repository to serve');
   process.exit(2);
 }
 for (const r of repos) {
   if (!fs.existsSync(r) || !fs.statSync(r).isDirectory()) {
     err(`--repo ${r} is not a directory`);
+    guards.exitBecause(`--repo ${r} is not a directory`);
     process.exit(2);
   }
 }
@@ -94,13 +103,17 @@ const stores = repos.map((repo) => {
   }
   return new LocalGitStore({ repo, stateBranch: sb.branch, stateBranchSource: sb.source, pushPolicy: policy });
 });
-if (badConfig) process.exit(2);
+if (badConfig) {
+  guards.exitBecause('invalid state-branch configuration');
+  process.exit(2);
+}
 err(`v${pkg.version} serving ${repos.join(', ')} (state branch ${stores.map((s) => s.stateBranch).join(', ')}; push policy ${stores.map((s) => s.pushPolicy).join(', ')})`);
 
 const handle = serveStdio(() => createConnectorServer({ stores, version: pkg.version }), { onerror: (e) => err(String(e?.stack ?? e)) });
-const shutdown = () => {
+const shutdown = (why) => {
+  guards.exitBecause(why);
   Promise.resolve(handle?.close?.()).finally(() => process.exit(0));
 };
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-process.stdin.on('end', shutdown);
+process.on('SIGINT', () => shutdown('signal SIGINT'));
+process.on('SIGTERM', () => shutdown('signal SIGTERM'));
+process.stdin.on('end', () => shutdown('the client closed stdin (the connection ended)'));

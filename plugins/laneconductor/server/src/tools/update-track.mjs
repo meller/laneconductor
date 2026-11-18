@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
-import { markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
+import { STATUSES, markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
 import { resolveTrack } from '../tracks.mjs';
+import { suggestFor } from '../vocabulary.mjs';
 import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
 
 const MAX_FILE_CHARS = 200_000;
@@ -88,8 +89,17 @@ export const updateTrack = {
         next.index = idx;
       }
       if (next.index !== undefined) {
-        const problems = validateIndex(next.index, await workflowLanes(tx));
-        if (problems.length) throw fail('VALIDATION_FAILED', `index.md would be invalid: ${problems.join('; ')}`, { hint: 'Lane must be a lane from workflow.json (or backlog); Lane Status one of queue, running, success, failure, waiting.' });
+        const lanes = await workflowLanes(tx);
+        const problems = validateIndex(next.index, lanes);
+        if (problems.length) {
+          // Name the nearest valid lane or status (otralingo: `implement` or `in_progress` against lanes planning, in-progress ...).
+          const suggestions = suggestFor(parseMarkers(next.index).values, lanes);
+          const said = Object.entries(suggestions).map(([k, v]) => `${k}: did you mean "${v}"?`);
+          throw fail('VALIDATION_FAILED', `index.md would be invalid: ${problems.join('; ')}${said.length ? `. ${said.join(' ')}` : ''}`, {
+            details: { valid_lanes: [...new Set([...lanes, 'backlog'])], valid_statuses: STATUSES, ...(said.length ? { suggestions } : {}) },
+            hint: `Lane must be one of this project's lanes (${[...new Set([...lanes, 'backlog'])].join(', ')}); Lane Status one of ${STATUSES.join(', ')}.${said.length ? ` Suggested: ${Object.entries(suggestions).map(([k, v]) => `${k} = ${v}`).join(', ')}.` : ''}`,
+          });
+        }
       }
       const changed = Object.keys(next).filter((n) => next[n] !== (curOf(n)?.content ?? null));
       const number = trackIdentity(folder, indexNow).number;

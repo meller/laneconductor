@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
-import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity } from './common.mjs';
+import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
 const input = z.object({
   project: projectField,
@@ -50,6 +50,7 @@ export const getTrack = {
       files,
       conversation: conv,
       base: { commit: head.commit, files: baseFiles, markers: baseMarkers(indexContent) },
+      valid: await workflowVocabulary(store),
     };
 
     // REQ-18 budget. Order once over: conversation entries (oldest first), then test, plan, spec, index.

@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { countUnparsedLines, parseEntries } from '../conversation.mjs';
 import { fail } from '../errors.mjs';
-import { markerFingerprint, parseMarkers } from '../markers.mjs';
+import { LANES } from '../guides.mjs';
+import { STATUSES, markerFingerprint, parseMarkers } from '../markers.mjs';
 import { SUMMARY_PATH, generateSummary, summaryStamp } from '../summary.mjs';
 import { isTrackFolder, resolveTrack, trackIdentity } from '../tracks.mjs';
+import { guideLaneMap } from '../vocabulary.mjs';
 
 export const TRACKS_DIR = 'conductor/tracks';
 export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
@@ -38,6 +40,16 @@ export async function workflowLanes(store) {
   } catch {
     return fallback;
   }
+}
+
+/**
+ * What a write may use here, so the first write succeeds: this project's lanes (workflow.json, plus `backlog`), the fixed statuses, and
+ * which lane of this project each skill lane guide stands for (`implement` -> `in-progress` in a project that names it so). Additive
+ * field `valid` of get_track and get_context.
+ */
+export async function workflowVocabulary(store) {
+  const lanes = [...new Set([...(await workflowLanes(store)), 'backlog'])];
+  return { lanes, statuses: STATUSES, guide_lanes: guideLaneMap(LANES, lanes) };
 }
 
 /** Marker values as `base.markers` carries them (long values fingerprinted). */
