@@ -116,6 +116,7 @@ How to offer one:
   never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
 - Say plainly what it installs, from the note under its name.
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
+- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
 
 ${list}`;
 };
