@@ -1,11 +1,14 @@
-# Tests: Track 10143 - search first, the default is update, not create
+# Tests: Track 10143 - search first; allocation across branches; duplicate repair
 
-Run: `cd connector && npm test` (418 tests pass at commit 83199fe1; new file connector/test/search-first.test.mjs).
+Run: `cd connector && npm test`.
 
-- [x] TC-1: create_track in a fixture where the new work matches an existing track returns it in `similar_tracks` (number, title, lane, lane_status) and a warning; the track is still created
-- [x] TC-2: create_track where nothing matches returns an empty `similar_tracks` and no similar-track warning
-- [x] TC-3: create_track where only a done track matches lists it, with lane `done`
-- [x] TC-4: at most 5 similar tracks, best match first
-- [x] TC-5: the `new`, `bug` and `feature` procedures contain the search-first step, the default-yes question, the line that create is the fallback, and name the backlog lane
-- [x] TC-6: ops/tracks.md and the lane guides carry the rule and a way to list without the connector; the base plugin still passes base-no-daemon-text
-- [x] TC-7: KC-8 context budget test passes
+Pass 1 (shipped, connector/test/search-first.test.mjs):
+- [x] TC-1 to TC-7: similar_tracks match, no match, done-only, at most 5, command text, ops text, KC-8.
+
+Pass 2 (connector/test/create-branches.test.mjs):
+- [x] TC-8: `duplicateNumbers` reports one number under different folder names only.
+- [x] TC-9: a number that exists only on another local branch is not handed out (40 on a branch, new track is 41).
+- [x] TC-10: a number on a remote-tracking ref counts (77 on origin/feature, new track is 78).
+- [x] TC-11: the same number under different folders on two branches is a create_track warning that names the repair command.
+- [x] TC-12: the `repair-duplicates` command text asks first (default yes), renames the newer folder with git mv, never pushes, uses explicit paths; commands and coverage tests list it.
+- [ ] TC-13: possibly_stale only-ahead noise (skipped, not built).

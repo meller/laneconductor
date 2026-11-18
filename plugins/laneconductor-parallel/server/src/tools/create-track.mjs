@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
 import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
-import { buildTrackFiles, defaultInitials, nextNumber, similarTracks } from '../tracks.mjs';
+import { buildTrackFiles, defaultInitials, nextNumber, similarTracks, trackNumberOfFolder } from '../tracks.mjs';
 import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
 import { nearestLane } from '../vocabulary.mjs';
@@ -34,7 +34,12 @@ export const createTrack = {
         // A project that names its planning lane otherwise (otralingo: `planning`) gets that name, not `plan`.
         const similar = similarTracks((await readEntries(tx)).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
         const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
-        const number = nextNumber(dirs, await tx.upstreamDirs?.(TRACKS_DIR) ?? []);
+        const upstream = await tx.upstreamDirs?.(TRACKS_DIR) ?? [];
+        const number = nextNumber(dirs, upstream);
+        // Track AM-10136: a dependency on a track that does not exist can never be met, so it is refused instead of parked forever.
+        const known = new Set([...dirs, ...upstream].map(trackNumberOfFolder).filter((n) => n !== null).map(String));
+        const unknown = dependsOn.filter((d) => !known.has(String(Number(d))));
+        if (unknown.length) throw fail('VALIDATION_FAILED', `depends_on names track${unknown.length > 1 ? 's' : ''} that do not exist: ${unknown.join(', ')}`, { details: { unknown_dependencies: unknown }, hint: 'Check the number with list_tracks. Create the track it depends on first, or leave depends_on out and say so in the problem text.' });
         const t = buildTrackFiles({
           number, initials: defaultInitials(dirs, args.author_initials), title: args.title, problem: args.problem,
           type: args.type ?? 'dev', trackKind: args.track_kind, lane: initialLane, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,

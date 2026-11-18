@@ -3,10 +3,13 @@ import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
 import { STATUSES, markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
 import { resolveTrack } from '../tracks.mjs';
-import { suggestFor } from '../vocabulary.mjs';
-import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, readWorkflow, resolveOutcome, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
+import { dependenciesOf, dependencyState } from '../dependencies.mjs';
+import { rowOf } from '../summary.mjs';
+import { nearestLane, suggestFor } from '../vocabulary.mjs';
+import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, readEntries, readWorkflow, resolveOutcome, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
 
 const MAX_FILE_CHARS = 200_000;
+const PARKING_MARKERS = ['Waiting Reason', 'Waiting On Tracks'];
 
 const baseSchema = z.object({
   commit: z.string(),
@@ -27,6 +30,27 @@ const input = z.object({
   outcome: z.enum(['success', 'failure']).optional().describe('Finished lane action: apply the workflow move (valid.next).'),
 });
 
+/** Track AM-10136: advice about parking and claiming, as warnings (never a refusal: a person may have a reason). */
+async function parkingAdvice(tx, folder, before, after, statusSet) {
+  const out = [];
+  const was = parseMarkers(before).values;
+  const now = parseMarkers(after).values;
+  const status = (now['Lane Status'] ?? '').trim();
+  const lane = (now['Lane'] ?? '').trim();
+  if (status === 'waiting' && lane !== 'done' && !(now['Waiting Reason'] ?? '').trim() && (statusSet || (was['Lane Status'] ?? '').trim() !== 'waiting')) {
+    out.push('Lane Status is waiting but there is no **Waiting Reason**. Add one line saying what unblocks the track (and **Waiting On Tracks** when it waits for tracks), so a person can tell why it is parked.');
+  }
+  if (status === 'running' && (was['Lane Status'] ?? '').trim() !== 'running') {
+    const row = rowOf(folder, { content: after });
+    if (dependenciesOf(row).length) {
+      const rows = (await readEntries(tx)).map((e) => (e.folder === folder ? row : rowOf(e.folder, e.index)));
+      const blocked = dependencyState(rows).get(row.number)?.blocked_by ?? [];
+      if (blocked.length) out.push(`This track depends on ${blocked.join(', ')}, which ${blocked.length === 1 ? 'is' : 'are'} not done:success yet. Claiming it now works on unmerged ground; park it with **Waiting On Tracks** if that is not intended.`);
+    }
+  }
+  return out;
+}
+
 export const updateTrack = {
   name: 'update_track',
   title: 'Update a track',
@@ -45,6 +69,12 @@ export const updateTrack = {
       if ('Summary' in markerEdits) throw fail('VALIDATION_FAILED', 'Give the summary either as `summary` or as markers.Summary, not both');
       markerEdits['Summary'] = args.summary;
     }
+    if ('Verdict' in markerEdits && markerEdits['Verdict'] !== null) {
+      // Track AM-10137: the daemon only ever read `pass` or `fail`; anything else is an unroutable verdict, so it is refused on write.
+      const v = String(markerEdits['Verdict']).trim().toLowerCase();
+      if (v !== 'pass' && v !== 'fail') throw fail('VALIDATION_FAILED', `Verdict must be pass or fail (got ${JSON.stringify(markerEdits['Verdict'])})`, { hint: 'Set Verdict to pass or fail, or to null to clear it. Put findings in conversation.md.' });
+      markerEdits['Verdict'] = v;
+    }
     if (files.conversation !== undefined) throw fail('VALIDATION_FAILED', 'conversation.md cannot be replaced', { hint: 'Use append_conversation; it is append-only and formats the entry for you.' });
     const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined);
     let markerNames = Object.keys(markerEdits);
@@ -52,7 +82,9 @@ export const updateTrack = {
     if (files.index !== undefined && markerNames.length) throw fail('VALIDATION_FAILED', 'files.index and markers cannot be combined', { hint: 'Either replace index.md whole, or set individual markers.' });
     for (const n of fileNames) if (files[n].length > MAX_FILE_CHARS) throw fail('VALIDATION_FAILED', `${n}.md is ${files[n].length} characters; the limit is ${MAX_FILE_CHARS}`);
 
+    const advisories = [];
     const res = await store.transaction(async (tx) => {
+      advisories.length = 0;
       const dirs = (await tx.listDir(TRACKS_DIR)).filter((e) => e.type === 'dir').map((e) => e.name);
       const folder = resolveTrack(dirs, args.track);
       if (!(await tx.isAncestor(base.commit))) {
@@ -78,6 +110,7 @@ export const updateTrack = {
       // refusal (the caller's picture of the lane is wrong, so "no move from here" may not even be true).
       let transition = null;
       let refusal = null;
+      const derived = new Set(); // markers the outcome adds or clears by itself: not the caller's picture, so not a conflict
       if (args.outcome !== undefined) {
         if (!curOf('index')) throw fail('TRACK_NOT_FOUND', `${folder} has no index.md to move`);
         const wf = await readWorkflow(tx);
@@ -90,11 +123,29 @@ export const updateTrack = {
         } else {
           transition = { outcome: args.outcome, from: r.lane, to: `${r.next.lane}:${r.next.status}` };
           markerEdits = { ...markerEdits, Lane: r.next.lane, 'Lane Status': r.next.status };
+          // Track AM-10137: the review and quality-gate lanes produce a verdict, and the outcome IS that verdict (an explicit Verdict wins).
+          if (nearestLane(r.lane, ['review', 'quality-gate']) && !('Verdict' in markerEdits)) {
+            markerEdits['Verdict'] = args.outcome === 'success' ? 'pass' : 'fail';
+            transition.verdict = markerEdits['Verdict'];
+            derived.add('Verdict');
+          }
           markerNames = Object.keys(markerEdits);
         }
         if (refusal) markerNames = [...new Set([...markerNames, 'Lane', 'Lane Status'])];
       }
+      // Track AM-10136: Waiting Reason and Waiting On Tracks only mean something while Lane Status is waiting, so any write that sets
+      // another status (outcome included) takes them off, unless the caller sets them in the same call.
+      const settingStatus = typeof markerEdits['Lane Status'] === 'string' ? markerEdits['Lane Status'].trim() : null;
+      if (!refusal && settingStatus !== null && settingStatus !== 'waiting') {
+        const parked = PARKING_MARKERS.filter((n) => n in curMarkers && !(n in markerEdits));
+        for (const n of parked) { markerEdits[n] = null; derived.add(n); }
+        if (parked.length) {
+          if (transition) transition.cleared = parked;
+          markerNames = Object.keys(markerEdits);
+        }
+      }
       for (const name of markerNames) {
+        if (derived.has(name)) continue;
         const b = base.markers[name];
         const c = curMarkers[name];
         if (b !== c) conflicts.push({ marker: name, base: b ?? null, current: c ?? null });
@@ -128,6 +179,7 @@ export const updateTrack = {
           });
         }
       }
+      if (next.index !== undefined) advisories.push(...(await parkingAdvice(tx, folder, indexNow, next.index, 'Lane Status' in markerEdits)));
       const changed = Object.keys(next).filter((n) => next[n] !== (curOf(n)?.content ?? null));
       const number = trackIdentity(folder, indexNow).number;
       if (changed.length === 0) return { folder, changed, number, noop: true, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
@@ -171,7 +223,7 @@ export const updateTrack = {
         }
       }
     }
-    const warnings = [];
+    const warnings = [...advisories];
     if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
     if (res.r?.commitError) warnings.push(`Written to disk but NOT committed: ${res.r.commitError}`);
     return {

@@ -9,10 +9,12 @@ export const SUMMARY_PATH = 'conductor/tracks-summary.md';
 const STAMP_RE = /^Generated: (\S+)$/m;
 const SOURCE_CHARS = 12;
 
+const numbersOf = (text) => (text ?? '').split(/[,\s]+/).map((s) => s.replace(/^[A-Za-z]+-/, '')).filter((s) => /^\d+$/.test(s));
+
 /** One track's row from its folder name and index.md `{ content, sha }` (null when the file is missing). */
 export function rowOf(folder, idx) {
   const ident = trackIdentity(folder, idx?.content ?? '');
-  if (!idx) return { number: ident.number, id: ident.id, folder, title: ident.title, lane: null, lane_status: null, progress: null, phase: null, type: null, summary: '', waiting_for_reply: false, depends_on: [], source: null };
+  if (!idx) return { number: ident.number, id: ident.id, folder, title: ident.title, lane: null, lane_status: null, progress: null, phase: null, type: null, summary: '', waiting_for_reply: false, depends_on: [], waiting_on: [], source: null };
   const v = parseMarkers(idx.content).values;
   const progress = parseInt(v['Progress'] ?? '', 10);
   return {
@@ -27,7 +29,8 @@ export function rowOf(folder, idx) {
     type: v['Type']?.trim() ?? null,
     summary: (v['Summary'] ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
     waiting_for_reply: (v['Waiting for reply'] ?? '').trim().toLowerCase() === 'yes',
-    depends_on: (v['Depends On'] ?? '').split(/[,\s]+/).map((s) => s.replace(/^[A-Za-z]+-/, '')).filter((s) => /^\d+$/.test(s)),
+    depends_on: numbersOf(v['Depends On']),
+    waiting_on: numbersOf(v['Waiting On Tracks']),
     source: (idx.sha ?? blobSha(idx.content)).slice(0, SOURCE_CHARS),
   };
 }
@@ -45,6 +48,9 @@ export function lintTracks(entries, rows, lanes) {
     const problems = e.index ? validateIndex(e.index.content, lanes) : ['no index.md'];
     const same = byNumber.get(rows[i].number);
     if (same.length > 1) problems.push(`track number ${rows[i].number} is used by ${same.length} folders`);
+    // Track AM-10136: a parked track nobody can explain. A done:waiting track is a PR waiting for review, not a park.
+    const v = e.index ? parseMarkers(e.index.content).values : {};
+    if (rows[i].lane_status === 'waiting' && rows[i].lane !== 'done' && !(v['Waiting Reason'] ?? '').trim()) problems.push('Lane Status is waiting but there is no **Waiting Reason**');
     if (problems.length) out.push({ id: rows[i].id, folder: e.folder, problems });
   });
   return out;

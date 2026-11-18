@@ -133,10 +133,15 @@ skill-only session, so re-read the file yourself.
   `> **system**: <emoji> <one-line summary>.` The emoji is the very first character of the body
   (the Inbox classifies on it): `✅` success, no action needed; `⚠️` a human should look; `❌` failed.
   If an earlier step already posted a `⚠️`/`❌` comment for the outcome, that one is enough.
-- **Parking on other tracks.** To wait for tracks that have not shipped, set `**Lane Status**: waiting`
-  and `**Waiting On Tracks**: NNN, NNN`. The reconciler resumes the track once every named track is
-  `done` with a successful action (`done:queue` is not enough: it is gated but not merged). A bare
-  `**Depends On**` is not attribution; a park for a question or approval is never auto-resumed.
+- **Parking on other tracks.** To wait for tracks that have not shipped, set `**Lane Status**: waiting`,
+  `**Waiting On Tracks**: NNN, NNN` and a one-line `**Waiting Reason**` saying what unblocks it (a
+  parked track with no reason is a track nobody can explain; the connector warns about it). Nothing
+  resumes a parked track by itself: a person or an agent does, once every named track is `done:success`
+  (`done:queue` is not enough: it is gated but not merged). With the connector, `list_tracks`,
+  `get_track` and `get_context` show `blocked_by` and `ready_to_resume`, which says when that is true;
+  without it, look up each named track. To resume, set `**Lane Status**` to `queue` and remove
+  `**Waiting Reason**` and `**Waiting On Tracks**` (`update_track` removes them when it sets any status
+  other than `waiting`). A park for a question or approval is resumed by the answer, not by a track.
 
 ## Markers in index.md
 
@@ -154,8 +159,9 @@ skill-only session, so re-read the file yourself.
 | `**PR URL**` | Written by the merge lane in pr mode. |
 | `**Verdict**: pass\|fail` | Written by review and quality-gate; cleared at claim. |
 | `**Priority**: high\|normal\|low` | Optional; absent means `normal`. Read by `next` to rank candidates. |
-| `**Depends On**: NNN, NNN` | Tracks that must be `done` before a queued lane action may auto-launch. |
+| `**Depends On**: NNN, NNN` | Tracks that must be `done:success` before this one is claimed; the connector lists the unmet ones as `blocked_by` and warns when a track claims anyway. |
 | `**Waiting On Tracks**: NNN, NNN` | See parking above. |
+| `**Waiting Reason**` | One line: why the track is `waiting` and what unblocks it. Required while waiting; removed on resume. |
 
 Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): ...`,
 `docs(track-NNN): ...`; `refactor:` for changes across several tracks.

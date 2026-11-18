@@ -238,16 +238,15 @@ test('page: the loading state is in the markup and shown until the data arrives'
 test('page: a status filter whose matches are all in Done explains where they are and opens the Done list', async () => {
   const dir = makeRepo();
   cleanup.push(dir);
-  writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Done Failures' } }));
+  writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Done Shipped' } }));
   const t = (n, title, lane, status) => writeFile(dir, `conductor/tracks/AM-${n}-t${n}/index.md`, INDEX(n, title, { lane, status }));
-  for (let n = 301; n <= 315; n++) t(n, `Finished with failure ${n}`, 'done', 'failure'); // 15: more than the usual 12 rows
-  t(320, 'Fine one', 'done', 'success');
+  for (let n = 301; n <= 315; n++) t(n, `Shipped ${n}`, 'done', 'success'); // 15: more than the usual 12 rows
   t(321, 'Building', 'implement', 'running');
   commitAll(dir);
   const site = tmp('lc-site-donefail-');
   assert.equal(run(dir, '--site', site).status, 0);
   const data = JSON.parse(fs.readFileSync(path.join(site, 'board.json'), 'utf8'));
-  assert.equal(data.attn.length, 0, 'a failure in the done lane is not an attention item');
+  assert.equal(data.attn.length, 0, 'shipped work (done:success) is not an attention item');
 
   const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
   const html = fs.readFileSync(PAGE, 'utf8');
@@ -258,12 +257,12 @@ test('page: a status filter whose matches are all in Done explains where they ar
   assert.match(html, /<th>Status<\/th><th>Progress<\/th>/);
   assert.match(html, /<th>Status<\/th><th>Why<\/th>/);
 
-  const chip = ids.chips.children.find((c) => c._text === 'failure');
-  assert.ok(chip, 'a failure chip exists');
+  const chip = ids.chips.children.find((c) => c._text === 'success');
+  assert.ok(chip, 'a success chip exists');
   chip.onclick();
   const banner = ids['filter-banner'];
   assert.equal(banner.hidden, false);
-  assert.equal(banner.textContent, '15 tracks have status failure: 15 in Done');
+  assert.equal(banner.textContent, '15 tracks have status success: 15 in Done');
   const links = banner.children.filter((c) => c.tag === 'a');
   assert.deepEqual(links.map((a) => a.attrs.href), ['#done-block']);
   assert.ok(!/in lanes|Needs attention/.test(banner.textContent), 'only the places that hold matches are named');
@@ -271,8 +270,8 @@ test('page: a status filter whose matches are all in Done explains where they ar
   assert.equal(ids['done-rows'].children.length, 15);
   const first = ids['done-rows'].children[0].children;
   assert.equal(first.length, 4, 'track, title, status, progress');
-  assert.equal(first[2].children[0]._text, 'failure');
-  assert.equal(first[2].children[0].className, 'pill failure');
+  assert.equal(first[2].children[0]._text, 'success');
+  assert.equal(first[2].children[0].className, 'pill success');
   // Lane columns say "None here" and the banner explains where the matches are.
   const cols = ids.lanes.children;
   assert.equal(cols.length, 4);
