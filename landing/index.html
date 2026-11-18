@@ -1404,6 +1404,359 @@
             color: var(--ink);
         }
 
+        /* ─── WITH AND WITHOUT (side by side) ────────────────────── */
+        .wc-section {
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+        }
+
+        .wc-section .section-sub {
+            max-width: 640px;
+        }
+
+        .wc-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+            column-gap: 32px;
+        }
+
+        .wc-head {
+            margin-top: 48px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .wc-head .wc-no {
+            color: var(--ink-muted);
+        }
+
+        .wc-head .wc-yes {
+            color: var(--ink);
+        }
+
+        .wc-head .wc-yes::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 10px;
+            border-radius: 50%;
+            background: var(--purple);
+            vertical-align: 1px;
+        }
+
+        .wc-row {
+            padding-top: 40px;
+        }
+
+        .wc-row-title {
+            grid-column: 1 / -1;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
+            margin-bottom: 16px;
+        }
+
+        .wc-cell {
+            min-width: 0;
+        }
+
+        .wc-tag {
+            display: none;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .wc-without {
+            border-left: 2px dashed rgba(255, 255, 255, 0.14);
+            padding-left: 18px;
+            color: var(--ink-muted);
+            font-size: 15px;
+            line-height: 1.7;
+            align-self: start;
+        }
+
+        .wc-without p + p {
+            margin-top: 10px;
+        }
+
+        .wc-with {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-top: 2px solid var(--purple);
+            border-radius: var(--radius);
+            padding: 24px;
+            font-size: 15px;
+            line-height: 1.7;
+            color: #d4d4d8;
+        }
+
+        .wc-with > * + * {
+            margin-top: 18px;
+        }
+
+        .wc-with > .wc-tag + * {
+            margin-top: 0;
+        }
+
+        .wc-with code,
+        .wc-without code {
+            font-family: var(--font-mono);
+            font-size: 12.5px;
+            color: var(--cyan);
+            overflow-wrap: anywhere;
+        }
+
+        .wc-planned {
+            border: 1px dashed rgba(245, 158, 11, 0.45);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--ink-muted);
+            line-height: 1.6;
+        }
+
+        .wc-planned.wc-plain {
+            border: 0;
+            padding: 0;
+        }
+
+        .wc-planned strong {
+            color: var(--amber);
+            font-weight: 700;
+        }
+
+        /* files: tree and excerpts */
+        .wc-files {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .wc-file {
+            min-width: 0;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .wc-file-name {
+            padding: 7px 14px;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--ink-muted);
+            overflow-wrap: anywhere;
+        }
+
+        .wc-doc {
+            padding: 12px 14px;
+            font-family: var(--font-mono);
+            font-size: 12.5px;
+            line-height: 1.65;
+            color: var(--ink);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .wc-doc .h {
+            color: #c4b5fd;
+            font-weight: 700;
+        }
+
+        .wc-doc .dim {
+            color: var(--ink-muted);
+        }
+
+        .wc-doc .ok {
+            color: var(--green);
+        }
+
+        .wc-doc .bad {
+            color: #fca5a5;
+        }
+
+        .wc-tree {
+            list-style: none;
+            padding: 12px 14px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .wc-tree li {
+            display: flex;
+            flex-wrap: wrap;
+            column-gap: 10px;
+            padding: 2px 0 2px 22px;
+            position: relative;
+            color: var(--ink-muted);
+        }
+
+        .wc-tree li::before {
+            content: "";
+            position: absolute;
+            left: 6px;
+            top: 0;
+            bottom: 0;
+            border-left: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .wc-tree li::after {
+            content: "";
+            position: absolute;
+            left: 6px;
+            top: 50%;
+            width: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .wc-tree li:last-child::before {
+            bottom: 50%;
+        }
+
+        .wc-tree .wc-tree-root {
+            padding-left: 0;
+            margin-bottom: 2px;
+            color: var(--ink);
+        }
+
+        .wc-tree .wc-tree-root::before,
+        .wc-tree .wc-tree-root::after {
+            display: none;
+        }
+
+        .wc-tree b {
+            font-family: var(--font-mono);
+            font-size: 12.5px;
+            font-weight: 400;
+            color: var(--ink);
+            overflow-wrap: anywhere;
+        }
+
+        .wc-tree-root b {
+            color: var(--cyan);
+        }
+
+        /* lane strip */
+        .wc-lanes {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .wc-lanes li {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 3px 10px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--ink-muted);
+            background: var(--bg);
+        }
+
+        .wc-lanes li.on {
+            color: var(--ink);
+            border-color: rgba(139, 92, 246, 0.55);
+            background: rgba(139, 92, 246, 0.12);
+        }
+
+        /* diagram and images */
+        .wc-fig {
+            margin: 0;
+        }
+
+        .wc-fig svg,
+        .wc-fig img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius-sm);
+        }
+
+        .wc-fig img {
+            border: 1px solid var(--border);
+        }
+
+        .wc-fig figcaption {
+            margin-top: 8px;
+            font-size: 13px;
+            color: var(--ink-muted);
+            line-height: 1.6;
+        }
+
+        .wc-fig + .wc-fig {
+            margin-top: 18px;
+        }
+
+        .wc-diagram {
+            max-width: 480px;
+        }
+
+        .wc-diagram text {
+            font-family: var(--font-body);
+            fill: var(--ink);
+        }
+
+        .wc-diagram .t-dim {
+            fill: #a1a1aa;
+        }
+
+        .wc-close {
+            margin-top: 56px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            max-width: 640px;
+            color: var(--ink-muted);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .wc-close strong {
+            color: var(--ink);
+        }
+
+        @media (max-width: 860px) {
+            .wc-grid {
+                grid-template-columns: minmax(0, 1fr);
+                row-gap: 16px;
+            }
+
+            .wc-head {
+                display: none;
+            }
+
+            .wc-row {
+                padding-top: 48px;
+            }
+
+            .wc-row-title {
+                margin-bottom: 0;
+            }
+
+            .wc-tag {
+                display: block;
+            }
+
+            .wc-without .wc-tag {
+                color: var(--ink-muted);
+            }
+
+            .wc-with .wc-tag {
+                color: #c4b5fd;
+            }
+
+            .wc-with {
+                padding: 18px 16px;
+            }
+        }
+
         /* ─── Scroll animations ──────────────────────────────────── */
         .fade-in {
             opacity: 0;
@@ -1437,6 +1790,7 @@
             <ul class="nav-links">
                 <li><a href="#why">Why</a></li>
                 <li><a href="#how">How it works</a></li>
+                <li><a href="#difference">What changes</a></li>
                 <li><a href="#features">Features</a></li>
                 <li><a href="#showcase">Examples</a></li>
                 <li><a href="wiki.html" style="color:var(--purple);font-weight:600;">Docs</a></li>
@@ -1687,6 +2041,208 @@ claude plugin install laneconductor@laneconductor</span>
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- WITH AND WITHOUT -->
+    <section class="wc-section" id="difference">
+        <div class="container">
+            <div class="section-label">What changes</div>
+            <h2 class="section-title">The same task, with and without it.</h2>
+            <p class="section-sub">The task: add CSV export to the reports page. On the left, a chat on its own. On the right, what appears when the same work runs through LaneConductor. The files, the board and the error message come from a throwaway example project, created with the plugin's own connector and board script.</p>
+
+            <div class="wc-grid wc-head" aria-hidden="true">
+                <div class="wc-no">Without LaneConductor</div>
+                <div class="wc-yes">With LaneConductor</div>
+            </div>
+
+            <!-- 1: where the plan lives -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">Where the plan lives</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>You describe the feature in chat and Claude answers with a plan. The plan is a message in the conversation.</p>
+                    <p>When the session ends, so does the plan. The next session starts cold: you explain again what was decided and what is done.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>A track folder appears in the repository. Claude writes the spec, the plan and the tests as files, and you read and fix them before any code exists. A later session, or another person, opens the track and sees where it stands: the lane, the phase and which tasks are ticked.</p>
+                    <div class="wc-files">
+                        <div class="wc-file">
+                            <ul class="wc-tree" aria-label="Files in the track folder">
+                                <li class="wc-tree-root"><b>conductor/tracks/AM-1-add-csv-export-to-the-reports-page/</b></li>
+                                <li><b>index.md</b> lane, status, progress</li>
+                                <li><b>spec.md</b> problem, acceptance criteria</li>
+                                <li><b>plan.md</b> phases and tasks to tick</li>
+                                <li><b>test.md</b> test cases</li>
+                                <li><b>conversation.md</b> comments, kept on your machine</li>
+                            </ul>
+                        </div>
+                        <div class="wc-file">
+                            <div class="wc-file-name">spec.md</div>
+<div class="wc-doc"><span class="h"># Spec: Add CSV export to the reports page</span>
+
+<span class="h">## Problem Statement</span>
+
+Account managers copy the numbers from the reports page into a spreadsheet by hand. Add an Export CSV button to the reports page so they can download the report they are looking at.
+
+<span class="h">## Acceptance criteria</span>
+
+- [ ] An "Export CSV" button is shown above the report table.
+- [ ] The file has the same columns, filters, sort order and date range as the table.
+- [ ] Values with commas, quotes or line breaks are quoted correctly.
+<span class="dim">…</span></div>
+                        </div>
+                        <div class="wc-file">
+                            <div class="wc-file-name">plan.md</div>
+<div class="wc-doc"><span class="h">## Phase 2: Export button and download</span>
+
+- <span class="ok">[x]</span> Task 1: Add the "Export CSV" button above the report table
+- <span class="ok">[x]</span> Task 2: Pass the current filters, sort order and date range to the export
+- [ ] Task 3: Stream the rows in chunks so a large report does not freeze the page
+- [ ] Task 4: Download the file as `report-&lt;date&gt;.csv`
+<span class="dim">…</span></div>
+                        </div>
+                    </div>
+                    <p class="wc-planned wc-plain">Excerpts, shortened, from the example project's real files.</p>
+                </div>
+            </div>
+
+            <!-- 2: advice at each lane -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">Advice at each lane</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>Whether Claude brainstorms first or writes the test first depends on what you remember to ask for.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>Each lane has a guide that Claude reads before it works there. The plan lane picks up a brainstorm thread from the track's conversation. The implement lane recommends writing each test first, because <code>test.md</code> is written for it. Each guide also names the skills that help in that lane, such as brainstorming before the plan or test-driven development while building; if one is installed Claude uses it, and if not it says so. You can add your own per lane. The guides are advice, not orders: when Claude decides against one, it records why.</p>
+                    <ul class="wc-lanes" aria-label="Lanes a track moves through">
+                        <li>backlog</li>
+                        <li>plan</li>
+                        <li>implement</li>
+                        <li>review</li>
+                        <li>quality-gate</li>
+                        <li>done</li>
+                    </ul>
+                    <p class="wc-planned"><strong>Planned, not built yet:</strong> a skill advisor that recommends and installs skills for a project.</p>
+                </div>
+            </div>
+
+            <!-- 3: who does the work -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">Who does the work</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>The work happens in the one chat you are talking to.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>For each track, Claude recommends a <code>track-runner</code> sub-agent that works the plan in its own git worktree. Nothing starts until you say yes. Several tracks can run side by side, one sub-agent each, and the main session stays free.</p>
+                    <figure class="wc-fig wc-diagram">
+                        <svg viewBox="0 0 420 292" role="img" aria-labelledby="wc-diagram-title wc-diagram-desc" xmlns="http://www.w3.org/2000/svg">
+                            <title id="wc-diagram-title">One sub-agent per track, each in its own git worktree</title>
+                            <desc id="wc-diagram-desc">Your session at the top. Below it three track-runner sub-agents, for tracks AM-1, AM-4 and AM-5, each in its own git worktree. All three read and write the track files in git at the bottom.</desc>
+                            <defs>
+                                <marker id="wc-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                    <path d="M0 0 L10 5 L0 10 z" fill="#a1a1aa" />
+                                </marker>
+                            </defs>
+                            <rect x="10" y="8" width="400" height="64" rx="10" fill="rgba(139,92,246,0.14)" stroke="#8b5cf6" stroke-width="1.5" />
+                            <text x="26" y="34" font-size="16" font-weight="700">Your session</text>
+                            <text x="26" y="57" font-size="14" class="t-dim">You say yes, then keep working here</text>
+                            <g stroke="#a1a1aa" stroke-width="1.5" fill="none" marker-end="url(#wc-arrow)">
+                                <line x1="72" y1="72" x2="72" y2="126" />
+                                <line x1="210" y1="72" x2="210" y2="126" />
+                                <line x1="348" y1="72" x2="348" y2="126" />
+                            </g>
+                            <g fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1.5">
+                                <rect x="10" y="130" width="124" height="86" rx="10" />
+                                <rect x="148" y="130" width="124" height="86" rx="10" />
+                                <rect x="286" y="130" width="124" height="86" rx="10" />
+                            </g>
+                            <g font-size="14" font-weight="700">
+                                <text x="22" y="158">track-runner</text>
+                                <text x="160" y="158">track-runner</text>
+                                <text x="298" y="158">track-runner</text>
+                            </g>
+                            <g font-size="14">
+                                <text x="22" y="180">track AM-1</text>
+                                <text x="160" y="180">track AM-4</text>
+                                <text x="298" y="180">track AM-5</text>
+                            </g>
+                            <g font-size="13">
+                                <text x="22" y="200" class="t-dim">own worktree</text>
+                                <text x="160" y="200" class="t-dim">own worktree</text>
+                                <text x="298" y="200" class="t-dim">own worktree</text>
+                            </g>
+                            <g stroke="#a1a1aa" stroke-width="1.5" fill="none" marker-end="url(#wc-arrow)">
+                                <line x1="72" y1="216" x2="72" y2="246" />
+                                <line x1="210" y1="216" x2="210" y2="246" />
+                                <line x1="348" y1="216" x2="348" y2="246" />
+                            </g>
+                            <rect x="10" y="250" width="400" height="34" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                            <text x="26" y="272" font-size="14">conductor/tracks: spec, plan and tests, in git</text>
+                        </svg>
+                        <figcaption>One sub-agent per track, so tracks do not collide.</figcaption>
+                    </figure>
+                </div>
+            </div>
+
+            <!-- 4: checking the work -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">Checking the work</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>Claude writes the code. Nothing compares it with a written spec, and your project's checks run only if you ask for them.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>Two lanes come after implement. In <strong>review</strong>, the code is checked against the spec. In the <strong>quality gate</strong>, your project's own checks run: the commands listed in <code>conductor/quality-gate.md</code>, such as tests and lint. Then the track moves to done.</p>
+                </div>
+            </div>
+
+            <!-- 5: overview -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">The overview</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>No overview of what is in progress, apart from what you remember.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>The board is a private dashboard generated from the track files: every track by lane, with its progress and phase. Claude publishes it as an artifact with your approval. It is a snapshot, so it changes when you ask Claude to update it. Every document is scanned for secrets and personal data before it goes on the board, and opening a track shows its plan, spec and tests.</p>
+                    <figure class="wc-fig">
+                        <a href="/docs/example-board-overview.webp"><img src="/docs/example-board-overview.webp" width="1360" height="680" loading="lazy" alt="The LaneConductor board for an example project, 'Reports app (example data)', with six tracks. Cards sit in the backlog, plan, implement, review and quality-gate lanes, each with a running or queue label, a progress bar and the current phase. The counts above show three in progress, one being planned, one in the backlog and one done." /></a>
+                        <figcaption>The board for the example project. Example data: six invented tracks. Select the image to enlarge it.</figcaption>
+                    </figure>
+                    <figure class="wc-fig">
+                        <a href="/docs/example-board-track-plan.webp"><img src="/docs/example-board-track-plan.webp" width="1360" height="700" loading="lazy" alt="The same board with the track 'Add CSV export to the reports page' opened. The Plan tab shows three phases of tasks, with the first five ticked, at 55 percent progress in the implement lane." /></a>
+                        <figcaption>A track opened on the board, on its Plan tab. Example data.</figcaption>
+                    </figure>
+                </div>
+            </div>
+
+            <!-- 6: two sessions -->
+            <div class="wc-grid wc-row">
+                <h3 class="wc-row-title">Two sessions at once</h3>
+                <div class="wc-cell wc-without">
+                    <span class="wc-tag">Without</span>
+                    <p>Two sessions editing the same file: the last save wins.</p>
+                </div>
+                <div class="wc-cell wc-with">
+                    <span class="wc-tag">With</span>
+                    <p>Every write names the version you last read. If someone changed the file since, the write is refused and nothing is overwritten. Each write is one git commit. This is what a second session saw when it tried to change a track the first session had already changed:</p>
+                    <div class="wc-file">
+                        <div class="wc-file-name">update_track, second session</div>
+<div class="wc-doc"><span class="bad">ERROR CONFLICT: 1 item changed since your base: marker Progress</span>
+Hint: Someone else edited first. Re-read with get_track, merge their change with yours, and retry with the new base. The earlier edit is untouched.</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="wc-close"><strong>It is the same Claude either way.</strong> What changes is the agreement before the code, the check afterwards, the record in git, and shared state that two sessions cannot silently overwrite.</p>
         </div>
     </section>
 
