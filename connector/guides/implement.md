@@ -11,3 +11,7 @@ What has worked:
 6. Never end a turn on a command you started in the background.
 
 Why: the lane's value is the verified plan.md checkboxes; they are what the next lane trusts.
+
+## Skills that help here
+
+Suggestions, never orders. If installed (for example from the Superpowers plugin), consider `test-driven-development`, `systematic-debugging`, `subagent-driven-development`, `using-git-worktrees`: the test-first order, finding the cause of a failing test, handing independent tasks to subagents, an isolated checkout. If one is missing, say so in one line and carry on. Also read `conductor/workflow.json`: a top-level `skills` object with a list under `"implement"` names more skills to use in addition, the same way. The key is optional. Where a skill's steps or file locations differ from the track files, the track files win.

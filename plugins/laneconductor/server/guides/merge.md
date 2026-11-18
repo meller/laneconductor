@@ -8,3 +8,7 @@ What has worked:
 3. Only after the merge is reachable from the main branch, record it with update_track (`Lane`: done, `Lane Status`: success).
 
 Why: "done" should mean reachable from main, otherwise the board lies.
+
+## Skills that help here
+
+Suggestions, never orders. If installed (for example from the Superpowers plugin), consider `finishing-a-development-branch`: the last steps of a branch, without skipping the question about pushing. If one is missing, say so in one line and carry on. Also read `conductor/workflow.json`: a top-level `skills` object with a list under `"merge"` names more skills to use in addition, the same way. The key is optional. Where a skill's steps or file locations differ from the track files, the track files win.

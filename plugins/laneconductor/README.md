@@ -6,7 +6,7 @@ LaneConductor keeps a project's plans as plain files in git: one folder per trac
 quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy) and includes
 the local connector that reads and writes the track files safely and the board generator.
 
-Version 0.5.0.
+Version 0.6.0.
 
 ## What is in it
 
@@ -14,17 +14,14 @@ Version 0.5.0.
   the track operations (create, move, comment, status, workflow) and the working-a-track guardrails;
 - slash commands, run as `/laneconductor:<name>` (type `/laneconductor:` to list them; `help` shows each with an example
   phrase): `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `new`, `bug`, `feature`, `status`,
-  `move`, `comment`, `board`, `show-board`, `refresh-board`, `workflow`, `review-plan`, `recipes` and `help`; `setup`,
-  `new-project`, `add-recipe` and `deploy` run only when you name them. They are generated from the same command catalog the connector serves as MCP prompts, so any MCP client sees the same commands;
-- the new-project flow and the recipes: `/laneconductor:new-project` interviews you in chat, recommends recipes (up to
-  five, each with a reason and a date; you choose, nothing is applied silently), writes the `conductor/` scaffold (no
-  daemon, no database) and creates the first tracks, asking before any commit and never pushing. A recipe is something
-  already solved in your stack, kept as files inside the skill (`recipes/`, generic ones) or in your own library, a local
-  git repository named by `recipes.path` in `.laneconductor.json` or by `LC_RECIPES`; recipes are read only when needed.
-  `/laneconductor:add-recipe` saves a verified recipe to your own library as a local commit (never pushed) after the
-  checker passes and you agree. The scripts behind it (`lc-scaffold`, `lc-recipe-match`, `lc-recipe-check`,
-  `lc-recipe-gate`, `lc-recipe-apply`, `lc-recipe-save`) are in `server/bin/`; none pushes, the scaffold and apply scripts never
-  overwrite an existing file, and a recipe is saved only with an explicit approval flag;
+  `move`, `comment`, `board`, `show-board`, `refresh-board`, `workflow`, `review-plan` and `help`; `setup`,
+  `new-project` and `deploy` run only when you name them. They are generated from the same command catalog the connector serves as MCP prompts, so any MCP client sees the same commands;
+- the new-project flow: `/laneconductor:new-project` interviews you in chat, writes the `conductor/` scaffold (no
+  daemon, no database) and creates the first tracks, asking before any commit and never pushing. The script behind it,
+  `lc-scaffold`, is in `server/bin/`; it never pushes and never overwrites an existing file;
+- a lane-to-skill map: each lane guide ends with a short "Skills that help here" section that suggests skills worth
+  using at that lane (if you have them installed), and `conductor/workflow.json` may carry an optional `skills` object
+  naming your own per lane. LaneConductor only knows which skills help; it does not bundle, wrap or install them;
 - two subagents: `track-runner` works one track through one lane in its own git worktree, and `plan-reviewer`
   reads a track's spec and plan and reports gaps without changing anything. `run`, `implement` and `review` only
   recommend `track-runner` (one subagent per track, so tracks do not collide) and show the exact dispatch; nothing

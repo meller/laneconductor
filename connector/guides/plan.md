@@ -12,3 +12,7 @@ What has worked:
 7. When the documents are done, set `Lane Status` to `success` (the project's workflow.json says where the track goes next; its on_success for plan is in get_context).
 
 Why: a plan that a stranger can execute and check is the whole product of this lane.
+
+## Skills that help here
+
+Suggestions, never orders. If installed (for example from the Superpowers plugin), consider `brainstorming`, `writing-plans`: `brainstorming` for unclear requirements, `writing-plans` for phases with small checkable tasks. If one is missing, say so in one line and carry on. Also read `conductor/workflow.json`: a top-level `skills` object with a list under `"plan"` names more skills to use in addition, the same way. The key is optional. Where a skill's steps or file locations differ from the track files, the track files win.

@@ -23,8 +23,6 @@ Create and manage
 - move <track number> <lane[:status]>: Move a track to another lane, or set its status markers. Example: "move 10106 to implement"
 - comment <track number> <comment text>: Add a comment to a track's conversation. Example: "comment on 10106: ship it after the review"
 - workflow [lane key value]: Show the lane workflow, or change one lane setting. Example: "show the workflow"
-- recipes [stack words]: List the recipes available (the shipped library and your own), optionally matching a stack. Example: "which recipes do I have for firebase hosting"
-- add-recipe [what was solved]: Turn something solved and verified into a recipe in your own library (runs only because you named it). Example: "add a recipe for the deploy setup we just finished"
 - help: List every LaneConductor command with an example phrase. Example: "what can LaneConductor do"
 
 Board
@@ -33,7 +31,7 @@ Board
 - refresh-board: Rebuild the board from the track files and republish it to its stored URL. Example: "refresh the board"
 
 Setup and deploy
-- new-project [name or idea]: Start a project: a short interview, recipe recommendations, the conductor scaffold and the first tracks (runs only because you named it). Example: "start a new project: a habit tracker"
+- new-project [name or idea]: Start a project: a short interview, the conductor scaffold and the first tracks (runs only because you named it). Example: "start a new project: a habit tracker"
 - setup [scaffold]: Set up LaneConductor in this repository (runs only because you named it). Example: "set up LaneConductor here"
 - deploy [setup]: Set up or run deployment for this project (runs only because you named it). Example: "deploy this project"
 

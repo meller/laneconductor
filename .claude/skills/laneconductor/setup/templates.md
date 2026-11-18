@@ -192,9 +192,17 @@ the project picks its own.
 }
 ```
 
+**Optional `skills` object in `conductor/workflow.json`** (not part of the default above, which stays as it is). It
+names your own skills per lane; the lane guides tell Claude to read it and use the listed skills in addition to the
+ones they suggest. Keys are lane guide names (`plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`),
+values are lists of skill names. A skill that is not installed is mentioned and skipped; nothing here is an order.
+Leave the key out and nothing changes; every reader of `workflow.json` ignores keys it does not know.
+```json
+{ "skills": { "implement": ["my-firebase-deploy"], "review": ["my-review-checklist"] } }
+```
+
 **`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
-needs a running process. No `mode`, no database, no collectors, no worker settings. Add `recipes.path` only
-when the person named a personal recipe library.
+needs a running process. No `mode`, no database, no collectors, no worker settings.
 ```json
 { "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
 ```

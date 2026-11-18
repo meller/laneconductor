@@ -1,7 +1,7 @@
 ---
 name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
-when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, add-recipe, setup-deploy, deploy) runs only when the user asks for it by name.
+when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
 argument-hint: "[command] [track-number] [args]"
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
@@ -18,11 +18,15 @@ Paths below are relative to this file's directory: `.claude/skills/laneconductor
 the plugin's `skills/laneconductor/` when installed as the LaneConductor plugin. If you only received this text (some non-Claude CLIs paste
 `SKILL.md` without a path), read the lane files from that directory.
 
-LaneConductor is a second opinion, not a controller. Lanes, recipes and conventions here are
+LaneConductor is a second opinion, not a controller. Lanes and conventions here are
 recommendations with reasons; you may decide against one, but say why in `conversation.md` so the
-recipe can be fixed or pruned. Two things are firm because breaking them corrupts state or
+advice can be fixed or pruned. Two things are firm because breaking them corrupts state or
 overrides the human: the file formats and base-commit checks below, and the human's authority
 (ask before merge or push, never handle secrets).
+
+Each lane guide ends with "Skills that help here": skills worth using at that lane if they are installed, plus any the
+project lists under `skills` in `conductor/workflow.json`. LaneConductor only knows which skills help; it does not
+wrap or bundle them.
 
 ## How to run a command
 
@@ -48,9 +52,7 @@ overrides the human: the file formats and base-commit checks below, and the huma
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
 | `setup`, `setup collection` | [setup/setup.md](setup/setup.md) | only when named |
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |
-| `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, recipe recommendations, the `conductor/` scaffold, the first tracks) | only when named |
-| `recipes` | [ops/recipes.md](ops/recipes.md) (find and rank recipes from the shipped library in `recipes/` and the person's own); applying one is [ops/apply-recipe.md](ops/apply-recipe.md), only when they choose it | yes, to list; never to apply |
-| `add-recipe` | [ops/add-recipe.md](ops/add-recipe.md) (extract a verified recipe into the person's own library as a local commit) | only when named |
+| `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, the `conductor/` scaffold, the first tracks) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
 | `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |
@@ -64,13 +66,9 @@ publishes them as an artifact and keeps its URL in `.laneconductor.json` (`board
 a snapshot: it changes only when Claude refreshes it. Sharing it shares those documents. Steps are in
 [ops/board.md](ops/board.md).
 
-**New project and recipes.** `new-project` starts a project from a short chat: it interviews the person one
-question at a time, recommends recipes (up to five, with reasons and dates; the person picks), writes the `conductor/`
-scaffold with no daemon and no database, and creates the first tracks in the plan lane; it asks before any commit and
-never pushes ([ops/new-project.md](ops/new-project.md)). A **recipe** is something already solved in the person's
-stack, kept in `recipes/<name>/` in this skill (generic ones) or in their own library (`recipes.path` in
-`.laneconductor.json`, or `LC_RECIPES`). Recipes are read only when needed, so they add nothing to what a session pays
-for. The person's own library is where personal recipes stay; `add-recipe` saves to it as a local commit.
+**New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
+time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks in the plan
+lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-project.md)).
 
 The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.
 

@@ -133,6 +133,3 @@ reset_*.mjs
 scratch/*.cjs
 scratch/check_prod_*.* 
 scratch/delete_prod_*.* 
-
-# Privacy gate deny list (track AM-10117): private names, local only, never committed
-conductor/recipe-deny.local.txt

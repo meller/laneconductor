@@ -93,3 +93,15 @@ commits go.
 
 Boundaries: `workflow.json` is the only authority for target lanes. On exit, `**Lane Status**`
 should end as `success` or `queue` according to the outcome; if the work failed, still unlock.
+
+## Skills that help here
+
+These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
+named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
+and carry on without it. `test-driven-development` fits the test-first order `test.md` is written for; `systematic-debugging` helps when a test fails and the cause is not obvious; `subagent-driven-development` helps when the plan has independent tasks that can be handed to subagents; `using-git-worktrees` helps when you need an isolated checkout for the track.
+
+Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"implement"`, such as
+`{ "skills": { "implement": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
+it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
+own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
+skill's method, not its output paths.
