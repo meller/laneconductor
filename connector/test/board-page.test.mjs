@@ -182,7 +182,7 @@ test('page: renders 5 lane columns, the done list and the attention list from a 
   assert.equal(ids.status.hidden, true, 'the loading state is gone');
   assert.equal(ids.board.hidden, false);
   assert.equal(ids.lanes.children.length, 4, 'backlog is not one of the lane columns');
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['plan', 'implement', 'review', 'quality-gate']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['planning', 'in-progress', 'review', 'quality-gate']);
   assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1]);
   // The backlog is the last section and starts collapsed.
   assert.equal(ids['backlog-block'].hidden, false);
@@ -344,7 +344,7 @@ const cardOf = (ids, lane, i = 0) => {
     if (ids['backlog-cards'].hidden) ids['backlog-toggle'].onclick();
     return ids['backlog-cards'].children[i];
   }
-  return ids.lanes.children[['plan', 'implement', 'review', 'quality-gate'].indexOf(lane)].children[1].children[i];
+  return ids.lanes.children[{ plan: 0, planning: 0, implement: 1, 'in-progress': 1, review: 2, 'quality-gate': 3 }[lane]].children[1].children[i];
 };
 const tabNames = (ids) => ids['d-tabs'].children.map((b) => b._text);
 const tabBy = (ids, name) => ids['d-tabs'].children.find((b) => b._text === name);
@@ -362,7 +362,7 @@ test('detail: clicking a card opens the drawer with the header, Overview from do
   assert.equal(ids.wrap.attrs.inert, '', 'the board behind the drawer is inert');
   assert.equal(ids['d-id'].textContent, 'AM-201');
   assert.equal(ids['d-title'].textContent, 'Planned one');
-  assert.equal(ids['d-lane'].textContent, 'plan');
+  assert.equal(ids['d-lane'].textContent, 'planning', 'a legacy plan lane is shown by its workflow name');
   assert.equal(ids['d-pill'].children[0].className, 'pill queue');
   assert.equal(ids['d-pct'].textContent, '0%');
   assert.equal(ids['d-bar'].attrs.role, 'progressbar');
@@ -771,4 +771,45 @@ test('backlog: the section is hidden when there are no backlog tracks, and the s
   assert.equal(ids['backlog-block'].hidden, true);
   const labels = (await runPage(async () => ({ ok: true, status: 200, json: async () => data }))).summary.children.map((c) => c.children[1]._text);
   assert.equal(labels[labels.length - 1], 'in backlog');
+});
+
+// --- lanes follow the workflow (otralingo: tracks in planning / in-progress were not drawn) ---------------------------------
+
+function laneFixture(rows, wfLanes) {
+  const dir = makeRepo();
+  cleanup.push(dir);
+  writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Lanes' } }));
+  if (wfLanes) writeFile(dir, 'conductor/workflow.json', JSON.stringify({ lanes: Object.fromEntries(wfLanes.map((l) => [l, {}])) }));
+  for (const [n, lane, status] of rows) writeFile(dir, `conductor/tracks/AM-${n}-t${n}/index.md`, INDEX(n, `Track ${n}`, { lane, status }));
+  commitAll(dir);
+  const site = tmp('lc-site-lanes-');
+  assert.equal(run(dir, '--site', site).status, 0);
+  return JSON.parse(fs.readFileSync(path.join(site, 'board.json'), 'utf8'));
+}
+const statsOf = (ids) => Object.fromEntries(ids.summary.children.map((s) => [s.children[1]._text, Number(s.children[0]._text)]));
+
+test('page: tracks in the workflow lanes planning and in-progress are drawn, counted and in the flow bar; no legacy columns', async () => {
+  const data = laneFixture([[1, 'planning', 'queue'], [2, 'planning', 'running'], [3, 'in-progress', 'running'], [4, 'review', 'queue'], [5, 'quality-gate', 'queue'], [6, 'backlog', 'queue'], [7, 'done', 'success']],
+    ['planning', 'backlog', 'in-progress', 'review', 'quality-gate', 'done']);
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['planning', 'in-progress', 'review', 'quality-gate']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [2, 1, 1, 1]);
+  const s = statsOf(ids);
+  assert.equal(s['in progress'], 3, 'in-progress + review + quality-gate');
+  assert.equal(s['being planned'], 2);
+  const flowTitles = ids.flow.children.map((i) => i.title);
+  assert.deepEqual(flowTitles, ['planning: 2', 'in-progress: 1', 'review: 1', 'quality-gate: 1', 'done: 1', 'backlog: 1']);
+});
+
+test('page: legacy plan and implement lanes still display, under planning and in-progress', async () => {
+  const data = laneFixture([[1, 'plan', 'queue'], [2, 'implement', 'running'], [3, 'planning', 'queue'], [4, 'in-progress', 'running']]);
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
+  const names = ids.lanes.children.map((c) => c.children[0]._text);
+  assert.deepEqual(names, ['planning', 'in-progress', 'review', 'quality-gate']);
+  assert.ok(!names.includes('plan') && !names.includes('implement'));
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [2, 2, 0, 0]);
+  const s = statsOf(ids);
+  assert.equal(s['in progress'], 2);
+  assert.equal(s['being planned'], 2);
+  assert.deepEqual(ids.flow.children.map((i) => i.title), ['planning: 2', 'in-progress: 2']);
 });
