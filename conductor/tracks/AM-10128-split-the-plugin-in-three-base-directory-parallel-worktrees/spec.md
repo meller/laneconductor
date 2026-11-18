@@ -32,6 +32,7 @@ The owner's requirement (2026-11-18, also stated in plan.md): the three plugins 
 - 2026-11-18: The base never runs an install; it shows the commands and the person runs them.
 - 2026-11-18: The base moves to a new major version, 1.0.0, with a migration note; the add-ons start at 1.0.0.
 - 2026-11-18: The interface between the plugins (script path, tool prefix, server key `lc`) is written down in connector/ARCHITECTURE.md.
+- 2026-11-18 (owner): NO-GO on the optional fourth plugin `laneconductor-full`. The test passed (dependencies install automatically) but the plugin list would show four entries, not one, so it adds clutter; the one-line `&&` chain stays the one way to install the full version.
 - 2026-11-18 (owner): The split stays, because Anthropic's directory accepts only the Markdown-only base (it blocks the local MCP server, scripts and package files for non-verified organisations). The full version (base, board, parallel) is offered in ONE line: a single `&&` chain of the install commands now, and, only if a test shows it is worth it, an optional empty fourth plugin `laneconductor-full` that only depends on the other three. No combined plugin with duplicated content. The visible command set shrinks: help in three tiers, `bug` and `feature` folded into `new`, `status` possibly dropped. Details in the next section.
 
 ## One command for the full version, and fewer visible commands (owner, 2026-11-18)
@@ -46,6 +47,7 @@ Anthropic's directory accepts only the Markdown-only base: for organisations tha
 
 - Step 1 (now): a single `&&` chain of the install commands, built from the catalog (`connector/plugin-extras/recommended-plugins.json`, new lines `full_install` and `addons_install`). It is shown on the website, in the READMEs and, inside Claude when BOTH add-ons are missing, in `next` and in setup (show-not-run: the person runs it, Claude never does). One shared block, one source, so the text cannot drift.
 - Step 2 (after a test with `scripts/try-local.sh`): an optional EMPTY fourth plugin `laneconductor-full` that only declares dependencies on the other three. To be offered only if `claude plugin install` installs dependencies automatically (UNVERIFIED today) AND the one-liner still feels clumsy. If the test fails or the one-liner is good enough, no fourth plugin: go/no-go is recorded here.
+- Result (2026-11-18, test with a scratch local marketplace): `claude plugin install laneconductor-full@<marketplace> --scope local` installed the empty plugin and the three it depends on automatically; `claude plugin validate --strict` passed on it; uninstalling it leaves the three installed until `claude plugin prune`. DECISION (owner, 2026-11-18): **no-go**. The plugin list would show four entries instead of three (dependencies are not hidden), so it saves typing but not clutter, and the one-liner already installs everything in one paste. The one-liner is the way to install the full version; `laneconductor-full` is not built.
 - No combined plugin with duplicated content: it would clash with the directory version's `/laneconductor:` command names (two plugins registering the same commands).
 
 ### 3. Fewer visible commands
@@ -61,8 +63,8 @@ Anthropic's directory accepts only the Markdown-only base: for organisations tha
 - [ ] AC-1 The directory entry stays the Markdown-only base and the add-ons stay in the owner's marketplace; the split is unchanged by this decision.
 - [ ] AC-2 The catalog has the lines `full_install` and `addons_install`, and one shared block built from them is the only source of the one-line install text.
 - [ ] AC-3 The one-line `&&` chain is shown on the website, in the READMEs and, when both add-ons are missing, in `next` and setup; it is shown, never run.
-- [ ] AC-4 A try-local test of a dependency-only `laneconductor-full` plugin is done and a go/no-go is recorded (does `claude plugin install` install dependencies automatically; is the one-liner still clumsy).
-- [ ] AC-5 If built, `laneconductor-full` is empty (no commands, skills, agents or scripts), only depends on the other three and is offered only after the go decision; no combined plugin with duplicated content exists.
+- [x] AC-4 A try-local test of a dependency-only `laneconductor-full` plugin is done and a go/no-go is recorded (does `claude plugin install` install dependencies automatically; is the one-liner still clumsy).
+- [x] AC-5 If built, `laneconductor-full` is empty (no commands, skills, agents or scripts), only depends on the other three and is offered only after the go decision; no combined plugin with duplicated content exists. Not applicable: the decision was no-go, so it is not built, and no combined plugin exists.
 - [ ] AC-6 The help output is grouped in three tiers: start here (`next`, `setup` or `new-project`, `board`), lanes (`plan`, `implement`, `review`, `quality-gate`, `merge`), more (the rest).
 - [ ] AC-7 `bug` and `feature` are folded into `new` with an argument and natural-language requests for a bug or feature track still work.
 - [ ] AC-8 The decision on removing `status` is recorded, and if it is removed `board` and `next` cover what it showed.
@@ -99,7 +101,7 @@ Ticked where a committed test or the repository itself shows it; the tests were 
 - Cross-marketplace dependencies are unverified, which is why there is no hard dependency; a person who installs only the base never gets the add-ons' behaviour.
 - The directory policy bans listings that exist mainly as advertising, so the pointers to the add-ons must stay short and relevant.
 - People on 0.x who update without reading the migration note lose the connector until they install the add-on; their files in git are unchanged.
-- Whether `claude plugin install` installs declared dependencies automatically is UNVERIFIED; the optional `laneconductor-full` plugin depends on it (step 2 above).
+- `claude plugin install` does install declared dependencies automatically (verified 2026-11-18), but the optional `laneconductor-full` plugin was rejected (no-go) because the plugin list would show four entries.
 - Removing or folding commands (`bug`, `feature`, `status`) changes the visible command set for existing users; natural-language use and the help text must keep them able to find the new forms.
 
 ## Out of scope
