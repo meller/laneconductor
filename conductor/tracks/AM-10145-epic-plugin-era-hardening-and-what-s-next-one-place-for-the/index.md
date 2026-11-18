@@ -1,9 +1,9 @@
 # Track AM-10145: Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes)
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 70%
-**Phase**: Built and merged to local main 2026-11-18 (493 connector tests): Part Of and Priority markers parse, the derived children table appears in list_tracks, get_track and the board, nothing about a child is stored in the epic. To do by the owner: tag the children with Part Of 10145. Open: a lint for a Part Of naming a missing track, a real-browser check of the board's Epics block.
+**Lane**: quality-gate
+**Lane Status**: waiting
+**Progress**: 90%
+**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): Part Of and Priority markers parsed, derived children table in list_tracks, get_track and the board. Open: TC-7 real-browser check of the Epics block; lint for a Part Of naming a missing track.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -34,3 +34,5 @@ Gaps found while planning `next` that no track covers yet, to add here as childr
 
 Deliverable of this track: the spec above kept current, the `**Part Of**` marker parsed and shown (list_tracks, board, summary), the derived table, tests with parallel writers on the epic (no lost update), and a one-line mention in `next`.
 **Summary**: Owner idea (2026-11-18): keep the gaps, the order and the small notes of the plugin-era work in ONE index track, so nobody has to open every track to see the picture. Concern raised: if the index trac
+**Verdict**: pass
+**Waiting Reason**: TC-7: check the board Epics block in a real browser (owner); lint for a Part Of naming a missing track is open.

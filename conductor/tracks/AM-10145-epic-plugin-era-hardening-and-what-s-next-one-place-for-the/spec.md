@@ -25,7 +25,7 @@ The children and the order (one line each):
 
 Gaps found while planning `next` that no track covers yet, to add here as children when decided: an optional `**Priority**` marker to rank candidates; the `**Part Of**` marker and the derived epic table (this track's own deliverable); the tutorial level kept in the personal gitignored settings file.
 
-Deliverable of this track: the spec above kept current, the `**Part Of**` marker parsed and shown (list_tracks, board, summary), the derived table, tests with parallel writers on the epic (no lost update), and a one-line mention in `next`.
+Deliverable of this track: the spec above kept current, the `**Part Of**` marker parsed, and the derived epic table shown in list_tracks, get_track and the board (tracks-summary.md is deliberately unchanged), tests with parallel writers on the epic (no lost update), and a one-line mention in `next`.
 
 ## The need
 
