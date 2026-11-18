@@ -8,7 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OUTCOMES, describeNext, resolveNext, resolveTarget } from '../../conductor/services/workflow-transitions.mjs';
+import os from 'node:os';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { nearestLane } from '../src/vocabulary.mjs';
+import { makeRepo, rm } from './helpers/repo.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -163,12 +167,53 @@ test('TC-16: ONE logic, two callers: no second copy of the transition grammar ou
 });
 
 test('TC-16: the connector and the daemon sites import the shared module', () => {
-  // The connector and the daemon sites import it.
   const importers = [
-    'connector/src/tools/common.mjs',
-    'connector/src/tools/update-track.mjs',
-    'conductor/services/daemon-transition.mjs',
+    'connector/src/tools/common.mjs', // get_track, get_context and update_track go through it
+    'conductor/services/daemon-transition.mjs', // the daemon's helpers (lane results, verdicts, spawnCli)
     'conductor/services/orphaned-dispatch.mjs',
+    'conductor/services/resting-state.mjs',
   ];
   for (const rel of importers) assert.match(fs.readFileSync(path.join(REPO, rel), 'utf8'), /workflow-transitions\.mjs/, `${rel} imports the shared module`);
+  for (const rel of ['conductor/laneconductor.sync.mjs', 'conductor/agent-runtime.mjs']) assert.match(fs.readFileSync(path.join(REPO, rel), 'utf8'), /services\/daemon-transition\.mjs/, `${rel} uses the daemon helpers`);
+  assert.match(fs.readFileSync(path.join(REPO, 'connector/src/tools/update-track.mjs'), 'utf8'), /resolveOutcome/, 'update_track resolves through the shared module');
+});
+
+// TC-18: the generator ships the shared module inside the add-on at the same relative path, byte for byte, and the installed layout
+// (a copy of the add-on laid out like the plugin cache, with only the npm dependencies beside it) resolves the import.
+test('TC-18: the add-on ships conductor/services/workflow-transitions.mjs, byte-identical to the source', () => {
+  const rel = 'conductor/services/workflow-transitions.mjs';
+  const shipped = path.join(REPO, 'plugins/laneconductor-parallel', rel);
+  assert.ok(fs.existsSync(shipped), 'shipped in the add-on');
+  assert.ok(fs.readFileSync(shipped).equals(fs.readFileSync(path.join(REPO, rel))), 'byte-identical');
+  for (const base of ['plugins/laneconductor', 'plugins/laneconductor-board']) assert.ok(!fs.existsSync(path.join(REPO, base, rel)), `${base} does not carry it (the base stays Markdown only)`);
+});
+
+test('TC-18: installed layout: a copy of the add-on (a plain directory with the npm dependencies beside it) serves valid.next and outcome through stdio', async () => {
+  const installed = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-installed-'));
+  const repo = makeRepo({ files: { 'conductor/workflow.json': fs.readFileSync(path.join(HERE, 'fixtures', 'workflow', 'a-otralingo-legacy.json'), 'utf8') } });
+  let client;
+  try {
+    fs.cpSync(path.join(REPO, 'plugins/laneconductor-parallel'), installed, { recursive: true });
+    fs.symlinkSync(path.join(REPO, 'connector', 'node_modules'), path.join(installed, 'node_modules'));
+    assert.ok(fs.existsSync(path.join(installed, 'conductor/services/workflow-transitions.mjs')));
+    assert.ok(!fs.existsSync(path.join(installed, 'connector')), 'nothing of the source repo is beside it');
+    const transport = new StdioClientTransport({ command: process.execPath, args: [path.join(installed, 'server/bin/lc-connector.mjs'), '--repo', repo], stderr: 'pipe' });
+    client = new Client({ name: 'installed-layout', version: '0.0.0' });
+    await client.connect(transport);
+    const call = async (name, a) => (await client.callTool({ name, arguments: a })).structuredContent;
+    const made = await call('create_track', { title: 'Installed', problem: 'p' });
+    assert.equal(made.ok, true, JSON.stringify(made.error));
+    const n = made.data.track.number;
+    let t = await call('get_track', { track: n });
+    const moved = await call('update_track', { track: n, base: t.data.base, markers: { Lane: 'in-progress', 'Lane Status': 'running' } });
+    assert.equal(moved.ok, true, JSON.stringify(moved.error));
+    t = await call('get_track', { track: n });
+    assert.deepEqual(t.data.valid.next, { success: 'review:queue', failure: 'in-progress:failure' });
+    const fin = await call('update_track', { track: n, base: t.data.base, outcome: 'success' });
+    assert.equal(fin.ok, true, JSON.stringify(fin.error));
+    assert.equal(fin.data.transition.to, 'review:queue');
+  } finally {
+    await client?.close().catch(() => {});
+    rm(installed, repo);
+  }
 });

@@ -48,7 +48,7 @@ export const getContext = {
     const got = await store.readFiles(paths);
     const present = known.filter((n, i) => got.get(paths[i]));
 
-    const data = { valid: await workflowVocabulary(store) };
+    const data = { valid: await workflowVocabulary(store, { withNext: 'lanes' }) };
     if (!args.files && !args.lane) {
       data.manifest = present.map((n) => describeFile(n, got.get(`conductor/${n}`).content, got.get(`conductor/${n}`).sha));
       let transitions = null;

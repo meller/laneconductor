@@ -8,7 +8,8 @@ import { LANES } from '../guides.mjs';
 import { STATUSES, markerFingerprint, parseMarkers } from '../markers.mjs';
 import { SUMMARY_PATH, generateSummary, summaryStamp } from '../summary.mjs';
 import { isTrackFolder, resolveTrack, trackIdentity } from '../tracks.mjs';
-import { guideLaneMap } from '../vocabulary.mjs';
+import { guideLaneMap, nearestLane } from '../vocabulary.mjs';
+import { describeNext, resolveNext } from '../../../conductor/services/workflow-transitions.mjs';
 
 export const TRACKS_DIR = 'conductor/tracks';
 export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
@@ -29,27 +30,60 @@ export async function resolveTrackFolder(store, ref) {
   return resolveTrack(await trackDirNames(store), ref);
 }
 
-export async function workflowLanes(store) {
-  const m = await store.readFiles(['conductor/workflow.json']);
-  const f = m.get('conductor/workflow.json');
-  const fallback = ['plan', 'implement', 'review', 'quality-gate', 'done'];
-  if (!f) return fallback;
+const FALLBACK_LANES = ['plan', 'implement', 'review', 'quality-gate', 'done'];
+
+/** The parsed conductor/workflow.json, or null when it is missing or not valid JSON. */
+export async function readWorkflow(store) {
+  const f = (await store.readFiles(['conductor/workflow.json'])).get('conductor/workflow.json');
+  if (!f) return null;
   try {
-    const lanes = Object.keys(JSON.parse(f.content).lanes ?? {});
-    return lanes.length ? lanes : fallback;
+    const wf = JSON.parse(f.content);
+    return wf && typeof wf === 'object' ? wf : null;
   } catch {
-    return fallback;
+    return null;
   }
 }
+
+export async function workflowLanes(store) {
+  const lanes = Object.keys((await readWorkflow(store))?.lanes ?? {});
+  return lanes.length ? lanes : FALLBACK_LANES;
+}
+
+/**
+ * The ONE resolver of track AM-10131 (conductor/services/workflow-transitions.mjs) bound to this project: the project's own lane
+ * names resolve through the same guide-lane mapping as `valid.guide_lanes` (track AM-10128), so `implement` finds `in-progress`.
+ */
+export function transitionOpts(workflow) {
+  const lanes = [...new Set([...Object.keys(workflow?.lanes ?? {}), 'backlog'])];
+  return { mapLane: (name) => nearestLane(name, lanes) };
+}
+export const resolveOutcome = (workflow, lane, outcome) => resolveNext(workflow, lane, outcome, transitionOpts(workflow));
 
 /**
  * What a write may use here, so the first write succeeds: this project's lanes (workflow.json, plus `backlog`), the fixed statuses, and
  * which lane of this project each skill lane guide stands for (`implement` -> `in-progress` in a project that names it so). Additive
- * field `valid` of get_track and get_context.
+ * field `valid` of get_track and get_context. Track AM-10131 adds where a finished lane action sends the track: `next` (get_track:
+ * for the track's lane, `{ success, failure }` as `lane:status`, or null for no automatic move; `next_error` says why when there is
+ * none for lack of a lane) and `next_by_lane` (get_context: the same for every lane).
  */
-export async function workflowVocabulary(store) {
+export async function workflowVocabulary(store, { trackLane, withNext = 'none' } = {}) {
+  const wf = await readWorkflow(store);
   const lanes = [...new Set([...(await workflowLanes(store)), 'backlog'])];
-  return { lanes, statuses: STATUSES, guide_lanes: guideLaneMap(LANES, lanes) };
+  const valid = { lanes, statuses: STATUSES, guide_lanes: guideLaneMap(LANES, lanes) };
+  const opts = transitionOpts(wf);
+  if (withNext === 'track') {
+    const d = describeNext(wf, trackLane, opts);
+    valid.next = d.ok ? d.next : null;
+    if (d.ok) valid.next_lane = d.lane;
+    else valid.next_error = wf ? d.message : 'conductor/workflow.json is missing or not valid JSON; no transitions are known';
+  } else if (withNext === 'lanes') {
+    valid.next_by_lane = {};
+    for (const lane of lanes) {
+      const d = describeNext(wf, lane, opts);
+      valid.next_by_lane[lane] = d.ok ? d.next : null;
+    }
+  }
+  return valid;
 }
 
 /** Marker values as `base.markers` carries them (long values fingerprinted). */
