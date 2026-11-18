@@ -117,7 +117,16 @@ if (siteDir) {
     const facts = await gatherFacts(repo, { now: Date.parse(now) });
     next = nextCard(classifyFacts(facts), facts);
   } catch (e) { process.stderr.write(`board: the next step could not be worked out (${String(e?.message ?? e).split('\n')[0].slice(0, 120)}); the panel is left out\n`); }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next }))}\n`, 'utf8');
+  // The state branch head this board is built from (the ref the connector reads: the branch when it exists, else HEAD), so the page can say whether the repository has moved on.
+  let commit = null;
+  try {
+    const sb = resolveStateBranch(repo).branch;
+    for (const ref of [`refs/heads/${sb}`, 'HEAD']) {
+      const r = spawnSync('git', ['-C', repo, 'rev-parse', '--verify', '-q', `${ref}^{commit}`], { encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+      if (r.status === 0 && r.stdout.trim()) { commit = r.stdout.trim(); break; }
+    }
+  } catch { /* no git: the board has no commit and the page shows the age only */ }
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, commit }))}\n`, 'utf8');
   process.stdout.write(argv.includes('--json') ? `${JSON.stringify({ page, root: dir, files })}\n` : `${page}\n${data}\n`);
 } else if (checkFile) {
   const text = await readText(path.resolve(checkFile));
