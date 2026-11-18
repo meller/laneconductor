@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Plan updated 2026-11-18: the rules already exist in done tracks 1016 (status enum) and 1020 (workflow standardization, lane:status transitions, lane renames); this track brings them into the plugin as ONE current reference document plus a resolver in the connector.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
