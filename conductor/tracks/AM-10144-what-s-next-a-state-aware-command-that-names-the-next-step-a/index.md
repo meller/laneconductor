@@ -1,9 +1,9 @@
 # Track AM-10144: What's next: a state-aware command that names the next step and explains it (onboarding as a tutorial)
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 75%
-**Phase**: Planned 2026-11-18 (spec, plan and test cases written, 8 phases; owner decisions D1-D12 have defaults). Waiting for the owner's go, and for 10143 to merge first (both edit connector/src/commands.mjs).
+**Phase**: Phases 1 to 6 built and merged to local main 2026-11-18 (493 connector tests, strict validate x4), shipped in plugins 1.2.0 (not pushed yet). Open: Phase 7, the real-session walk-through (TC-31 to TC-42, owner runs it on Fiti PLUG), and Phase 8 (swap in the audit signals, partly done: blocked_by and ready_to_resume are used when the connector is present).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
