@@ -13,3 +13,4 @@
 
 Scope: one rule in all guides: never commit `conductor/tracks/**` on a code branch, state goes through `update_track` on the state branch; the merge guide pre-checks that `git diff main...track-N -- conductor/tracks` is empty; the track-runner reads the track with `get_track` (primary), not from disk; take-ours guidance for `tracks-summary.md` and the advice log on merge; start worktrees from the current local main. Coordinate with track 10133 (it rewrites the merge lane text).
 **Summary**: From the audit (findings E1, E2, severity medium). The guides contradict each other: `lanes/implement.md` step 5 tells the agent to tick plan.md and commit in the worktree, while `merge.md` step 3 say
+**Part Of**: 10145
