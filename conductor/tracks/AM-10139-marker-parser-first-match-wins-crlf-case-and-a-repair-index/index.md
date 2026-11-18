@@ -1,7 +1,7 @@
 # Track AM-10139: Marker parser: first match wins, CRLF, case, and a repair_index write
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Track Kind**: bug
