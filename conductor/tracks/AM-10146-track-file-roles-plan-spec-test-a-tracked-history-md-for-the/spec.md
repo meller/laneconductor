@@ -18,25 +18,34 @@ Scope:
 1. Contract text: a section 'What goes in each track file' in the skill (ops/tracks.md, SKILL.md pointer, lanes/plan.md and the other lane guides, connector/guides), the scaffold's workflow.md template, and the generated command texts; the plan guide says to move any dated status out of plan.md.
 2. history.md: create_track and the scaffold create an empty history.md (header line only); the lane completion line and the 'Classified as Track Kind' note go to history.md as one dated line each; append_conversation routes author `system` to history.md (tracked and committed with the track) while human, claude and gemini stay in conversation.md; no new tool and no tool-description text (KC-8 budget), the guides and the response say where the line went; .gitignore lines stay as they are (conversation ignored, history tracked).
 3. Lint: a warning `plan_has_log` when plan.md has two or more dated or STATUS, RELEASE, INCIDENT, UPDATE, LOG headings, or is over 60 KB; shown by get_track, as one aggregate line in list_tracks and in the summary lint; a procedure in ops/tracks.md for splitting a plan that holds a log (move the dated sections into history.md and the design decisions into spec.md, ask first, never delete). Do not touch ops/next.md here (the What's next work is editing it; the `next` display of this lint comes after).
-4. Pilot: otralingo AM-1259 is restructured by otralingo's own agent using this contract (the lead tells it); this repo's own tracks are not rewritten.
+4. Noise fix in create_track (from 10143): the 'also named differently on branch' note lists hundreds of numbers because of old unmerged branches; make it short (at most 3 shown, '+N more', recent branches only, under the 200-character bound).
 5. Tests: create_track creates history.md; system entries land in history.md and are committed, human entries in conversation.md and are not; the lint on fixtures (clean plan, dated sections, oversized); text tests that the guides name the contract; base stays Markdown-only and free of daemon-era words.
+6. Apply the contract to the open tracks (owner, 2026-11-18, at least laneconductor and otralingo): tidy each open track in the plan, implement, review and quality-gate lanes: move dated status out of plan.md into history.md (ask first, never delete), write a real spec.md from the decisions in the plan, fill or remove empty template sections, add a missing test.md, repair damaged headers with repair_index. Read-only survey 2026-11-18: laneconductor has 21 open tracks, no plan with a log, but 12 specs still '(To be filled in.)', 8 placeholder test.md and 3 placeholder plans, 60 old _duplicate folders and one track without a Lane marker; otralingo has 24 open tracks, 12 plans with a log (AM-1259 94 KB with 33 dated sections, AM-1289 155 KB, 1216, 1219, 1290), 9 without a spec, 13 without test.md, 12 without conversation.md. laneconductor: runners tidy this repo's open tracks through the connector, one pilot track first and the owner reviews it before the batch. otralingo: its own agent does it in its own repo with the contract and the splitting procedure the lead sends it, AM-1259 first as the pilot, one yes per track before any plan is split; this repo's tooling never edits otralingo's files.
 
 ## The need
 
-(To be filled in.)
+Plans become status logs because nothing says what belongs in each track file, and a run history kept in an untracked file is lost between machines. A reader cannot find the design in a 97 KB plan, and the board and `next` cannot tell progress from history.
 
 ## Who it is for
 
-(To be filled in.)
+People who plan and review tracks (they need a plan they can read in a minute), agents that write the track files (they need a rule for where each kind of text goes), and maintainers who want the run history kept in git.
 
 ## Wanted outcome
 
-(To be filled in.)
+Every track file has one job and the skill says which; every lane's completion line lands in a tracked history.md; a plan that holds a log is flagged and has a documented, ask-first way to be split; the open tracks of laneconductor and otralingo follow the contract.
 
 ## Acceptance criteria
 
-(To be filled in.)
+- [ ] AC-1: the skill, the lane guides, the bundled guides and the scaffolded workflow.md name the six files and what each holds and never holds.
+- [ ] AC-2: create_track and the scaffold create an empty history.md; the file is not gitignored.
+- [ ] AC-3: append_conversation with author system writes a dated line to history.md and commits it with the track; human, claude and gemini entries go to conversation.md and are not committed; the response says which file got the line.
+- [ ] AC-4: a plan with two or more dated or STATUS, RELEASE, INCIDENT, UPDATE or LOG headings, or over 60 KB, gets a plan_has_log warning in get_track, one aggregate line in list_tracks and a summary lint line; one dated heading is clean.
+- [ ] AC-5: the splitting procedure exists in ops/tracks.md: ask first, move not delete, decisions to spec.md, dated entries to history.md, checkboxes stay in the plan.
+- [ ] AC-6: the create_track branch note is short, recent-branch only and under the 200-character bound.
+- [ ] AC-7: the tool descriptions did not grow (the context-size test passes), the base stays Markdown-only and free of daemon-era words, no lc command and no track numbers in shipped text.
+- [ ] AC-8: this repo's open tracks have no '(To be filled in.)' template text, no placeholder plan or test.md, and no repeated headers.
+- [ ] AC-9: otralingo's AM-1259 is restructured by its own agent as the pilot and the owner has seen the result.
 
 ## Out of scope
 
-(To be filled in.)
+A new connector tool; moving old conversation.md content; the next display of the lint (after the What's next work lands); rewriting done tracks; editing otralingo files from this repo.
