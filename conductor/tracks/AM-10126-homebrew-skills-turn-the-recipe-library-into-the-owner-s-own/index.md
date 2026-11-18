@@ -1,9 +1,9 @@
 # Track AM-10126: Homebrew skills: turn the recipe library into the owner's own skills marketplace
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 10%
+**Phase**: Implement started 2026-11-18 by a sub-agent in the library repository (branch homebrew-skills); the lead reviews and merges the branch. Nothing is pushed: the library stays local until the owner names a private repository.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
