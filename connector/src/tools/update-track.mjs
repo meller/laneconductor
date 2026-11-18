@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
 import { STATUSES, headerDamagedWarning, markerFingerprint, parseMarkers, removeMarker, repairIndex, setMarker, validateIndex } from '../markers.mjs';
+import { claimStamps, humanCommentSince } from '../claims.mjs';
+import { parseEntries } from '../conversation.mjs';
 import { resolveTrack } from '../tracks.mjs';
 import { suggestFor } from '../vocabulary.mjs';
 import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, readWorkflow, resolveOutcome, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
@@ -114,6 +116,15 @@ export const updateTrack = {
         });
       }
       if (refusal) throw refusal;
+      // Track AM-10141: the claim stamp (Run Started, Run By) rides along with a Lane Status change; it is not part of the caller's base.
+      if (files.index === undefined && !repair && markerNames.includes('Lane Status')) {
+        const stamps = claimStamps(parseMarkers(indexNow).values, markerEdits, { now: ctx.now(), who: `${ctx.surface()} ${ctx.session}` });
+        if (stamps) { markerEdits = { ...markerEdits, ...stamps }; markerNames = Object.keys(markerEdits); }
+      }
+      // A human comment that arrived after the caller read conversation.md, while the lane or its status changes.
+      const convNow = curOf('conversation');
+      const humanMidRun = (markerNames.includes('Lane') || markerNames.includes('Lane Status')) && 'conversation' in base.files
+        && humanCommentSince(base.files.conversation, convNow ? convNow.sha : null, convNow ? parseEntries(convNow.content) : []);
       // compose
       const next = {};
       for (const n of fileNames) next[n] = repair && n === 'index' ? repairIndex(indexNow) : files[n];
@@ -144,7 +155,7 @@ export const updateTrack = {
       }
       const changed = Object.keys(next).filter((n) => next[n] !== (curOf(n)?.content ?? null));
       const number = trackIdentity(folder, indexNow).number;
-      if (changed.length === 0) return { folder, changed, number, noop: true, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
+      if (changed.length === 0) return { folder, changed, number, noop: true, humanMidRun, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
       const changes = changed.map((n) => ({ path: trackPath(folder, n), content: next[n] }));
       const sum = await summaryChange(tx, ctx.now(), new Map(changed.includes('index') ? [[folder, next.index]] : []));
       if (sum) changes.push(sum);
@@ -161,7 +172,7 @@ export const updateTrack = {
           hint: 'Re-read with get_track and retry.',
         });
       }
-      return { folder, changed, number, r, message, next, curOf, transition, summaryWritten: Boolean(sum), indexShaBefore: curOf('index')?.sha ?? null };
+      return { folder, changed, number, r, message, humanMidRun, next, curOf, transition, summaryWritten: Boolean(sum), indexShaBefore: curOf('index')?.sha ?? null };
     });
 
     const head = await store.head();
@@ -188,6 +199,7 @@ export const updateTrack = {
     const warnings = [];
     if (res.noop && repair) warnings.push('index.md has nothing to repair: no marker is repeated and the names are spelled as written by the tools.');
     else if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
+    if (res.humanMidRun) warnings.push('human_comment_mid_run: a human comment arrived after you read conversation.md. Read it now; if it changes the plan, move the track back.');
     const damaged = res.next.index !== undefined ? headerDamagedWarning(res.next.index) : null;
     if (damaged) warnings.push(damaged);
     if (res.r?.commitError) warnings.push(`Written to disk but NOT committed: ${res.r.commitError}`);

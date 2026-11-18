@@ -105,7 +105,7 @@ export function damagedHeaders(content) {
 export function headerDamagedWarning(content) {
   const d = damagedHeaders(content);
   if (!d.length) return null;
-  return `header_damaged: index.md repeats ${d.map((x) => `**${x.name}** (line ${x.line})`).join(', ')}; the first of each is used. Ask the human, then call update_track with repair_index true: it moves the repeats below a heading.`;
+  return `header_damaged: repeats ${d.slice(0, 3).map((x) => `**${x.name}** (line ${x.line})`).join(', ')}${d.length > 3 ? ', ...' : ''}; the first is used. Ask the human, then update_track with repair_index true to move them below a heading.`;
 }
 
 /** One write that fixes the header: keeps the first of each marker (canonical spelling) and moves the repeated lines below a heading. */
