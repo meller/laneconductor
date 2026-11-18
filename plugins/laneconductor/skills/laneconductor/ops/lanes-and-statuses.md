@@ -42,7 +42,7 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | a bare `done` from another lane | `done:queue`, never `done:success` |
 | `null` or missing | no automatic move: the lane's own action or a human decides |
 
-An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. These fields are daemon-era leftovers and
+An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. These fields are leftovers of the older format and
 are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `defaults`, `primary_model`, `hooks`.
 
 Worked examples. This project's own file (current format):
@@ -55,7 +55,7 @@ Worked examples. This project's own file (current format):
 | quality-gate | `done:queue` | `plan:queue` |
 | done | none | `done:failure` |
 
-An older file (the daemon era, bare targets, old lane names): `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"`
+An older file (the older format: bare targets, old lane names): `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"`
 resolves to `review:queue` on success and `in-progress:failure` on failure (the failure target names the same lane); `planning` with
 `"on_success": "backlog"` resolves to `backlog:queue`; `done` and `backlog` with `null` targets have no automatic move.
 
@@ -69,12 +69,12 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 - **Without them:** read `conductor/workflow.json` and apply the table above by hand. Never compute a target from the raw text any other
   way, and never fill in a missing status by feel: a bare target has exactly the defaults above.
 
-The sync daemon of the parked database tier uses the same logic, from one shared file (`conductor/services/workflow-transitions.mjs`).
+The same logic is shared with the older database tier from one file (`conductor/services/workflow-transitions.mjs`).
 
 ## Lane names
 
 A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
-`planning` to `plan` and `in-progress` to `implement`; older projects (and the daemon-era files they carry) keep the old names, and existing tracks
+`planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
 the project's own names into `**Lane**`.

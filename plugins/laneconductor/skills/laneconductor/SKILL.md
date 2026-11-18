@@ -1,7 +1,7 @@
 ---
 name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
-when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
+when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the lane prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
 argument-hint: "[command] [track-number] [args]"
 ---
 <!-- Portions of workflow protocols adapted from superpowers by Jesse Vincent (MIT License) -->
@@ -10,8 +10,7 @@ argument-hint: "[command] [track-number] [args]"
 
 Tracks are folders under `conductor/tracks/`. Each moves through lanes (plan, implement, review,
 quality-gate, done) and every lane writes its state as bold markers in the track's `index.md`.
-This works with or without a running worker: the markers are the interface, a sync worker (if any)
-only reads them.
+The markers are the interface: a person, a session or any tool can read and write them.
 
 Paths below are relative to this file's directory: `.claude/skills/laneconductor/` in a project, or
 the plugin's `skills/laneconductor/` when installed as the LaneConductor plugin. If you only received this text (some non-Claude CLIs paste
@@ -42,15 +41,15 @@ wrap or bundle them.
 | `brainstorm` | [lanes/brainstorm.md](lanes/brainstorm.md) | yes |
 | `implement` | [lanes/implement.md](lanes/implement.md) | yes |
 | `review` | [lanes/review.md](lanes/review.md) | yes |
-| `qualityGate`, `quality-gate` | [lanes/quality-gate.md](lanes/quality-gate.md) (the worker sends `qualityGate`) | yes |
+| `qualityGate`, `quality-gate` | [lanes/quality-gate.md](lanes/quality-gate.md) | yes |
 | `merge`, `done` | [lanes/merge.md](lanes/merge.md) (the `done` lane's action) | yes |
 | `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (prefer `lc new`, `lc update-track`, `lc report-bug`, `lc feature-request`) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) (lanes, statuses and transitions: [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md)) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
-| `setup`, `setup collection` | [setup/setup.md](setup/setup.md) | only when named |
-| `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |
+| `setup` | [setup/setup.md](setup/setup.md) (add LaneConductor to this project; it follows [ops/new-project.md](ops/new-project.md)) | only when named |
+| `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (straight to the files, no interview) (templates in [setup/templates.md](setup/templates.md)) | only when named |
 | `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, the `conductor/` scaffold, the first tracks) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
@@ -63,15 +62,18 @@ a snapshot: it changes only when Claude refreshes it. Sharing it shares those do
 [ops/board.md](ops/board.md); building the page needs the optional laneconductor-board add-on, and that file says what to show when it is missing.
 
 **New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
-time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks in the plan
+time, writes the `conductor/` scaffold with no database, and creates the first tracks in the plan
 lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-project.md)).
+`setup` adds LaneConductor to a project that already exists: the same procedure, but it reads `package.json`, the README and
+the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
+imports no older tracks silently ([setup/setup.md](setup/setup.md)).
 
-Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, `syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.
+Not in the plugin: the legacy tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, `syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.
 
 ## Finding a track
 
 A track number maps to one folder under `conductor/tracks/`. Run `lc track-dir <N>`: it prints the
-folder (exit 0) using the same resolver as the sync worker (`conductor/services/track-folder.mjs`),
+folder (exit 0),
 is read-only, and handles both naming conventions: `INITIALS-NNN-slug` (for example
 `AM-10023-my-feature`, the current form) and the legacy bare `NNN-slug`. `--json` gives
 `{ folder, matches, registered }`.
@@ -79,7 +81,7 @@ is read-only, and handles both naming conventions: `INITIALS-NNN-slug` (for exam
 Without `lc`: check the number's `folder_path` in `conductor/tracks-metadata.json`, then scan
 `conductor/tracks/` for **both** conventions (a legacy-only scan silently misses every prefixed
 folder), then `conductor/tracks.md`, then `conductor/tracks/file_sync_queue.md`, which lists a
-UI/CLI-created track as pending until the worker makes its folder.
+UI/CLI-created track as pending until its folder exists.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
 fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
@@ -91,7 +93,7 @@ Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a huma
 > **author**: First line of the message
 > second line, also prefixed with >
 ```
-`author` is `human`, `claude`, `gemini` or `system`. The sync worker's parser recognizes only
+`author` is `human`, `claude`, `gemini` or `system`. The tools that read it recognize only
 `> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a markdown header, a plain
 blockquote, loose prose) stays in the file but is silently never synced to the UI, with no error.
 For long pasted material (an email, a contract, a redline) keep one opening `> **author**:` line and
@@ -100,8 +102,8 @@ prefix partway because the content reads like a document.
 
 ## Session continuity
 
-Worker prompts start with `FRESH_SESSION: true` or `FRESH_SESSION: false`. On `true`, do every
-"load context" step. On `false` the worker resumed your own session on this track (track 1086), so
+A prompt may start with `FRESH_SESSION: true` or `FRESH_SESSION: false`. On `true`, do every
+"load context" step. On `false` you resumed your own session on this track (track 1086), so
 skip re-reading files you already read in it, but still read anything new: a human comment in
 `conversation.md`, a file that did not exist, command output you just produced. Resumed means
 "don't redo work", not "ignore new information". No marker at all (a skill-only session) means
@@ -111,9 +113,8 @@ treat it as `true`.
 `test.md` wholesale on a resumed turn, re-read them. If the file differs from what you remember
 writing, someone else (a human or another session) has acted since; reconcile with it instead of
 overwriting. Track AM-1020 is the incident: a resumed session re-asserted a stale "blocked, no
-requirements" conclusion over a fresh respec, three times in ten minutes. The worker's document-digest
-check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers `spec.md`,
-`plan.md`, `test.md` and a few `index.md` markers, and skill-only sessions have none.
+requirements" conclusion over a fresh respec, three times in ten minutes. Nothing checks this for you in a
+skill-only session, so re-read the file yourself.
 
 ## Lanes and transitions
 
@@ -151,7 +152,7 @@ check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers 
 | `**Type**` | `dev`, `marketing`, `sales`, `support`, `other`. Non-dev tracks get supervised implement and a KPI. |
 | `**Track Kind**: bug\|feature` | Written only by plan; feeds the default workspace (bug -> main). |
 | `**Workspace**: main\|branch` | A deliberate human override of where lane actions run; never infer it. |
-| `**Auto Run**: yes\|no` | Whether the worker may claim the track from the queue by itself (absent means no). |
+| `**Auto Run**: yes\|no` | Whether an automatic runner may claim the track from the queue by itself (absent means no). |
 | `**Merge Mode**: direct\|pr` | How the done lane integrates the branch (absent means `pr`). |
 | `**PR URL**` | Written by the merge lane in pr mode. |
 | `**Verdict**: pass\|fail` | Written by review and quality-gate; cleared at claim. |

@@ -1,6 +1,6 @@
 # implement lane: `/laneconductor implement N`
 
-Execute the track's `plan.md`, phase by phase, communicating through files. A worker or runner
+Execute the track's `plan.md`, phase by phase, communicating through files. A runner
 normally has already locked the track and started you in `.worktrees/NNN`; that is where the
 commits go.
 
@@ -51,8 +51,8 @@ commits go.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
      `### Publish Instructions` to the user.
    - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
-     completion comment is needed. The worker sees the human's "done" reply and schedules the
-     quality gate.
+     completion comment is needed. The human's "done" reply moves the track on to the quality
+     gate.
    - Stop. Do not transition the lane yourself.
 4b. **Fundamentals conflict (dev tracks).** If what you must build conflicts with, or implies a
    change to, `product-guidelines.md`, `design-language.md`, `tech-stack.md` or `workflow.md`,

@@ -50,8 +50,9 @@ wrap or bundle them.
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
-| `setup`, `setup collection` | [setup/setup.md](setup/setup.md) | only when named |
-| `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |
+| `setup` | [setup/setup.md](setup/setup.md) (add LaneConductor to this project; it follows [ops/new-project.md](ops/new-project.md)) | only when named |
+| `setup collection`, `setup install` (daemon era) | [legacy/setup-daemon.md](legacy/setup-daemon.md) | only when named |
+| `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (straight to the files, no interview) (templates in [setup/templates.md](setup/templates.md)) | only when named |
 | `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, the `conductor/` scaffold, the first tracks) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
@@ -67,8 +68,11 @@ a snapshot: it changes only when Claude refreshes it. Sharing it shares those do
 [ops/board.md](ops/board.md).
 
 **New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
-time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks in the plan
+time, writes the `conductor/` scaffold with no database, and creates the first tracks in the plan
 lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-project.md)).
+`setup` adds LaneConductor to a project that already exists: the same procedure, but it reads `package.json`, the README and
+the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
+imports no older tracks silently ([setup/setup.md](setup/setup.md)).
 
 The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.
 

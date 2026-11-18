@@ -1,4 +1,4 @@
-# quality-gate lane: `/laneconductor quality-gate N` (the daemon sends `qualityGate N`)
+# quality-gate lane: `/laneconductor quality-gate N`
 
 Run the checks, post the result, and route the track. Passing here queues the track for merge
 (`done:queue`); it does not mean shipped, because the merge action sets `done:success` once the
@@ -11,7 +11,7 @@ code is on `main`.
    step 1) never leaves a stale value for a later run's exit handler to misread.
 0b. **KPI window.** If `**KPI Check After**` in `index.md` is in the future, ask
    "KPI window not reached, Xh remaining. Measuring now may be unreliable. Run anyway? (y/n)" and
-   stop on "n". When the worker launched you it already checked the time; skip this.
+   stop on "n". When an automatic run launched you it already checked the time; skip this.
 1. **KPI measurement (before any code check).** Read `**Type**`. If it is non-dev (`marketing`,
    `sales`, `support`, `other`) or `spec.md` has a `## KPI` block, run
    `node conductor/measure.mjs --track NNN` and write `**KPI Actual**: N` and
@@ -47,7 +47,7 @@ code is on `main`.
    - With no E2E suite, drive the flow by hand once: start the app, use what the track added, and
      record what you saw (screenshot, or the real API/DB response). "The code looks correct" is
      not evidence.
-   - **Restart long-running processes first.** Workers and the API server do not hot-reload, so
+   - **Restart long-running processes first.** Servers and long-running tools do not hot-reload, so
      verifying against a process started before your change tests the old code. This has caused
      several false passes in this repo.
 
@@ -98,7 +98,7 @@ code is on `main`.
    - While the gate itself is executing (a full suite, a deploy), the track is
      `quality-gate:running`.
    - Write `**Verdict**` on every PASS/FAIL (track AM-10087): the harness can tag the turn
-     `blocked` although this step already resolved a routable outcome, and the sync worker's exit
+     `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
 

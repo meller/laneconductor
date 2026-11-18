@@ -1,9 +1,9 @@
 # Track AM-10130: Setup: add LaneConductor to an existing project (route setup to the existing-repo scaffold, drop the stale install text)
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 90%
+**Phase**: Merged and pushed 2026-11-18 (main b36011e8). /laneconductor:setup now means add LaneConductor to this project (existing-repo path of new-project); lc-scaffold --detect reads package.json, README, CI and lint config and proposes only commands that exist (tried read-only on two real projects); the daemon-era install text moved to legacy/; the base ships no worker, daemon or make-install text (grep test); try-local.sh disables clashing installs in the scratch repo only. 341 tests, strict validation pass. Open: the owner runs /laneconductor:setup in a copy of a real project, and a sanity check of two behaviours (the base no longer writes file_sync_queue.md; the legacy lc setup wizard flow still points at setup scaffold generate).
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct

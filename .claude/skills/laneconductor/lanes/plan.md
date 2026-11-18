@@ -7,7 +7,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
 0. **Claim the track first.** Write `**Lane**: plan` and `**Lane Status**: running` to the track's
    `index.md`. Set `**Lane**` explicitly, not just `**Lane Status**`: when plan is run directly
    (a KPI-miss replan, a manual re-run) the track may not sit in the plan lane, and the board
-   would show it running in the wrong column. The claim also stops the worker double-launching it.
+   would show it running in the wrong column. The claim also stops a second session starting the same track.
 0b. **Classify bug or feature** - only if `index.md` has neither a `**Workspace**` nor a
    `**Track Kind**` marker (an explicit `**Workspace**` always wins; skip this step). Decide from the
    title, description, `conversation.md` (create it if missing) and a quick look at the code area. Write

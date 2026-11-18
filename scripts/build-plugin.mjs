@@ -108,7 +108,8 @@ export function removeFrontmatterKey(text, key) {
 export function transformSkillFile(rel, text, edits = skillEdits()) {
   let out = text;
   for (const [from, to] of edits[rel] ?? []) {
-    if (!out.includes(from)) throw new Error(`skill transform for ${rel}: source text not found (update the skill edits): ${JSON.stringify(from.slice(0, 80))}`);
+    const found = from instanceof RegExp ? from.test(out) : out.includes(from);
+    if (!found) throw new Error(`skill transform for ${rel}: source text not found (update the skill edits): ${JSON.stringify(String(from).slice(0, 80))}`);
     out = out.replace(from, () => to);
   }
   return out;

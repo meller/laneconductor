@@ -107,5 +107,7 @@ test('TC-11: the commands that move tracks say: valid.next or outcome with the c
 });
 
 test('TC-11: this repository\'s guides and the plugin copies stay in step (same reference link in the source and in the generated base)', () => {
-  for (const lane of LANE_GUIDES) assert.equal(read(`${SKILL}/lanes/${lane}.md`), read(`${BASE}/lanes/${lane}.md`), lane);
+  // The base copy has daemon-free rewordings (track AM-10130), so the guides are not byte-identical; the reference links must be.
+  const links = (t) => t.match(/[\w./-]*lanes-and-statuses\.md/g) ?? [];
+  for (const lane of LANE_GUIDES) assert.deepEqual(links(read(`${BASE}/lanes/${lane}.md`)), links(read(`${SKILL}/lanes/${lane}.md`)), lane);
 });

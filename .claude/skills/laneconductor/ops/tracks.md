@@ -108,7 +108,7 @@ Run `lc status` (it also checks worker health). Without `lc`, read `**Lane**`, `
 What the lanes, the five lane statuses and the `on_success` / `on_failure` targets mean (and the defaults
 of a bare target) is in [lanes-and-statuses.md](lanes-and-statuses.md); read that rather than guessing from
 the file. A `workflow.json` that still has bare targets, `auto_action` or the old lane names (`planning`,
-`in-progress`) is the daemon-era format: it works, and migrating it is only ever offered (see the command
+`in-progress`) is the older format: it works, and migrating it is only ever offered (see the command
 text), never done without the person's yes.
 
 `lc workflow` prints `conductor/workflow.json` as a table (lane, auto action, on_success,

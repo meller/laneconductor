@@ -1,111 +1,30 @@
-# setup, install and setup collection
+# setup: add LaneConductor to this project
 
-Run these only when the user asks for them by name. They write config and symlinks into the
-project.
+`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. It needs
+no installer and no database: the result is a `conductor/` folder and a small `.laneconductor.json`, plain files
+in git. Nothing is committed without a yes, and nothing is ever pushed.
 
-## Install (one-time, per machine)
+Before you write anything, tell the person what you are about to create or change, and wait for a yes.
 
-```bash
-git clone <repo> ~/Code/laneconductor
-cd ~/Code/laneconductor
-make install    # writes ~/.laneconductorrc (the skill directory) + installs UI deps
-```
+## What setup does
 
-Add LaneConductor to a project: `cd your-project && lc setup`.
+Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository path (the folder has a `.git`, or files other than
+`conductor/`), and when the folder is empty its new-project path. In short:
 
-`lc setup` symlinks the **whole skill directory** from the install into the project's
-`.claude/skills/laneconductor` (and `.agents/skills/laneconductor`), so updates to the
-laneconductor repo reach every project at once, and the `lanes/`, `ops/`, `setup/`, `deploy/` and
-`legacy/` subfolders travel with it. Without symlinks (Windows without WSL, Claude Desktop),
-copy the whole folder, not just `SKILL.md`: the index links to files beside it. `lc` lives in the
-install's `bin/`; `make install-cli` puts it on the PATH.
+1. **Read the project first.** Infer the name, the stack, the test and lint commands and the CI setup from `package.json` (or the
+   equivalent), the README, the CI files and the lint config. Show what you found and where each fact came from, and ask only
+   to confirm it, in one message. Do not ask what the files already answer.
+2. **Say what is already there.** If `conductor/` or `conductor/tracks` already exists (an older LaneConductor), say what you
+   found: how many tracks, in which naming form, which lanes. Import nothing silently and change none of them.
+3. **Show the plan, then write.** List the files the scaffold would create and the ones it would skip because they exist.
+   After a yes, create only the missing ones. An existing README, `package.json` or any other file of the project is never
+   touched, and `.gitignore` only gets the three lines it lacks.
+4. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`).
 
-## setup
+## setup scaffold
 
-Initializes LaneConductor in the current project.
+`/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow
+[scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview. Use it when the person already
+knows what they want, or another tool has already scanned the project.
 
-1. Check for the CLI (`which lc`). If it exists, the recommended route is `lc setup` (a guided
-   wizard); the alternative is `setup scaffold` here.
-2. Without `lc` (skill-only mode) assume `mode: "local-fs"`, create `.laneconductor.json`, then
-   continue with `setup scaffold`:
-   ```json
-   {
-     "mode": "local-fs",
-     "project": {
-       "name": "<detected-name>",
-       "repo_path": "<absolute-path>",
-       "primary": { "cli": "claude" }
-     }
-   }
-   ```
-In skill-only mode there is no heartbeat worker; the AI updates the `conductor/` files itself
-during its turn.
-
-## Operating modes
-
-`mode` in `.laneconductor.json` is the first field and controls everything else:
-
-| Mode | DB | Collector | UI | Best for |
-|------|----|-----------|----|----------|
-| `local-fs` | no | no | no | offline, CI, tests (the default) |
-| `local-api` | local Postgres | `localhost:8091` | `localhost:8090` | solo developer, full stack |
-| `remote-api` | remote | remote URL | cloud URL | teams, multi-machine |
-
-If `mode` is missing, it is inferred from `collectors`: none -> `local-fs`; a URL containing
-`localhost` or `127.0.0.1` -> `local-api`; any other URL -> `remote-api`. One `.laneconductor.json`
-per repository; `project.id` is its identity in the database (omit it for `local-fs`).
-
-## setup collection
-
-Configures the operating mode, the AI agents, and registers the project. Ask in this order.
-
-1. **Mode** (table above). For `local-fs`, skip steps 2 and 3.
-2. **DB connection** (`local-api` only): host `localhost`, name `laneconductor`, port `5432`, user
-   `postgres`, password, SSL `n`. The password goes in `.env` as `DB_PASSWORD`, never in
-   `.laneconductor.json`. Create the schema with the SQL in `legacy/db-schema.md`
-   (`psql -h <host> -p <port> -U <user> -d <db> -f <file>`, or a one-off node script).
-3. **Collectors** (not `local-fs`): local only (default), LC cloud, or both. A cloud token is stored
-   in `.env` as `COLLECTOR_n_TOKEN` (n is the collector's array index), never in the JSON; for a
-   `gcp-secret` store type, ask for the secret name. Make sure `.gitignore` contains `.env`.
-   The cloud URL is `https://app.laneconductor.com`, but **LC cloud is not fully supported yet
-   (track 10052)**: several worker endpoints (`/tracks/claim-queue`, `/track/:n/lock`,
-   `/track/:n/unlock`, `/projects/:id/workflow`, `/worker-dispatch/*`, `/track/:n/session`,
-   `/api/projects/:id/claimable-tracks`) exist in `ui/server/index.mjs` but not in
-   `cloud/functions/index.js`, so a worker pointed at LC cloud cannot claim or coordinate work.
-   Recommend `local-api` until that port lands.
-4. **Primary agent**: `claude`, `antigravity (agy)`, `gemini (retired)` or `other`. Verify it is
-   reachable with `claude --version`, `agy --version`, `npx @google/gemini-cli --version`, or the
-   command the user gives for `other`. Print `✅ <agent> reachable - <version>`. On failure warn
-   and ask `Continue anyway? [y/N]`. If `gemini` is chosen, warn that Google retired Gemini CLI
-   and antigravity is recommended (wording: the setup wizard in `bin/lc.mjs`); it does not block.
-   - **Model:** for `claude` the CLI takes aliases (`haiku`, `sonnet`), so do not run a discovery
-     command; leaving it blank takes the current default, which is the recommended choice. For
-     `gemini`, a one-shot `npx @google/gemini-cli -p "List the available Gemini model IDs as a
-     plain newline-separated list, no commentary"` can list models (fall back to free text after
-     15s). For `agy` and `other` there is no known listing command: ask `Model name (leave blank
-     to set later):`.
-5. **Secondary agent** (optional): same reachability check and model question. Blank model means
-   the default.
-6. **Project name:** parse `git remote get-url origin`, falling back to `basename $(pwd)`.
-7. **Write `.laneconductor.json`** (never put passwords or tokens in it):
-   ```json
-   {
-     "mode": "local-api",
-     "project": {
-       "name": "<detected-name>",
-       "id": null,
-       "repo_path": "<absolute-path>",
-       "git_remote": "<git-remote-or-null>",
-       "primary": { "cli": "claude", "model": "<selected-model>" },
-       "secondary": { "cli": "agy", "model": "<selected-model>" },
-       "dev": { "command": "npm run dev", "url": "http://localhost:3000" }
-     },
-     "collectors": [{ "url": "http://localhost:8091", "token": null }],
-     "ui": { "port": 8090 }
-   }
-   ```
-   `local-fs` is the same minus `id`, `secondary`, `dev` and `ui`, with `"collectors": []`.
-   `remote-api` points `collectors[0].url` at the remote collector (for example
-   `https://collector.laneconductor.io`) and may set `"create_quality_gate": false`. Omit
-   `secondary` and `dev` when unused. `dev.command` / `dev.url` add a "Start Dev Server" button to
-   review-lane tracks in the Kanban UI.
+<!-- Starter set: reserved for the skill advisor (track 10124) -->

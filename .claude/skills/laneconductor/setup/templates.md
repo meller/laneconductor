@@ -110,7 +110,7 @@ with a longer fixed delay or a skip.
 - [ ] E2E suite: `<e.g. npx playwright test>` (Expected: all specs pass —
       run the EXISTING specs; writing one trivial new passing test does not
       satisfy this)
-- [ ] Restarted long-running processes (workers, API server) before
+- [ ] Restarted long-running processes (dev servers, API server) before
       verifying — they do not hot-reload, and testing against a stale
       process is a false pass
 - [ ] If no E2E suite exists: drove the flow manually and recorded the
@@ -202,14 +202,13 @@ Leave the key out and nothing changes; every reader of `workflow.json` ignores k
 ```
 
 **`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
-needs a running process. No `mode`, no database, no collectors, no worker settings.
+needs a running process. No `mode`, no database and no sync settings.
 ```json
 { "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
 ```
 
 **`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
-`conductor/tracks/**/conversation.json` and `.worktrees/`. The other runtime lines in `scaffold.md` belong to
-the parked sync worker and are not added by `new-project`.
+`conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added.
 
 
 

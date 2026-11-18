@@ -18,8 +18,7 @@ Markers this lane reads and writes:
    `conductor/tracks/NNN-*/index.md`. Set `**Lane**` explicitly: when run directly the track may
    not sit in this lane, and the board would show it running in the wrong column.
 1. **Work in the primary checkout.** Do not create a track worktree. Take the project's global
-   main-mode lock (the one other `workspace: main` lane actions use) and work in the repo root the
-   worker already runs from. Commits made here still name the track (`Merge track-NNN`, and so on).
+   main-mode lock (the one other `workspace: main` lane actions use) and work in the repo root. Commits made here still name the track (`Merge track-NNN`, and so on).
 2. **Load context.** On `FRESH_SESSION: false` skip files you already read this session, but always
    re-read `conversation.md`. Read `index.md` for `**Merge Mode**` and `conversation.md` for human
    instructions (for example a reconciler comment about a conflicted PR; see step 6).
