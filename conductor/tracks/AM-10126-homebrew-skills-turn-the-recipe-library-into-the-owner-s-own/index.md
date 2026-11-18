@@ -1,9 +1,9 @@
 # Track AM-10126: Homebrew skills: turn the recipe library into the owner's own skills marketplace
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 10%
-**Phase**: Implement started 2026-11-18 by a sub-agent in the library repository (branch homebrew-skills); the lead reviews and merges the branch. Nothing is pushed: the library stays local until the owner names a private repository.
+**Lane**: review
+**Lane Status**: success
+**Progress**: 90%
+**Phase**: Implemented and merged to main in the LOCAL library repository (~/Code/lc-recipes, 13 skills, strict validation passes, checker 0 findings, 5 tool tests pass, no remote). Open for the owner: name a private GitHub repository and push it, install it and try one skill in a real session. Not found: an onboarding skill (each product's flow is different).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
