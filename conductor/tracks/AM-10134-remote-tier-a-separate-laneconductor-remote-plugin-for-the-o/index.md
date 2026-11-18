@@ -1,9 +1,9 @@
 # Track AM-10134: Remote tier: a separate LaneConductor Remote plugin for the old remote, workers and Jira code
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Parked in the backlog by the owner on 2026-11-18: not worked now; the focus is the Claude plugins.
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
