@@ -14,6 +14,8 @@
 // by Glob. When they exist it uses them and recommends nothing; when they do not, it mentions the add-on once per session and only when
 // relevant, shows the install commands and never runs them. The pointers stay short: the directory bans listings that exist mainly as
 // advertising, so the base is useful alone.
+import fs from 'node:fs';
+
 export const AUTHOR = 'Asaf Meller';
 export const AUTHOR_URL = 'https://github.com/meller';
 export const REPO_URL = 'https://github.com/meller/laneconductor';
@@ -36,14 +38,36 @@ export const BOARD_SCRIPT_GLOB = `**/${NAMES.board}/**/bin/lc-board.mjs`; // und
 export const SCAFFOLD_SCRIPT_GLOB = `**/${NAMES.parallel}/**/server/bin/lc-scaffold.mjs`;
 export const toolRef = (tool) => `${CONNECTOR_TOOL_PREFIX}${tool}`;
 
-// ONE SOURCE for the way to get an add-on. These commands are shown to the person, who runs them; no plugin tells Claude to run them.
-export const MARKETPLACE_ADD_COMMAND = `claude plugin marketplace add ${MARKETPLACE_SOURCE}`;
+// ONE SOURCE for every recommendation: connector/plugin-extras/recommended-plugins.json (one entry per recommended plugin: name, kind,
+// source, installs_code, triggers, why, adds, detect). Everything below that names an add-on, how to detect it, when to mention it, what it
+// installs and how to get it is generated from that file, so the skill advisor (track AM-10124) can add skill packs and third-party skills as
+// entries without rewriting text.
+export const CATALOG_REL = 'connector/plugin-extras/recommended-plugins.json';
+export const CATALOG = JSON.parse(fs.readFileSync(new URL(`../${CATALOG_REL}`, import.meta.url), 'utf8'));
+export const RECOMMENDED = CATALOG.entries;
+export const ADDONS = RECOMMENDED.filter((e) => e.kind === 'addon');
+export const entryOf = (name) => {
+  const e = RECOMMENDED.find((x) => x.name === name);
+  if (!e) throw new Error(`recommended-plugins.json has no entry ${name}`);
+  return e;
+};
+const entryFor = (profileOrName) => entryOf(NAMES[profileOrName] ?? profileOrName);
+
+// ONE SOURCE for the way to get a plugin. These commands are shown to the person, who runs them; no plugin tells Claude to run them.
 export const RELOAD_COMMAND = '/reload-plugins';
-/** The two shell commands that install an add-on, in order. Each is shown alone in its own bash block (the desktop app adds a Run button to bash blocks; the person clicks it, Claude runs nothing). */
-export const installCommands = (profile) => [MARKETPLACE_ADD_COMMAND, `claude plugin install ${NAMES[profile]}@${MARKETPLACE}`];
+export const MARKETPLACE_ADD_COMMAND = `claude plugin marketplace add ${MARKETPLACE_SOURCE}`;
+/** The two shell commands that install a recommended plugin, in order. Each is shown alone in its own bash block (the desktop app adds a Run button to bash blocks; the person clicks it, Claude runs nothing). */
+export const installCommands = (profileOrName) => { const e = entryFor(profileOrName); return [`claude plugin marketplace add ${e.source.add}`, `claude plugin install ${e.source.plugin}@${e.source.marketplace}`]; };
 /** The same two steps typed inside a session (slash commands, so inline code, not a shell block). */
-export const sessionInstallCommands = (profile) => [`/plugin marketplace add ${MARKETPLACE_SOURCE}`, `/plugin install ${NAMES[profile]}@${MARKETPLACE}`];
-export const installBlock = (profile) => `${installCommands(profile).map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}\n\nThen run \`${RELOAD_COMMAND}\` in the session. Inside a session you can type \`${sessionInstallCommands(profile)[0]}\` and \`${sessionInstallCommands(profile)[1]}\` instead (that opens the plugin's details for review).`;
+export const sessionInstallCommands = (profileOrName) => { const e = entryFor(profileOrName); return [`/plugin marketplace add ${e.source.add}`, `/plugin install ${e.source.plugin}@${e.source.marketplace}`]; };
+export const installBlock = (profileOrName) => `${installCommands(profileOrName).map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}\n\nThen run \`${RELOAD_COMMAND}\` in the session. Inside a session you can type \`${sessionInstallCommands(profileOrName)[0]}\` and \`${sessionInstallCommands(profileOrName)[1]}\` instead (that opens the plugin's details for review).`;
+/** The one visible difference between entries: a plugin that installs code says so plainly. */
+export const installsNote = (profileOrName) => {
+  const e = entryFor(profileOrName);
+  return e.installs_code
+    ? `It installs ${e.installs} on your computer, from the owner's marketplace (\`${e.source.add}\`), not from Anthropic's directory.`
+    : 'It is Markdown only: it installs no program.';
+};
 export const MIGRATION_UNINSTALL_COMMAND = `claude plugin uninstall ${NAMES.base}`;
 
 /** Connector tools a catalog procedure names (plain names in backticks), in order of first use. */
@@ -59,7 +83,7 @@ const BOARD_MISSING = `${BOARD_LAST_RULE}
 
 The board page is built by a small script from the ${NAMES.board} add-on, which is optional and not part of this plugin. Without it,
 say that in a sentence or two, then show these commands as written. The person runs them; never run an install command yourself.
-Do not look for another way to build the board, do not write the page by hand, and do not publish anything.
+${installsNote('board')} Do not look for another way to build the board, do not write the page by hand, and do not publish anything.
 
 ${installBlock('board')}
 
@@ -154,42 +178,37 @@ export const BASE_HABITS = `
 
 ## Add-ons (mention rarely)
 
-LaneConductor is complete on its own. Two optional add-ons exist. Tell what is installed from what you can see: the \`${NAMES.parallel}\` add-on (conflict-checked track writes, an isolated sub-agent per track) is there when the tools \`${CONNECTOR_TOOL_PREFIX}*\` or the agent \`${TRACK_RUNNER_AGENT}\` exist; the \`${NAMES.board}\` add-on (the board) is there when Glob \`${BOARD_SCRIPT_GLOB}\` under \`~/.claude/plugins\` finds its script. When one is there, use it and recommend nothing. When it is missing, and only when the person asks for a board, mentions several sessions, people or sub-agents writing the same tracks, worktrees, or asks for automatic commits, a privacy scan or a health report, say in one or two sentences what it adds and read [ADD-ONS.md](ADD-ONS.md) for the install commands; show them as written. Once per session, as an option, never nagging; if the person declines, do not bring it up again. NEVER run an install command yourself.
+LaneConductor is complete on its own. Optional add-ons exist (read [ADD-ONS.md](ADD-ONS.md)). Tell what is installed from what you can see: ${ADDONS.map((e) => `\`${e.name}\` (${e.why}) is there when ${e.detect}`).join('; ')}. When one is there, use it and recommend nothing. When it is missing, mention it only when its trigger applies: ${ADDONS.map((e) => `for \`${e.name}\`, ${e.triggers.join('; or ')}`).join('; ')}. Then say in one or two sentences what it adds${ADDONS.some((e) => e.installs_code) ? ' and that it installs a local program' : ''}, and show its install commands from ADD-ONS.md as written. Once per session, as an option, never nagging; if the person declines, do not bring it up again. NEVER run an install command yourself.
 `;
 
-/** skills/laneconductor/ADD-ONS.md: the single source of what each add-on adds, how to tell it is installed, and how to get it. */
-export const ADD_ONS_MD = `# Add-ons: parallel work and the board
+/** The README block of the base that lists the add-ons: one entry each, what it adds, the plain note on whether it installs a program, the install commands. */
+export const addonsReadmeBlock = () => ADDONS.map((e) => `### \`${e.name}\`\n\n${e.why[0].toUpperCase()}${e.why.slice(1)}. ${installsNote(e.name)}\n\n${installBlock(e.name)}`).join('\n\n');
 
-LaneConductor works on its own: every command edits the track files directly. Two optional add-ons exist, from the owner's marketplace
+/** One section of ADD-ONS.md for a catalog entry. */
+const addOnSection = (e) => `## ${e.name}
+
+${e.why[0].toUpperCase()}${e.why.slice(1)}.
+
+- **Installed when**: ${e.detect}.
+- **Adds**: ${e.adds.join('; ')}.
+- **Installs**: ${installsNote(e.name)}
+- **Relevant when**: ${e.triggers.join('; or ')}.
+
+${installBlock(e.name)}
+`;
+
+/** skills/laneconductor/ADD-ONS.md: what each add-on adds, how to tell it is installed, when to mention it and how to get it. Generated from recommended-plugins.json. */
+export const ADD_ONS_MD = `# Add-ons
+
+LaneConductor works on its own: every command edits the track files directly. Optional add-ons exist, from the owner's marketplace
 (\`${MARKETPLACE_SOURCE}\`), not from Anthropic's directory. Mention one only when it is relevant (see "Add-ons (mention rarely)" at the
 end of SKILL.md), at most once per session, in a sentence or two, as an option. When it is installed, use it and recommend nothing.
 
-## ${NAMES.parallel}: parallel work in worktrees, safe shared writes
-
-- **Installed when**: the tools \`${CONNECTOR_TOOL_PREFIX}*\` exist (for example \`${toolRef('get_track')}\`), or the agent \`${TRACK_RUNNER_AGENT}\` is listed.
-- **Adds**: conflict-checked writes (a write is refused if someone edited first, so several sessions, people or sub-agents can write the
-  same tracks at once), automatic commits of the track changes it makes, freshness warnings, a generated summary of all tracks, a secret
-  and personal-data scan, an advice log and a health report, a scaffold script for a new project, and the \`track-runner\` sub-agent: one
-  per track, each in its own git worktree.
-- **Costs**: it runs a local Node.js program (the connector).
-- **Relevant when**: the person mentions several sessions, people or sub-agents writing the same tracks, worktrees, parallel tracks,
-  overwrites, automatic commits, a privacy scan or a health report.
-
-${installBlock('parallel')}
-
-## ${NAMES.board}: the board
-
-- **Installed when**: Glob \`${BOARD_SCRIPT_GLOB}\` under \`~/.claude/plugins\` finds \`lc-board.mjs\`.
-- **Adds**: the script that builds the board page and data from the track files. Claude publishes them as a private artifact, only with
-  the person's approval. It works with or without the other add-on.
-- **Relevant when**: the person asks for a board or dashboard (\`/laneconductor:board\`, \`:refresh-board\`).
-
-${installBlock('board')}
-
+${ADDONS.map(addOnSection).join('\n')}
 ## Rules
 
 - The person runs the commands above, in their own terminal or session. NEVER run an install command yourself.
-- After installing, the person types \`/reload-plugins\`; a running session keeps the connector version it started with, so restart it
+- After installing, the person types \`${RELOAD_COMMAND}\`; a running session keeps the connector version it started with, so restart it
   after an update.
 - Track files written with or without an add-on are the same files: nothing in \`conductor/\` needs to change.
 - If the person declines, do not bring it up again. More: ${REPO_URL}
@@ -211,10 +230,10 @@ const PARALLEL_STEP = (dispatch) => (
   `If the sub-agent \`${TRACK_RUNNER_AGENT}\` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding. `
   + `Show the exact dispatch, with this prompt: "${dispatch}" Start nothing until I say yes; if I decline, do the lane yourself. `
   + 'If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) '
-  + `and, once, what the ${NAMES.parallel} add-on adds (isolated sub-agents, safe shared state: read the skill's \`ADD-ONS.md\` and show its install commands as written; never run them). Otherwise mention nothing.`
+  + `and, once, what the ${NAMES.parallel} add-on adds (${entryOf(NAMES.parallel).why}; ${installsNote('parallel')} Read the skill's \`ADD-ONS.md\` and show its install commands as written; never run them). Otherwise mention nothing.`
 );
 const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too.\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
-const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything.\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
+const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
 const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`~/.claude/plugins\` and run \`node <that path> --repo . --site "$site" --json\`, or use \`lc board --site "$site" --json\` when \`lc\` is on PATH. ${BOARD_MISSING_TEXT}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
 const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';

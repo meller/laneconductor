@@ -29,6 +29,8 @@ connector's tools and prompts and the subagent still work.
 
 ## Install
 
+It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+
 ```bash
 claude plugin marketplace add meller/laneconductor
 ```
@@ -37,8 +39,9 @@ claude plugin marketplace add meller/laneconductor
 claude plugin install laneconductor-parallel@laneconductor
 ```
 
-Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and
-`/plugin install laneconductor-parallel@laneconductor` instead. Add `--scope local` to install it for one project only (just for
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
+
+Add `--scope local` to install it for one project only (just for
 you), or `--scope user` for every project. It needs Node.js 20 or newer and installs two npm packages (`@modelcontextprotocol/server`,
 `zod`) from the lockfile in this plugin; if the connector does not show in `/mcp`, run `npm ci` inside the plugin's folder.
 Update with `claude plugin marketplace update laneconductor`, then `claude plugin update laneconductor-parallel@laneconductor`.

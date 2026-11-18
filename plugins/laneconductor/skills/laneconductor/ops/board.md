@@ -84,7 +84,7 @@ covers this repo's project only).
 
 The board page is built by a small script from the laneconductor-board add-on, which is optional and not part of this plugin. Without it,
 say that in a sentence or two, then show these commands as written. The person runs them; never run an install command yourself.
-Do not look for another way to build the board, do not write the page by hand, and do not publish anything.
+It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Do not look for another way to build the board, do not write the page by hand, and do not publish anything.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

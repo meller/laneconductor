@@ -1,0 +1,46 @@
+{
+  "comment": "The ONE source of every recommendation LaneConductor makes (track AM-10128; track AM-10124's skill advisor, skill packs and third-party skills will add entries here, not text). scripts/plugin-texts.mjs generates from it: the Add-ons paragraph of the base SKILL.md, ADD-ONS.md, the fallback text of the board commands, the worktree pointer in run/implement/review, ops/board.md's 'missing' section and the README blocks. Fields: name (the plugin id); kind (addon | skillpack | thirdparty); display; source { marketplace: the marketplace name, add: what `claude plugin marketplace add` takes, plugin: the plugin id in it }; installs_code (true when the plugin ships a script or an MCP server: the generated note then says so plainly); installs (what it installs, one phrase, used when installs_code is true); why (one line: what it adds); adds (bullets); detect (how Claude can tell it is installed); triggers (the only moments to mention it; a person asking, never a nag). connector/test/recommendations.test.mjs checks that every plugin named in the generated text is an entry here and that the install commands match .claude-plugin/marketplace.json. Never run an install: the commands are shown, the person runs them.",
+  "entries": [
+    {
+      "name": "laneconductor-parallel",
+      "kind": "addon",
+      "display": "LaneConductor Parallel",
+      "source": { "marketplace": "laneconductor", "add": "meller/laneconductor", "plugin": "laneconductor-parallel" },
+      "installs_code": true,
+      "installs": "an MCP server (the connector, a Node.js program) and a scaffold script",
+      "why": "parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes",
+      "adds": [
+        "conflict-checked writes (a write is refused if someone edited first, so several sessions, people or sub-agents can write the same tracks at once)",
+        "automatic commits of the track changes it makes, and freshness warnings",
+        "a generated summary of all tracks",
+        "a secret and personal-data scan",
+        "an advice log and a health report",
+        "a scaffold script for a new project",
+        "the `track-runner` sub-agent: one per track, each in its own git worktree"
+      ],
+      "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed",
+      "triggers": [
+        "the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites",
+        "the person mentions worktrees or running tracks in parallel",
+        "the person asks for automatic commits, a privacy scan or a health report"
+      ]
+    },
+    {
+      "name": "laneconductor-board",
+      "kind": "addon",
+      "display": "LaneConductor Board",
+      "source": { "marketplace": "laneconductor", "add": "meller/laneconductor", "plugin": "laneconductor-board" },
+      "installs_code": true,
+      "installs": "a script (a Node.js program, no packages) and its page",
+      "why": "the board, one private page of every track by lane, which Claude publishes as an artifact",
+      "adds": [
+        "the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval",
+        "it works with or without the other add-on"
+      ],
+      "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` finds `lc-board.mjs`",
+      "triggers": [
+        "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`)"
+      ]
+    }
+  ]
+}

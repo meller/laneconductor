@@ -26,19 +26,13 @@ policy is {{PRIVACY_URL}}.
 
 ## Optional add-ons
 
-Two optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. Neither is needed, they have
+Optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. None is needed, they have
 no dependency on this plugin or on each other, and LaneConductor does not install them for you. When one is installed, the commands
 use it; when it is missing, LaneConductor mentions it at most once per session, and only when it is relevant.
 
 {{PLUGIN_MAP}}
 
-`laneconductor-parallel` adds parallel work in worktrees and safe writes. Install it with:
-
-{{INSTALL_PARALLEL}}
-
-`laneconductor-board` adds the board, one private page showing every track by lane. Install it with:
-
-{{INSTALL_BOARD}}
+{{ADDONS}}
 
 The full list of what each plugin provides, and which commands need which add-on, is in
 [docs/plugin-map.md](https://github.com/meller/laneconductor/blob/main/docs/plugin-map.md).

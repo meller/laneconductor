@@ -21,16 +21,11 @@ is not done into `<dir>`, which must be outside `conductor/`.
 
 ## Install
 
-```bash
-claude plugin marketplace add meller/laneconductor
-```
+{{SELF_NOTE}}
 
-```bash
-claude plugin install laneconductor-board@laneconductor
-```
+{{INSTALL_SELF}}
 
-Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and
-`/plugin install laneconductor-board@laneconductor` instead. Add `--scope local` to install it for one project only (just for you),
+Add `--scope local` to install it for one project only (just for you),
 or `--scope user` for every project. It needs Node.js 20 or newer and no npm packages. Update with
 `claude plugin marketplace update laneconductor`, then `claude plugin update laneconductor-board@laneconductor`.
 

@@ -22,7 +22,7 @@ Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, 
 
 Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.
 
-Generating the board needs the board script of the optional laneconductor-board add-on: find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` and run `node <that path> --repo . --site "$site" --json`, or use `lc board --site "$site" --json` when `lc` is on PATH. If neither exists, the laneconductor-board add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything.
+Generating the board needs the board script of the optional laneconductor-board add-on: find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` and run `node <that path> --repo . --site "$site" --json`, or use `lc board --site "$site" --json` when `lc` is on PATH. If neither exists, the laneconductor-board add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

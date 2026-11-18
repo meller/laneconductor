@@ -50,13 +50,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, argumentHint, helpLines } from '../connector/src/commands.mjs';
 import {
-  ADD_ONS_MD, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX,
+  ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX,
   DISPLAY, LEGACY_NOTE, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
   RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits, toolRef, toolsUsedBy,
 } from './plugin-texts.mjs';
 
 export {
-  ADD_ONS_MD, BASE_HABITS, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX, LEGACY_NOTE, MARKETPLACE_ADD_COMMAND, MIGRATION_UNINSTALL_COMMAND,
+  ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, BASE_HABITS, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX, LEGACY_NOTE, MARKETPLACE_ADD_COMMAND, MIGRATION_UNINSTALL_COMMAND,
   NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND, RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits,
   toolRef, toolsUsedBy,
 };
@@ -368,6 +368,7 @@ export function buildPluginMap(facts) {
   row('MCP prompts', (f) => (f.prompts.length ? `${f.prompts.map((p) => `\`${p}\``).join(', ')} (the command catalog, served by the connector)` : 'none'));
   row('Scripts', (f) => list(f.scripts, (s) => `\`server/bin/${s}\``));
   row('Files', (f) => (f.program ? 'Markdown, JSON, PNG and the program files above (not accepted by the directory portal)' : 'Markdown, JSON and one PNG only (what the directory portal accepts)'));
+  row('Installs code', (f) => { const e = RECOMMENDED.find((x) => x.name === f.name); return e?.installs_code ? `yes: ${e.installs}` : 'no'; });
   row('Needs the others', () => 'no: each works alone');
   L.push('', 'The base is the plugin prepared for Anthropic\'s directory; the add-ons are installed from the marketplace `' + MARKETPLACE_SOURCE + '` only. No plugin depends on another: the base looks at what is installed (the tools by their prefix, the agent by name, the board script by Glob), uses it when present and recommends nothing; when it is missing it mentions the add-on once, only when relevant, shows the install commands and never runs them.', '');
   L.push('## Base commands and the add-ons', '');
@@ -407,10 +408,12 @@ function buildEverything(repo) {
   const built = Object.fromEntries(PROFILES.map((p) => [p, BUILDERS[p](repo)]));
   const facts = Object.fromEntries(PROFILES.map((p) => [p, pluginFacts(p, built[p].files)]));
   const pkg = readPkg(repo);
-  const vars = {
-    VERSION: pkg.version, PRIVACY_URL, PLUGIN_MAP: shortMap(facts), INSTALL_PARALLEL: installBlock('parallel'), INSTALL_BOARD: installBlock('board'),
-  };
-  for (const p of PROFILES) built[p].add('README.md', fill(fs.readFileSync(path.join(repo, README_SRC, `${p}.md`), 'utf8'), vars));
+  const common = { VERSION: pkg.version, PRIVACY_URL, PLUGIN_MAP: shortMap(facts), ADDONS: addonsReadmeBlock() };
+  for (const p of PROFILES) {
+    const own = RECOMMENDED.find((e) => e.name === NAMES[p]);
+    const vars = { ...common, INSTALL_SELF: own ? installBlock(p) : '', SELF_NOTE: own ? installsNote(p) : '' };
+    built[p].add('README.md', fill(fs.readFileSync(path.join(repo, README_SRC, `${p}.md`), 'utf8'), vars));
+  }
   return { plugins: Object.fromEntries(PROFILES.map((p) => [p, built[p].files])), facts, map: buildPluginMap(facts) };
 }
 

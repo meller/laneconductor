@@ -26,7 +26,7 @@ policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
 
 ## Optional add-ons
 
-Two optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. Neither is needed, they have
+Optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. None is needed, they have
 no dependency on this plugin or on each other, and LaneConductor does not install them for you. When one is installed, the commands
 use it; when it is missing, LaneConductor mentions it at most once per session, and only when it is relevant.
 
@@ -36,7 +36,9 @@ use it; when it is missing, LaneConductor mentions it at most once per session, 
 | `laneconductor-parallel` (add-on) | the connector's tools (`mcp__plugin_laneconductor-parallel_lc__*`) and MCP prompts, the `track-runner` subagent (one per track, in its own worktree), `lc-scaffold.mjs`. No slash commands. |
 | `laneconductor-board` (add-on) | `lc-board.mjs` and its page. No slash commands. |
 
-`laneconductor-parallel` adds parallel work in worktrees and safe writes. Install it with:
+### `laneconductor-parallel`
+
+Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor
@@ -48,7 +50,9 @@ claude plugin install laneconductor-parallel@laneconductor
 
 Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
 
-`laneconductor-board` adds the board, one private page showing every track by lane. Install it with:
+### `laneconductor-board`
+
+The board, one private page of every track by lane, which Claude publishes as an artifact. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

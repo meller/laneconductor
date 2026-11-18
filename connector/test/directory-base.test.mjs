@@ -397,7 +397,8 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
   // Without any add-on, run explains parallel work by hand and what the add-on adds, and otherwise mentions nothing.
   const run = read('commands/run.md');
   assert.match(run, /git worktree add \.worktrees\/track-<number> -b track-<number>/, 'run explains the by-hand worktree');
-  assert.match(run, /isolated sub-agents, safe shared state/, 'run says what the add-on adds');
+  assert.match(run, /isolated sub-agents, one per track in its own worktree, and safe shared state/, 'run says what the add-on adds');
+  assert.match(run, /It installs an MCP server .* on your computer, from the owner's marketplace/, 'and that it installs a local program');
   assert.match(run, /Otherwise mention nothing/);
 });
 

@@ -25,6 +25,8 @@ is not done into `<dir>`, which must be outside `conductor/`.
 
 ## Install
 
+It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+
 ```bash
 claude plugin marketplace add meller/laneconductor
 ```
@@ -33,8 +35,9 @@ claude plugin marketplace add meller/laneconductor
 claude plugin install laneconductor-board@laneconductor
 ```
 
-Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and
-`/plugin install laneconductor-board@laneconductor` instead. Add `--scope local` to install it for one project only (just for you),
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
+
+Add `--scope local` to install it for one project only (just for you),
 or `--scope user` for every project. It needs Node.js 20 or newer and no npm packages. Update with
 `claude plugin marketplace update laneconductor`, then `claude plugin update laneconductor-board@laneconductor`.
 
