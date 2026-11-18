@@ -30,6 +30,12 @@ gate (the full suites, then the deploy) is `quality-gate:running`, not `implemen
 
 Only the quality gate moves a track to `done`. Nothing moves a track to `done:success` straight after implementing.
 
+The other two statuses in the done lane are work somebody still has to finish: `done:failure` is a merge that failed, `done:waiting` is a
+pull request that is open. Only `done:success` is quiet. With the connector, `list_tracks` hides only `done:success` unless
+`include_done` is set, and adds `merged` to a done track whose `track-NNN` branch exists (true when the state branch contains it; no field
+when there is no such branch, because the files cannot tell merged-and-deleted from never branched). The board lists `done:queue`,
+`done:failure` and `done:waiting` under Needs attention, each with its reason.
+
 ## Transitions (track 1020's grammar)
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
