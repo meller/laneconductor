@@ -9,9 +9,9 @@ This command carries the skill text it uses, at the end under "Reference". Do no
 Add a comment to track <track>: <text>. The procedure is the skill file `ops/tracks.md` (`comment`).
 
 1. Find the track's folder if the number is unclear, then append my words to its `conversation.md` as `> **human**: <my words>` (every further line also starts with `> `); create the file if it is missing.
-2. Confirm the entry was added. Do not answer it or change the track unless I ask.
+2. Confirm the entry was added. If the track has an `**Owner Action**` and my comment says it is done, also do what "The owner's reply" says in the skill file `lanes/implement.md` (under "Reference"). Otherwise do not answer it or change the track unless I ask.
 
-If the laneconductor-parallel add-on's tools are present (`mcp__plugin_laneconductor-parallel_lc__get_track`, `mcp__plugin_laneconductor-parallel_lc__append_conversation`), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass `update_track` the `base` from `get_track` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.
+If the laneconductor-parallel add-on's tools are present (`mcp__plugin_laneconductor-parallel_lc__get_track`, `mcp__plugin_laneconductor-parallel_lc__append_conversation`, `mcp__plugin_laneconductor-parallel_lc__get_context`, `mcp__plugin_laneconductor-parallel_lc__update_track`), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass `update_track` the `base` from `get_track` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.
 
 ## Reference
 
@@ -68,3 +68,12 @@ blockquote, loose prose) stays in the file but is silently never synced to the U
 For long pasted material (an email, a contract, a redline) keep one opening `> **author**:` line and
 prefix every following line, blank ones and markdown headers included, with `>`. Do not drop the
 prefix partway because the content reads like a document.
+
+### `lanes/implement.md` (the owner's reply, step 4)
+
+**The owner's reply** ("posted", "done", or a move): nothing moves the track by itself, so you do it.
+Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `**KPI Check After**` to now plus
+the KPI `Window` (a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`); park the track in the quality-gate lane as
+`waiting`, with a `**Waiting Reason**` naming that date. With the connector, one `update_track` makes
+this change and checks for conflicts; lane and status names are the ones in `conductor/workflow.json`.
+With no KPI block there is no window: ask the owner where the track goes next.

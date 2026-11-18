@@ -23,6 +23,8 @@ const LANES_COMMON = [
   T('SKILL.md', '## Finding a track', '## conversation.md format'),
 ];
 const SETTINGS = W('ops/settings.md');
+/** One paragraph of the implement guide (the owner's reply), written once in the skill source and carried by the comment command alone besides the commands that carry the guide whole. */
+const OWNER_REPLY = { file: 'lanes/implement.md', from: "   - **The owner's reply**", to: '4b. **Fundamentals conflict', label: " (the owner's reply, step 4)", dedent: true };
 const FORMS = PARTS('setup/templates.md', '**Track spec forms**', null);
 const REASON_LANE = 'the lane command follows its lane guide, which it used to read from the plugin install folder; the guide and the few reference sections it needs are copied in, so nothing is read outside the project';
 const lane = (guide, extra = []) => ({ why: REASON_LANE, refs: [W(`lanes/${guide}.md`), ...extra, ...LANES_COMMON] });
@@ -43,7 +45,7 @@ export const REFERENCES = {
   new: { why: 'the command names ops/tracks.md (search first, newTrack, the track files); the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK), TRACK_FILES] },
   bug: { why: 'the command names ops/tracks.md and the bug form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },
   feature: { why: 'the command names ops/tracks.md and the feature form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },
-  comment: { why: 'the command names ops/tracks.md (comment) and the conversation format; both are copied in', refs: [T('ops/tracks.md', '## What goes in each track file', '## comment `[track-number] [body]`'), T('SKILL.md', '## conversation.md format')] },
+  comment: { why: 'the command names ops/tracks.md (comment), the conversation format and the owner\'s reply of the implement guide; all are copied in (the reply text only here and in the commands that carry the whole guide)', refs: [T('ops/tracks.md', '## What goes in each track file', '## comment `[track-number] [body]`'), T('SKILL.md', '## conversation.md format'), OWNER_REPLY] },
   move: { why: 'the command names ops/tracks.md and the transition grammar; the sections are copied in', refs: [
     T('ops/tracks.md', '## move `[track-number] [lane:status]`', '## pulse `[track-number] [status] [progress%] [summary?]`'), T('ops/lanes-and-statuses.md', STATUSES, TRANSITIONS, '## Manual moves win')] },
   status: { why: 'the command names ops/tracks.md (status); the section is copied in', refs: [T('ops/tracks.md', '## status')] },
@@ -79,7 +81,8 @@ function render(item, readSkill) {
     const b = item.to ? text.indexOf(item.to) : text.length;
     if (a < 0 || b < 0) throw new Error(`inline: marker not found in ${item.file}`);
     body = shift(text.slice(a, b).replace(/^# .*\n+/, '').replace(/\s+$/, ''), 2);
-    label += item.from ? ' (the track forms)' : ' (the file templates)';
+    if (item.dedent) body = body.replace(/^ {3}- /, '').replace(/\n {5}/g, '\n');
+    label += item.label ?? (item.from ? ' (the track forms)' : ' (the file templates)');
   } else {
     body = shift(text.replace(/^# .*\n+/, '').replace(/\s+$/, ''), 2);
   }

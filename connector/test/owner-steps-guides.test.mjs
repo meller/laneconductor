@@ -46,11 +46,40 @@ test('TC-15: the owner\'s reply is handled without a daemon: clear both markers 
   assert.match(s, /`YYYY-MM-DDTHH:MM:SSZ`/);
 });
 
-test('TC-15: the reply text is written once in the base, and the generated commands carry it as many times as they carry the implement guide', () => {
+test('TC-15: the reply text is written once in the base source; only implement, run and comment carry it', () => {
   assert.equal(count(guide('implement'), /nothing moves the track by itself/g), 1);
-  for (const [name, n] of [['implement', 1], ['run', 1], ['plan', 0], ['next', 0], ['new-project', 0], ['quality-gate', 0]]) {
-    assert.equal(count(command(name), /nothing moves the track by itself, so you do it/g), n, `${name}`);
-  }
+  const names = fs.readdirSync(path.join(REPO, 'plugins/laneconductor/commands')).map((f) => f.replace(/\.md$/, ''));
+  const carry = names.filter((n) => /nothing moves the track by itself, so you do it/.test(command(n))).sort();
+  assert.deepEqual(carry, ['comment', 'implement', 'run'], 'the reply paragraph is in these commands and no other');
+  for (const n of carry) assert.equal(count(command(n), /nothing moves the track by itself, so you do it/g), 1, `${n}: once`);
+  // the skill source holds it once; no other skill file repeats it (the commands take it from the implement guide)
+  const files = (d) => fs.readdirSync(path.join(REPO, d), { recursive: true }).filter((f) => /\.md$/.test(f)).map((f) => path.join(d, f));
+  const holders = files('.claude/skills/laneconductor').filter((f) => /nothing moves the track by itself/.test(read(f)));
+  assert.deepEqual(holders, ['.claude/skills/laneconductor/lanes/implement.md']);
+});
+
+test('TC-15: the comment command applies the reply handling when the track has an Owner Action, and behaves as before when it has none', () => {
+  const c = flat(command('comment'));
+  const body = c.slice(0, c.indexOf('## Reference'));
+  assert.match(body, /If the track has an `\*\*Owner Action\*\*` and my comment says it is done, also do what "The owner's reply" says in the skill file `lanes\/implement\.md` \(under "Reference"\)/);
+  // no Owner Action: the old sentence is intact, and the append step is unchanged
+  assert.match(body, /Otherwise do not answer it or change the track unless I ask\./);
+  assert.match(body, /append my words to its `conversation\.md` as `> \*\*human\*\*: <my words>`/);
+  // the Reference carries the paragraph under the file it comes from
+  assert.match(c, /### `lanes\/implement\.md` \(the owner's reply, step 4\) \*\*The owner's reply\*\* \("posted", "done", or a move\)/);
+  assert.match(c, /Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `\*\*KPI Check After\*\*` to now plus the KPI `Window`/);
+  assert.match(c, /park the track in the quality-gate lane as `waiting`, with a `\*\*Waiting Reason\*\*` naming that date/);
+  assert.match(c, /With no KPI block there is no window: ask the owner where the track goes next/);
+  // the connector's prompt says the same, with one update_track, and names a skill file that ships
+  const prompt = read('connector/src/commands.mjs');
+  assert.match(prompt, /says in the skill file `lanes\/implement\.md` \(`get_context` returns it\), in one `update_track`\. Otherwise do not answer it/);
+});
+
+test('TC-15: move says in one short line that leaving waiting clears the owner markers', () => {
+  const line = 'A move out of `waiting` also clears `Owner Action`, `Owner Action Due` and `Waiting for reply`.';
+  assert.equal(command('move').split(line).length - 1, 1);
+  assert.ok(Buffer.byteLength(line) < 150, `${Buffer.byteLength(line)} bytes`);
+  assert.ok(read('connector/src/commands.mjs').includes('A move out of `waiting` also clears `Owner Action`, `Owner Action Due` and `Waiting for reply` (null)'));
 });
 
 test('TC-16: the quality gate writes Result and a history line after its KPI step, applies the kill rule, never invents a number', () => {
@@ -91,8 +120,8 @@ test('TC-17: no new heading in the three guides, no new skill file, no campaign 
 
 test('TC-17: the added text is merged into the existing steps; the affected commands grew by a small, recorded amount and stay inside the limits', () => {
   // Bytes before (the commit this phase started from, 8cc4b16a plus the Phase 2 and 3 merge) and the ceilings the phase set itself.
-  const BEFORE = { plan: 27268, implement: 26745, 'quality-gate': 20791, run: 65654, next: 32808, 'new-project': 35430 };
-  const GROWTH = { plan: 200, implement: 1500, 'quality-gate': 1500, run: 3000, next: 0, 'new-project': 0 };
+  const BEFORE = { plan: 27268, implement: 26745, 'quality-gate': 20791, run: 65654, next: 32808, 'new-project': 35430, comment: 5553, move: 6741 };
+  const GROWTH = { plan: 200, implement: 1500, 'quality-gate': 1500, run: 3000, next: 0, 'new-project': 0, comment: 1000, move: 150 };
   for (const [n, before] of Object.entries(BEFORE)) {
     const size = Buffer.byteLength(command(n));
     assert.ok(size <= before + GROWTH[n], `${n}: ${size} bytes, ${size - before} more than before (allowed ${GROWTH[n]})`);

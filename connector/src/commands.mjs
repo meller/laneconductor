@@ -180,7 +180,7 @@ export const COMMANDS = [
     args: [{ name: 'track', hint: 'track number', description: 'The track number.', required: true }, { name: 'lane', hint: 'lane[:status]', description: 'A lane or lane:status; a bare lane means queue.', required: true }], connector: true,
     procedure: 'Move track {{track}} to {{lane}} (a `lane` or `lane:status`; a bare lane means `queue`). The procedure is the skill file `ops/tracks.md` (`move`, `pulse`, `updateTrack`).\n\n'
       + '1. Check `conductor/workflow.json` (or `get_context`, which lists the lane transitions) for a `lane:status` that lane defines. If the move is "this lane\'s action finished", take it from `valid.next` of `get_track`, or pass `outcome` to `update_track`; never work that target out from the raw file.\n'
-      + '2. Call `get_track`, then `update_track` with the `base` from `get_track` and `markers` such as `{"Lane": "implement", "Lane Status": "queue"}` (or `outcome`, instead of the Lane markers); a progress or phase update is the same call with `Progress` or `Phase`. On a CONFLICT, re-read with `get_track`, merge, and retry; never work around it.\n'
+      + '2. Call `get_track`, then `update_track` with the `base` from `get_track` and `markers` such as `{"Lane": "implement", "Lane Status": "queue"}` (or `outcome`, instead of the Lane markers); a progress or phase update is the same call with `Progress` or `Phase`. A move out of `waiting` also clears `Owner Action`, `Owner Action Due` and `Waiting for reply` (null). On a CONFLICT, re-read with `get_track`, merge, and retry; never work around it.\n'
       + '3. Say what changed. Moving a track only sets markers; it starts no work.',
   },
   {
@@ -190,7 +190,7 @@ export const COMMANDS = [
     args: [{ name: 'track', hint: 'track number', description: 'The track number.', required: true }, { name: 'text', hint: 'comment text', description: 'The comment, in your words.', required: true }], connector: true,
     procedure: 'Add a comment to track {{track}}: {{text}}. The procedure is the skill file `ops/tracks.md` (`comment`).\n\n'
       + '1. Resolve the track with `get_track` if the number is unclear, then call `append_conversation` with `author` `human` (this is my own text) and my words as `body`, without any `>` or `**author**` prefix; the connector formats the entry.\n'
-      + '2. Confirm the entry was added. Do not answer it or change the track unless I ask.',
+      + '2. Confirm the entry was added. If the track has an `**Owner Action**` and my comment says it is done, also do what "The owner\'s reply" says in the skill file `lanes/implement.md` (`get_context` returns it), in one `update_track`. Otherwise do not answer it or change the track unless I ask.',
   },
   {
     name: 'repair-duplicates', group: 'create and manage', title: 'Repair duplicate track numbers',

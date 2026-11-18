@@ -38,7 +38,7 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | `feature` | yes | its tools (`list_tracks`, `update_track`, `get_track`, `create_track`) | no |
 | `status` | yes | its tools (`get_track`, `list_tracks`) | no |
 | `move` | yes | its tools (`get_context`, `get_track`, `update_track`) | no |
-| `comment` | yes | its tools (`get_track`, `append_conversation`) | no |
+| `comment` | yes | its tools (`get_track`, `append_conversation`, `get_context`, `update_track`) | no |
 | `repair-duplicates` | yes | its tools (`get_track`, `update_track`, `list_tracks`, `create_track`, `append_conversation`) | no |
 | `workflow` | yes | nothing | no |
 | `new-project` | yes | its scaffold script | no |
