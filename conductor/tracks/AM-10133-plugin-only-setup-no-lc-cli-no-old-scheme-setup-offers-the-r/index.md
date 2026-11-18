@@ -1,9 +1,9 @@
 # Track AM-10133: Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Owner accepted defaults D1-D8 on 2026-11-18 (README on the Remote tier: still open); implementation starting
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 85%
+**Phase**: Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict validate x4). Open: README Remote-tier sentence, Phase 7 landing and wiki edits, Phase 8 real use (fiti-plug with the old lc on PATH, /usr/local/bin/lc and ~/.laneconductorrc decision).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
