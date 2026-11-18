@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned (phases below); starts after track 10123 merges (its lane-to-skill map is the seed). Phase 1 is a research gate: check what the platform already offers before building anything.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
