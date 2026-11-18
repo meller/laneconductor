@@ -1,6 +1,6 @@
 // Push policy (decision D4). Default `ask`: the connector never pushes, and its responses tell
 // Claude to ask the human. Opt-in `auto-state` (a standing human decision, set as `connector.push`
-// in .laneconductor.json): LocalGitStore pushes conductor-only commits fast-forward after 60 s idle.
+// in the optional settings file .laneconductor.json, see the skill file ops/settings.md): LocalGitStore pushes conductor-only commits fast-forward after 60 s idle.
 import fs from 'node:fs';
 import path from 'node:path';
 

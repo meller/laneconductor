@@ -1,6 +1,7 @@
 // Per-repo state branch resolution (track AM-10106, Phase 5c Task 8). First match wins:
 //   1. the explicit --state-branch CLI flag (applies to every --repo)
-//   2. `connector.state_branch` in the repo's .laneconductor.json
+//   2. `connector.state_branch` in the repo's optional settings file .laneconductor.json (skill file ops/settings.md; a missing file or
+//      other keys in it change nothing)
 //   3. the repo's default branch, from refs/remotes/origin/HEAD (no network, no fetch)
 //   4. the current branch, if it is `main` or `master`
 //   5. `main` (writes are then refused while the checkout is elsewhere)

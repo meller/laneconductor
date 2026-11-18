@@ -108,11 +108,11 @@ Also removed from the source skill's `SKILL.md`: the sentence "`lc` lives in ...
 **Problem**: three places disagree about `.laneconductor.json` (scaffold commits it, this repo's `.gitignore` ignores it, `ops/board.md` says it is ignored), and setup probes it.
 **Solution**: it is an optional personal settings file with a short list of keys, written down once; nothing requires it.
 
-- [ ] Task 1: Write `ops/settings.md` in the source skill (keys, defaults, readers, ignored keys, the `.gitignore` line, how to delete it); link it from `SKILL.md` and `ops/board.md`; the generator ships it in the base (check the build's file list and `docs/plugin-map.md`)
-- [ ] Task 2: `scaffold.mjs`: stop writing `.laneconductor.json`, delete `laneconductorConfig`; keep `stateBranch` for `git init -b`; update `lc-scaffold.mjs` header; `detect.mjs` wording for an existing old file
-- [ ] Task 3: `ops/board.md`, `commands.mjs` show-board/refresh-board: before storing `board.artifact_url`, make sure `.laneconductor.json` is in `.gitignore` (ask first; it is a change to a project file) and keep every other key as it is
-- [ ] Task 4: `state-branch.mjs`, `push-policy.mjs`, `lc-board.mjs`: confirm they read only their keys and ignore an old file's other keys silently; headers say "optional"
-- [ ] Task 5: `setup/templates.md`, `setup/scaffold.md`, `setup/setup.md`, `ops/new-project.md`: drop every `.laneconductor.json` mention (REQ-2)
+- [x] Task 1: Write `ops/settings.md` in the source skill (keys, defaults, readers, ignored keys, the `.gitignore` line, how to delete it); link it from `SKILL.md` and `ops/board.md`; the generator ships it in the base (check the build's file list and `docs/plugin-map.md`)
+- [x] Task 2: `scaffold.mjs`: stop writing `.laneconductor.json`, delete `laneconductorConfig`; keep `stateBranch` for `git init -b`; update `lc-scaffold.mjs` header; `detect.mjs` wording for an existing old file
+- [x] Task 3: `ops/board.md`, `commands.mjs` show-board/refresh-board: before storing `board.artifact_url`, make sure `.laneconductor.json` is in `.gitignore` (ask first; it is a change to a project file) and keep every other key as it is
+- [x] Task 4: `state-branch.mjs`, `push-policy.mjs`, `lc-board.mjs`: confirm they read only their keys and ignore an old file's other keys silently; headers say "optional"
+- [x] Task 5: `setup/templates.md`, `setup/scaffold.md`, `setup/setup.md`, `ops/new-project.md`: drop every `.laneconductor.json` mention (REQ-2)
 
 **Impact**: a new project has no `.laneconductor.json` until a person chooses a setting or stores a board URL.
 
@@ -121,52 +121,52 @@ Also removed from the source skill's `SKILL.md`: the sentence "`lc` lives in ...
 **Problem**: 11 source files tell Claude to run `lc ...`, take locks, run `measure.mjs`, or fall back "without `lc`".
 **Solution**: rewrite each in place with the replacement in section A and delete the generator rewordings that hid the same text (section B), file by file, so the build never has an unmatched anchor.
 
-- [ ] Task 1: `SKILL.md`: rows, board paragraph, "Finding a track", the legacy rows and the Postgres sentence
-- [ ] Task 2: `lanes/plan.md`, `implement.md`, `brainstorm.md`, `quality-gate.md` [D7], `merge.md` [D8]; renumber steps; keep every `**Marker**` name and the completion comments unchanged
-- [ ] Task 3: `ops/tracks.md`, `ops/board.md`, `ops/working-a-track.md`
-- [ ] Task 4: `deploy/deploy.md`, `deploy/setup-deploy.md` [D7]
-- [ ] Task 5: remove the matching `DAEMON_FREE_EDITS` entries, `LEGACY_NOTE` and the `BOARD_*` pair from `scripts/plugin-texts.mjs`; adjust `skillEdits` anchors
-- [ ] Task 6: `node scripts/build-plugin.mjs`; read the diff of `plugins/laneconductor/**`: only the intended files changed
+- [x] Task 1: `SKILL.md`: rows, board paragraph, "Finding a track", the legacy rows and the Postgres sentence
+- [x] Task 2: `lanes/plan.md`, `implement.md`, `brainstorm.md`, `quality-gate.md` [D7], `merge.md` [D8]; renumber steps; keep every `**Marker**` name and the completion comments unchanged
+- [x] Task 3: `ops/tracks.md`, `ops/board.md`, `ops/working-a-track.md`
+- [x] Task 4: `deploy/deploy.md`, `deploy/setup-deploy.md` [D7]
+- [x] Task 5: remove the matching `DAEMON_FREE_EDITS` entries, `LEGACY_NOTE` and the `BOARD_*` pair from `scripts/plugin-texts.mjs`; adjust `skillEdits` anchors
+- [x] Task 6: `node scripts/build-plugin.mjs`; read the diff of `plugins/laneconductor/**`: only the intended files changed
 
 **Impact**: the base and the source skill say the same thing, and it is the plugin way.
 
 ## Phase 3: Commands, scripts and generated texts (sections B, D, E)
 
-- [ ] Task 1: `commands.mjs`: show-board, refresh-board, run step 6, setup one-liner, `needsLc` to `needsBoardScript`, `helpText`, `helpData` (`needs_board_script`); update `plugin-map.test.mjs` which reads the field
-- [ ] Task 2: `plugin-texts.mjs` `BOARD_SCRIPT_NOTE` and the base help footer
-- [ ] Task 3: `lc-board.mjs` messages and header (D3); `lc-summary.mjs` comment
-- [ ] Task 4: `connector/plugin-extras/readme/*.md`, `coverage.json`
-- [ ] Task 5: rebuild; `node scripts/build-plugin.mjs --check` is clean
+- [x] Task 1: `commands.mjs`: show-board, refresh-board, run step 6, setup one-liner, `needsLc` to `needsBoardScript`, `helpText`, `helpData` (`needs_board_script`); update `plugin-map.test.mjs` which reads the field
+- [x] Task 2: `plugin-texts.mjs` `BOARD_SCRIPT_NOTE` and the base help footer
+- [x] Task 3: `lc-board.mjs` messages and header (D3); `lc-summary.mjs` comment
+- [x] Task 4: `connector/plugin-extras/readme/*.md`, `coverage.json`
+- [x] Task 5: rebuild; `node scripts/build-plugin.mjs --check` is clean
 
 ## Phase 4: Setup recommends the plugins that fit [D5]
 
 **Problem**: setup says nothing about the other two plugins; a person finds them only by reading the README.
 **Solution**: after the project is read, one generated step names the add-ons that are missing and fit, with the commands to run.
 
-- [ ] Task 1: catalog: add `setup_fit` (one line, "offer at setup when ...") to `laneconductor-parallel` (several authors in the recent git log, CI files present, a monorepo or several services, or the person mentions sub-agents or worktrees) and `laneconductor-board` (a team, or more than a handful of tracks, or the person asks for an overview); `recommendations.test.mjs` checks the field
-- [ ] Task 2: `plugin-texts.mjs` `setupRecommendBlock()`: one short paragraph per entry that fits and is not installed (why, `installsNote`, `installBlock` = the two commands each in its own ```bash fence, then `/reload-plugins`); installed means the entry's `detect` finds it; "if nothing fits, say nothing"; "show only; never run; install nothing without a yes; mention once per session"
-- [ ] Task 3: `skillEdits`: insert the block as step 5 of `ops/new-project.md` (before the summary, so the summary's list of "what you have to do yourself" includes the installs the person chose) and as a short numbered step in `setup/setup.md`, in both cases immediately before the unchanged hook comment `<!-- Starter set: reserved for the skill advisor (track 10124) -->`
-- [ ] Task 4: `ADD-ONS.md` generator prints each entry's `setup_fit`; the base's habit text still says "mention an add-on only when relevant" (setup is a relevant moment; the text says so)
-- [ ] Task 5: `commands/setup.md` one-liner (Phase 3 Task 1) points at the step; rebuild; `--check` clean
-- [ ] Task 6: confirm no other text names a plugin that is not a catalog entry (`recommendations.test.mjs` already does)
+- [x] Task 1: catalog: add `setup_fit` (one line, "offer at setup when ...") to `laneconductor-parallel` (several authors in the recent git log, CI files present, a monorepo or several services, or the person mentions sub-agents or worktrees) and `laneconductor-board` (a team, or more than a handful of tracks, or the person asks for an overview); `recommendations.test.mjs` checks the field
+- [x] Task 2: `plugin-texts.mjs` `setupRecommendBlock()`: one short paragraph per entry that fits and is not installed (why, `installsNote`, `installBlock` = the two commands each in its own ```bash fence, then `/reload-plugins`); installed means the entry's `detect` finds it; "if nothing fits, say nothing"; "show only; never run; install nothing without a yes; mention once per session"
+- [x] Task 3: `skillEdits`: insert the block as step 5 of `ops/new-project.md` (before the summary, so the summary's list of "what you have to do yourself" includes the installs the person chose) and as a short numbered step in `setup/setup.md`, in both cases immediately before the unchanged hook comment `<!-- Starter set: reserved for the skill advisor (track 10124) -->`
+- [x] Task 4: `ADD-ONS.md` generator prints each entry's `setup_fit`; the base's habit text still says "mention an add-on only when relevant" (setup is a relevant moment; the text says so)
+- [x] Task 5: `commands/setup.md` one-liner (Phase 3 Task 1) points at the step; rebuild; `--check` clean
+- [x] Task 6: confirm no other text names a plugin that is not a catalog entry (`recommendations.test.mjs` already does)
 
 **Impact**: `/laneconductor:setup` ends with a short, specific suggestion instead of silence; nothing is installed without the person.
 
 ## Phase 5: Docs (section C)
 
-- [ ] Task 1: `README.md` (board, migration, `.laneconductor.json`, legacy paragraph, a setup sentence)
-- [ ] Task 2: `connector/README.md`, `docs/privacy.md`
-- [ ] Task 3: `docs/plugin-map.md` regenerated (no hand edit); confirm `connector/ARCHITECTURE.md` needs nothing
+- [x] Task 1: `README.md` (board, migration, `.laneconductor.json`, legacy paragraph, a setup sentence)
+- [x] Task 2: `connector/README.md`, `docs/privacy.md`
+- [x] Task 3: `docs/plugin-map.md` regenerated (no hand edit); confirm `connector/ARCHITECTURE.md` needs nothing
 - [ ] Task 4: a short note in the README's legacy section that a separate Remote tier will hold the remote LaneConductor, workers and Jira (only if the owner wants it stated publicly; ask)
 
 ## Phase 6: Tests (see test.md)
 
-- [ ] Task 1: new `connector/test/no-lc-text.test.mjs` (no `lc` subcommand, `which lc`, `make install`, `laneconductorrc`, daemon scripts, `track-dir` in shipped text; `.laneconductor.json` only where allowed)
-- [ ] Task 2: update `connector/test/base-no-daemon-text.test.mjs` (keep as it is; adjust the hook assertion if the block moved the comment; confirm `ops/settings.md` is clean)
-- [ ] Task 3: update `newproject-scaffold.test.mjs` and `newproject-existing.test.mjs` (no settings file written; an existing old one is skipped and left intact)
-- [ ] Task 4: new `connector/test/setup-walkthrough.test.mjs`: scratch repository, PATH without `lc`, the real scaffold and board scripts, the generated setup text
-- [ ] Task 5: `recommendations.test.mjs` for `setup_fit` and the generated block; `plugin-map.test.mjs` for the renamed field; `settings` parity test (every key the code reads is in `ops/settings.md`)
-- [ ] Task 6: full `cd connector && npm test`, then the leaked-process check
+- [x] Task 1: new `connector/test/no-lc-text.test.mjs` (no `lc` subcommand, `which lc`, `make install`, `laneconductorrc`, daemon scripts, `track-dir` in shipped text; `.laneconductor.json` only where allowed)
+- [x] Task 2: update `connector/test/base-no-daemon-text.test.mjs` (keep as it is; adjust the hook assertion if the block moved the comment; confirm `ops/settings.md` is clean)
+- [x] Task 3: update `newproject-scaffold.test.mjs` and `newproject-existing.test.mjs` (no settings file written; an existing old one is skipped and left intact)
+- [x] Task 4: new `connector/test/setup-walkthrough.test.mjs`: scratch repository, PATH without `lc`, the real scaffold and board scripts, the generated setup text
+- [x] Task 5: `recommendations.test.mjs` for `setup_fit` and the generated block; `plugin-map.test.mjs` for the renamed field; `settings` parity test (every key the code reads is in `ops/settings.md`)
+- [x] Task 6: full `cd connector && npm test`, then the leaked-process check
 
 ## Phase 7: Landing and wiki edits (DEFERRED: waits for the owner's go and for the other session to commit `landing/`)
 
