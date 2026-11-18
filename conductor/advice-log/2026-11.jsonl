@@ -399,3 +399,10 @@
 {"v":1,"ts":"2026-11-18T19:10:54Z","kind":"call","session":"c_350a3886f68b","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":219,"chars":4672,"backend":"local"}
 {"v":1,"ts":"2026-11-18T19:17:59Z","kind":"call","session":"c_613d88774206","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":77,"chars":11162,"backend":"local"}
 {"v":1,"ts":"2026-11-18T19:17:59Z","kind":"stale_read","session":"c_613d88774206","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:18:14Z","kind":"call","session":"c_613d88774206","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":163,"chars":4074,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:23:07Z","kind":"call","session":"c_613d88774206","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":58,"chars":26225,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:23:07Z","kind":"stale_read","session":"c_613d88774206","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T20:25:28Z","kind":"call","session":"c_613d88774206","surface":"claude-code","tool":"list_tracks","ok":true,"latency_ms":101,"chars":37314,"backend":"local"}
+{"v":1,"ts":"2026-11-18T20:25:28Z","kind":"stale_read","session":"c_613d88774206","surface":"claude-code","tool":"list_tracks","reasons":["last_fetch_older_than_1h","dirty_state_files","track_summary_regenerated"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T20:28:23Z","kind":"call","session":"c_613d88774206","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":65,"chars":34702,"backend":"local"}
+{"v":1,"ts":"2026-11-18T20:28:23Z","kind":"stale_read","session":"c_613d88774206","surface":"claude-code","tool":"get_track","reasons":["last_fetch_older_than_1h","dirty_state_files"],"backend":"local"}
