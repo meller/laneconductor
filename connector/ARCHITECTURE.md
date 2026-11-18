@@ -41,11 +41,12 @@ There is ONE plugin, `laneconductor`, installed locally from the owner's marketp
 - `full` (the default build, `plugins/laneconductor`, the one we ship): the skill, commands, agents, the MCP server with
   server key `lc` (tools are named `mcp__plugin_laneconductor_lc__<tool>`), the board script and page, the lockfile and the
   icon.
-- `lean` (built on demand with `--profile lean --out <dir>`, not in the marketplace): Markdown, JSON and one PNG only; kept
-  ready and tested. The directory portal's Validate (run 2026-11-18) blocks the full plugin for an organization that is not
+- `lite` (`plugins/laneconductor-lite`, written by the normal run, not in the marketplace file): LaneConductor Lite, Markdown, JSON
+  and one PNG only. The directory portal's Validate (run 2026-11-18) blocks the full plugin for an organization that is not
   Verified: the local MCP server, package.json and lockfile, scripts, config fields and frontmatter keys such as `isolation`
-  outside its allowed lists. So only a Markdown-only variant can be submitted; the lean profile is the starting point, and it
-  still has to drop the agents' `isolation` key and any plugin.json field the portal does not know.
+  outside its allowed lists. So only a Markdown-only plugin can be submitted: Lite drops the agents' `isolation` key and the
+  plugin.json fields the portal does not know, works by editing the track files, and points to the full plugin in one place
+  (`FULL-PLUGIN.md`) when something needs it (track AM-10127).
 
 The commands and agents use the connector's tools and fall back to editing the track files directly when the MCP server
 fails to start. Hooks will not go into the main plugin: they will be a separate, opt-in extension, `laneconductor-hooks`

@@ -190,8 +190,9 @@ uploading a zip (`node scripts/make-zip.mjs --out <dir>`). The full plugin is NO
 (run 2026-11-18 on this repository) blocks, for an organization that is not Verified, the local MCP server (`.mcp.json`), the
 `package.json` and lockfile, every script and `.mjs` file, config fields outside its allowed lists, and frontmatter keys such
 as `isolation` in the agents. Anthropic's public docs describe some of these as only held for a reviewer, but the portal is
-what decides. The directory-eligible lean variant (Markdown, JSON and one PNG) stays as an on-demand build profile; whether
-to submit a lean variant under its own name is an open decision.
+what decides. Decision of 2026-11-18 (track AM-10127): a second, Markdown-only plugin, LaneConductor Lite
+(`plugins/laneconductor-lite`, profile `lite`, not in the marketplace file), is built for the directory as a funnel. It points to the
+full plugin only when relevant (`FULL-PLUGIN.md` in its skill is the one source of that text). Submitting it is the owner's step.
 
 `plugins/laneconductor` (profile `full`, the default build) holds:
 
@@ -227,10 +228,11 @@ How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamp
 - `package.json` and `package-lock.json` sit at the plugin ROOT (Claude Code runs `npm ci` there at cache time: registry
   packages, exact pins, no lifecycle scripts) and hold the runtime dependencies only;
 - the plugin `version` comes from `connector/package.json`;
-- `--profile lean --out <dir>` writes the directory-eligible Markdown-only variant (skill, commands, agents without
-  connector tools, a fixed README, manifest, icon) into `<dir>`; it refuses a folder inside `plugins/` or a non-empty
-  one, is not in the marketplace, and `--check` ignores it. It is PARKED until the remote connector exists, and
-  `test/directory-lean.test.mjs` builds it into a temp dir and runs the directory emulation on it so it stays working.
+- the normal run also writes `plugins/laneconductor-lite` (profile `lite`): LaneConductor Lite, Markdown, JSON and one PNG only
+  (the skill with `FULL-PLUGIN.md`, commands written for editing the track files, agents without connector tools or `isolation`,
+  a fixed README, a manifest of known fields plus `privacyPolicyUrl`, icon). `--check` covers it, and the marketplace file does
+  not list it. `--profile lite --out <dir>` builds the same files elsewhere (it refuses a folder inside `plugins/` or a
+  non-empty one); `test/directory-lite.test.mjs` emulates the portal's blocks on the committed folder.
 
 Only the plugin directory is copied on install, and symlinks that leave it are rejected, so the
 output is real copies and a test fails on drift:
@@ -246,7 +248,7 @@ node scripts/make-zip.mjs --out <dir>  # laneconductor-<version>.zip for "Upload
 Tests: `test/plugin-build.test.mjs` (drift, manifests, README, lockfile, skill transforms, the zip),
 `test/directory-precheck.test.mjs` (`claude plugin validate`, size limits, secrets, the connector starting over stdio from a
 temp copy), `test/full-plugin.test.mjs` (layout, the board script running from a temp copy with `npm ci --offline`),
-`test/plugin-coverage.test.mjs` (commands and agents) and `test/directory-lean.test.mjs` (the lean profile).
+`test/plugin-coverage.test.mjs` (commands and agents) and `test/directory-lite.test.mjs` (LaneConductor Lite).
 
 Install (HUMAN, from a Claude Code session; this edits your real settings, so it is not run by the tests):
 

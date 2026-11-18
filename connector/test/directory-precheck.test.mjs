@@ -3,21 +3,22 @@
 // program), so what is checked here is what a local install needs and what stays good practice: `claude plugin validate
 // --strict` on the plugin and the marketplace, the version/manifest/size limits (512 files, 256 KiB per file), a secrets scan,
 // no top-level bin/, and the connector starting over stdio from a temp copy and answering tools/list. The directory's own rules
-// (Markdown only, no scripts, no .mcp.json, ...) are emulated against the LEAN profile in directory-lean.test.mjs.
+// (Markdown only, no scripts, no .mcp.json, ...) are emulated against LaneConductor Lite (plugins/laneconductor-lite) in directory-lite.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, LITE_REL } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
-const PLUGINS = [['the plugin', PLUGIN]];
+const LITE = path.join(REPO, LITE_REL);
+const PLUGINS = [['the plugin', PLUGIN], ['LaneConductor Lite', LITE]];
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const KIB = 1024;
 const MIB = KIB * KIB;
@@ -37,7 +38,7 @@ function claudeAvailable() {
   return !r.error && r.status === 0;
 }
 
-for (const [label, target] of [['the plugin folder', PLUGIN], ['the marketplace (repo root)', REPO]]) {
+for (const [label, target] of [['the plugin folder', PLUGIN], ['the LaneConductor Lite folder', LITE], ['the marketplace (repo root)', REPO]]) {
   test(`claude plugin validate --strict passes on ${label}`, (t) => {
     if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH: run `claude plugin validate <path> --strict` by hand');
     const r = spawnSync('claude', ['plugin', 'validate', target, '--strict'], { encoding: 'utf8', cwd: os.tmpdir() });

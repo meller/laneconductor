@@ -1,7 +1,7 @@
 // Phase 5c and the one-plugin decision (2026-11-17): the generated LaneConductor plugin (plugins/laneconductor/, profile
 // `full`: skill, commands, agents, connector, board script) and the marketplace file. The plugin running from a bare copy
-// (connector over stdio, board script) is in directory-precheck.test.mjs and full-plugin.test.mjs; the lean (directory) variant
-// is in directory-lean.test.mjs.
+// (connector over stdio, board script) is in directory-precheck.test.mjs and full-plugin.test.mjs; LaneConductor Lite
+// (plugins/laneconductor-lite, the Markdown-only plugin for the directory) is in directory-lite.test.mjs.
 // What is NOT covered here is HUMAN (plan 5c Task 5, 5e): installing from the marketplace, `/mcp`
 // showing the server connected, and Claude Code really exporting CLAUDE_PROJECT_DIR to the server.
 import { test } from 'node:test';
@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, HABITS, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
+import { buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, HABITS, REPO, PLUGIN_REL, LITE_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
 import { makeZip, readZip } from '../../scripts/make-zip.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
@@ -49,11 +49,15 @@ test('--check exits 1 and names the file when the committed output has drifted',
       fs.copyFileSync(path.join(REPO, 'conductor', rel), path.join(tmp, 'conductor', rel));
     }
     fs.cpSync(PLUGIN, path.join(tmp, PLUGIN_REL), { recursive: true });
+    fs.cpSync(path.join(REPO, LITE_REL), path.join(tmp, LITE_REL), { recursive: true });
     fs.mkdirSync(path.join(tmp, '.claude-plugin'), { recursive: true });
     fs.copyFileSync(path.join(REPO, MARKETPLACE_REL), path.join(tmp, MARKETPLACE_REL));
     assert.deepEqual(diffAgainstDisk(tmp), [], 'the scratch copy starts clean');
     fs.appendFileSync(path.join(tmp, PLUGIN_REL, 'skills/laneconductor/SKILL.md'), '\nedited by hand\n');
     fs.writeFileSync(path.join(tmp, PLUGIN_REL, 'stray.txt'), 'x');
+    fs.appendFileSync(path.join(tmp, LITE_REL, 'README.md'), '\nedited by hand\n');
+    fs.rmSync(path.join(tmp, LITE_REL, 'skills/laneconductor/FULL-PLUGIN.md'));
+    fs.writeFileSync(path.join(tmp, LITE_REL, 'stray.txt'), 'x');
     fs.appendFileSync(path.join(tmp, PLUGIN_REL, 'server/src/tracks.mjs'), '\n// edited by hand\n');
     fs.rmSync(path.join(tmp, PLUGIN_REL, 'server/src/scan.mjs'));
     fs.mkdirSync(path.join(tmp, 'plugins/old-add-on'), { recursive: true });
@@ -64,6 +68,9 @@ test('--check exits 1 and names the file when the committed output has drifted',
     assert.ok(problems.includes(`differs: ${PLUGIN_REL}/server/src/tracks.mjs`), problems.join('\n'));
     assert.ok(problems.includes(`missing: ${PLUGIN_REL}/server/src/scan.mjs`), problems.join('\n'));
     assert.ok(problems.includes('extra file: plugins/old-add-on/x.md'), 'a leftover plugin directory is drift');
+    assert.ok(problems.includes(`differs: ${LITE_REL}/README.md`), 'the check covers LaneConductor Lite');
+    assert.ok(problems.includes(`missing: ${LITE_REL}/skills/laneconductor/FULL-PLUGIN.md`), problems.join('\n'));
+    assert.ok(problems.includes(`extra file: ${LITE_REL}/stray.txt`), problems.join('\n'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -71,7 +78,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
 
 // `claude plugin validate --strict` on the plugin and the marketplace runs in directory-precheck.test.mjs.
 
-test('manifest, marketplace (ONE entry) and .mcp.json have the agreed shape', () => {
+test('manifest, marketplace (the full plugin only) and .mcp.json have the agreed shape', () => {
   const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
   const pkg = readJson(path.join(REPO, 'connector/package.json'));
   assert.equal(pkg.version, '0.6.0');
@@ -84,7 +91,7 @@ test('manifest, marketplace (ONE entry) and .mcp.json have the agreed shape', ()
   assert.deepEqual(market.plugins.map((p) => p.name), [m.name], 'marketplace entry name equals the manifest name');
   assert.deepEqual(market.plugins.map((p) => p.source), ['./plugins/laneconductor']);
   for (const p of market.plugins) assert.ok(!p.source.includes('..'));
-  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')), ['laneconductor'], 'one plugin directory');
+  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-lite'], 'the full plugin and LaneConductor Lite; Lite is not in the marketplace');
   const mcp = readJson(path.join(PLUGIN, '.mcp.json'));
   assert.deepEqual(Object.keys(mcp.mcpServers), ['lc'], 'the server key is lc');
   const s = mcp.mcpServers.lc;
@@ -121,7 +128,7 @@ test('listing: README (>= 120 words outside code blocks), LICENSE and manifest f
   assert.deepEqual(m.keywords, ['laneconductor', 'tracks', 'planning', 'git']);
   for (const k of ['homepage', 'repository', 'documentationUrl', 'supportUrl']) assert.match(m[k], /^https:\/\//, k);
   assert.ok(m.documentationUrl.endsWith('/connector/PLUGIN-README.md'));
-  assert.equal(m.privacyPolicyUrl, undefined, 'no privacy policy page exists yet; do not invent a URL');
+  assert.equal(m.privacyPolicyUrl, undefined, 'the full plugin is not submitted to the directory (Lite carries the privacy policy URL)');
 });
 
 test('no top-level bin/ in the plugin, no symlinks, no node_modules committed', () => {
@@ -247,7 +254,7 @@ test('skill transform: explicit edits, and a missing anchor fails the build', ()
   assert.throws(() => transformSkillFile('a.md', 'only one', edits), /source text not found/);
   // Every real edit applies to the real source today (the build would throw otherwise), and removes what it names.
   const src = path.join(REPO, '.claude/skills/laneconductor');
-  for (const profile of ['full', 'lean']) {
+  for (const profile of ['full', 'lite']) {
     const edits = skillEdits(profile);
     for (const rel of Object.keys(edits)) {
       const text = fs.readFileSync(path.join(src, rel), 'utf8');
