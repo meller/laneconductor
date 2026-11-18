@@ -302,4 +302,4 @@ Generated: 2026-11-18T15:53:40Z
 | AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18. | - | 94bf048a8ba0 |
 | AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | review | queue | 90% | Search-first rule released in 1.1.1; allocation across branches, the duplicate-… | - | d0d8349f7566 |
 | AM-10144 | What's next: a state-aware command that names the next step and explains it (onboarding as a tutori… | review | queue | 75% | Phases 1 to 6 built and merged to local main 2026-11-18 (493 connector tests, s… | - | a36d785df44c |
-| AM-10145 | Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes) | plan | running | 70% | New | - | 4f7a06a8a8ce |
+| AM-10145 | Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes) | review | queue | 70% | Built and merged to local main 2026-11-18 (493 connector tests): Part Of and Pr… | - | 5e17a936c95c |

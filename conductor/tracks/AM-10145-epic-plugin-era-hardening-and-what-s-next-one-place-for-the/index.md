@@ -1,9 +1,9 @@
 # Track AM-10145: Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes)
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 70%
-**Phase**: New
+**Phase**: Built and merged to local main 2026-11-18 (493 connector tests): Part Of and Priority markers parse, the derived children table appears in list_tracks, get_track and the board, nothing about a child is stored in the epic. To do by the owner: tag the children with Part Of 10145. Open: a lint for a Part Of naming a missing track, a real-browser check of the board's Epics block.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
