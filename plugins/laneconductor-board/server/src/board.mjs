@@ -1,8 +1,11 @@
 // Board data (plan Phase 5d, Task 1): one pure function from the tracks' index.md files to a plain
 // object a dashboard can render. A snapshot, never a source of truth: it is rebuilt from the files
 // and never written back. Privacy: only titles, lanes, status, progress, phase and dependencies
-// (and the track type when it is not dev, and the priority when it is not normal) leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
-// Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp.
+// (and the track type when it is not dev, the priority when it is not normal, and for the few tracks that have them the owner-step markers:
+// Owner Action text, its due date, Result, and KPI Check After on a waiting track) leave the index.md header; the conversation, plan and test files are
+// not read, spec.md only to ask whether it has a `## KPI` heading (the caller attaches it as `spec`, see bin/lc-board.mjs, for `outcome_missing`; its text is
+// never copied), and the Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp. Overdue and ready-to-measure are NOT
+// computed here: they depend on today's date, so the page works them out when it is opened (src/owner-steps.mjs holds the rules the page repeats).
 import { parseMarkers } from './markers.mjs';
 import { epicsOf } from './epics.mjs';
 import { staleRunning } from './claims.mjs';
@@ -37,6 +40,8 @@ export const publishedType = (raw) => {
   const s = one(raw ?? null, 40)?.toLowerCase() ?? '';
   return TRACK_TYPES.includes(s) && s !== 'dev' ? s : null;
 };
+// A date marker as written (edges kept, so a stray space shows as the reason it is not a date); the page judges it with the same strict rule at render.
+const rawDate = (v) => String(v).split('\n')[0].replace(/[ \t]+/g, ' ').slice(0, 40);
 const yesNo = (v) => {
   const s = (v ?? '').trim().toLowerCase();
   return s === 'yes' ? true : s === 'no' ? false : null;
@@ -66,6 +71,11 @@ function trackOf(e, archived) {
       ...(type ? { type } : {}),
       // `**Priority**` is read by the same row reader `next` uses (first marker wins, case-insensitive, anything else is absent); only high and low are published.
       ...(r.priority === 'high' || r.priority === 'low' ? { priority: r.priority } : {}),
+      // Track AM-10147 (owner steps): only for the tracks that have them. The due date and the check date are published as written; today's date is the
+      // page's, so nothing here goes stale. The check date matters only while the track waits (a waiting track whose window ended is ready to measure).
+      ...(r.owner_action ? { owner_action: r.owner_action, ...(r.owner_action_due !== undefined ? { owner_action_due: rawDate(r.owner_action_due) } : {}) } : {}),
+      ...(r.result ? { result: r.result } : {}),
+      ...(r.lane_status === 'waiting' && r.kpi_check_after !== undefined ? { kpi_check_after: rawDate(r.kpi_check_after) } : {}),
       ...(archived ? { archived: true } : {}),
     },
   };
@@ -103,7 +113,7 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     if (row.lane === 'done' && DONE_ATTENTION[row.lane_status]) reasons.push(DONE_ATTENTION[row.lane_status]);
     if (reasons.length) reasonsByFolder.set(row.folder, reasons);
     // Track AM-10115: the next step and its exact command, from this track's own markers only.
-    const action = actionOf({ row, stale, dep: deps.get(row.number) ?? null, lanes: laneList, workflow });
+    const action = actionOf({ row, stale, dep: deps.get(row.number) ?? null, lanes: laneList, workflow, nowMs: Date.parse(generatedAt) });
     if (action) actionByFolder.set(row.folder, action);
   });
 
@@ -196,6 +206,9 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           d a docs file is published for this track,
  *           pr (only when the track's `**Priority**` is high or low) the priority; absent means normal. The page sorts each lane and the backlog high, normal, low (stable, newest first inside a priority),
  *           y (only when the track's `**Type**` is marketing, sales, support or other) the type; absent means dev, so an old board.json without it reads as all dev,
+ *           oa, od, rs, kc (only for a track that has them; see owner-steps.mjs): oa the Owner Action text (200 chars at most), od its Owner Action Due as written (absent: no due date;
+ *              the page checks it is a real YYYY-MM-DD and works out overdue when it opens, in UTC), rs the Result one-liner, kc KPI Check After as written (only while the track waits:
+ *              the page says "ready to measure" once that day is today or earlier). An old board.json without them renders as before,
  *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
  *   attn:   n number, p prefix, t title, r reasons, x the next step (as on a track; only when there is one)
@@ -224,6 +237,9 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
       d: withDocs.has(t.folder),
       ...(t.type ? { y: t.type } : {}),
       ...(t.priority ? { pr: t.priority } : {}),
+      ...(t.owner_action ? { oa: t.owner_action, ...(t.owner_action_due !== undefined ? { od: t.owner_action_due } : {}) } : {}),
+      ...(t.result ? { rs: t.result } : {}),
+      ...(t.kpi_check_after !== undefined ? { kc: t.kpi_check_after } : {}),
       ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),

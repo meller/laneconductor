@@ -7,6 +7,7 @@
 // uses, and where a lane succeeds the shared transition resolver says which lane comes next.
 import { resolveNext } from '../../conductor/services/workflow-transitions.mjs';
 import { guideLaneMap, nearestLane } from './vocabulary.mjs';
+import { ownerFlags } from './owner-steps.mjs';
 
 const GUIDES = ['plan', 'implement', 'review', 'quality-gate', 'done', 'backlog'];
 const COMMAND = { plan: 'plan', implement: 'implement', review: 'review', 'quality-gate': 'quality-gate', done: 'merge' };
@@ -32,11 +33,12 @@ const cmd = (verb, n) => `/laneconductor:${verb} ${n}`;
 const act = (c, w) => ({ c, w });
 
 /**
- * @param {{ row: object, stale?: object|null, dep?: { blocked_by: number[], ready_to_resume: boolean }|null, lanes: string[], workflow?: object|null }} a
+ * @param {{ row: object, stale?: object|null, dep?: { blocked_by: number[], ready_to_resume: boolean }|null, lanes: string[], workflow?: object|null, nowMs?: number }} a
+ *   nowMs: the time the board is read at; only used to tell a waiting track whose run window (KPI Check After) has ended (a measurement, S23)
  *   row: the track's `rowOf` row; lanes: the project's lanes (backlog included); workflow: parsed conductor/workflow.json or null
  * @returns {{ c: string|null, w: string } | null} null: nothing to say (a shipped track, or a lane the board does not know)
  */
-export function actionOf({ row, stale = null, dep = null, lanes, workflow = null }) {
+export function actionOf({ row, stale = null, dep = null, lanes, workflow = null, nowMs = null }) {
   const n = row.number;
   const lane = lower(row.lane);
   const status = lower(row.lane_status);
@@ -45,6 +47,10 @@ export function actionOf({ row, stale = null, dep = null, lanes, workflow = null
   const guideOf = (name) => GUIDES.find((k) => g[k] && lower(g[k]) === lower(name)) ?? (lower(name) === 'backlog' ? 'backlog' : null);
   const guide = known ? guideOf(known) : null;
 
+  // Track AM-10147: a waiting track with an Owner Action is a step only the person can do (S22, read before the reply state): the comment says what they did, it is not an answer.
+  if (known && guide && guide !== 'backlog' && status === 'waiting' && row.owner_action) return act(`/laneconductor:comment ${n} <what you did>`, 'owner action: do it, then comment what you did');
+  // S23: a waiting track whose run window ended is a measurement, not a question (unless a reply is waiting or a dependency is unmet).
+  if (nowMs !== null && known && guide && guide !== 'backlog' && guide !== 'done' && !row.waiting_for_reply && !dep?.blocked_by?.length && ownerFlags(row, nowMs).ready_to_measure) return act(cmd('quality-gate', n), 'the run window ended; measure the KPI');
   if (row.waiting_for_reply) return act(`/laneconductor:comment ${n} <your reply>`, 'a human reply is waiting');
   if (!known || !guide) return null;
 

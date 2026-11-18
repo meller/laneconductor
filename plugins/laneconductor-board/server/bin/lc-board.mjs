@@ -4,7 +4,7 @@
 // Default: JSON on STDOUT and nothing is written into the repo (a board is a snapshot, not a
 // committed file). --out writes the file. --check <file> exits 1 when the file's data differs from
 // a fresh build (generated_at is ignored). Reads only conductor/workflow.json, the optional .laneconductor.json
-// (project.name, board.include_docs, board.include_conversation) and each track's index.md; with --site also, for the What's next panel only,
+// (project.name, board.include_docs, board.include_conversation) and each track's index.md (and the spec.md of a done:success marketing or sales track with no outcome, only to see whether it has a `## KPI` block, for the `outcome_missing` lint); with --site also, for the What's next panel only,
 // plan.md, test.md and conversation.md of the tracks still to do (reduced to yes or no: stub plan, stub test, last comment is the human's;
 // no text of them is copied) and read-only git (branches and commit times); and the project definition
 // files of conductor/ (product.md, tech-stack.md, workflow.md, quality-gate.md, kpis.md, the guidelines, user-stories.md,
@@ -25,6 +25,8 @@ import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES
 import { blobSha } from '../src/blob.mjs';
 import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
+import { parseMarkers } from '../src/markers.mjs';
+import { outcomeCandidate } from '../src/owner-steps.mjs';
 import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
@@ -50,7 +52,9 @@ const tracksDir = path.join(repo, 'conductor/tracks');
 const dirs = (await fs.readdir(tracksDir, { withFileTypes: true }).catch(() => [])).filter((d) => d.isDirectory());
 const entries = await Promise.all(dirs.map(async (d) => {
   const content = await readText(path.join(tracksDir, d.name, 'index.md'));
-  return { folder: d.name, index: content === null ? null : { content, sha: blobSha(content) } };
+  // Track AM-10147: `outcome_missing` needs to know whether spec.md has a `## KPI` block, but only a marketing or sales track at done:success with no outcome can be flagged, so only those spec.md files are read.
+  const spec = content !== null && outcomeCandidate(parseMarkers(content).values) ? await readText(path.join(tracksDir, d.name, 'spec.md')) : null;
+  return { folder: d.name, index: content === null ? null : { content, sha: blobSha(content) }, ...(spec === null ? {} : { spec: { content: spec, sha: blobSha(spec) } }) };
 }));
 
 const board = buildBoard(entries, { lanes: lanes.length ? lanes : DEFAULT_LANES, generatedAt: now, project, workflow: wf });
