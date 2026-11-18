@@ -294,7 +294,7 @@ Generated: 2026-11-18T15:43:48Z
 | AM-10134 | Remote tier: a separate LaneConductor Remote plugin for the old remote, workers and Jira code | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18: not worked now; the focus is … | - | 7b6eb675a1b3 |
 | AM-10135 | Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | c8982f81672c |
 | AM-10136 | Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | b1826ef94fbd |
-| AM-10137 | Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome | plan | running | 100% | New | - | fd83f0a1af78 |
+| AM-10137 | Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | ef523a4d4a39 |
 | AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18; depends on 10137. | - | 607bfb5a8b82 |
 | AM-10139 | Marker parser: first match wins, CRLF, case, and a repair_index write | plan | running | 0% | New | - | 3e98249a0d74 |
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | plan | running | 0% | New | - | ed9bfc581099 |

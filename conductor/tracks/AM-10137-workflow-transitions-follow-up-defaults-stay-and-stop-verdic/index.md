@@ -1,9 +1,9 @@
 # Track AM-10137: Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 100%
-**Phase**: New
+**Phase**: Implemented and merged to local main 2026-11-18 (439 connector tests, strict validate x4). defaults fallback, stay/stop read-only, Verdict validated and written by outcome. Next: release as 1.2.0.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
