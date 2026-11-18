@@ -368,3 +368,7 @@
 {"v":1,"ts":"2026-11-18T18:38:38Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":133,"chars":4473,"backend":"local"}
 {"v":1,"ts":"2026-11-18T18:39:09Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":123,"chars":4403,"backend":"local"}
 {"v":1,"ts":"2026-11-18T18:39:10Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":135,"chars":4661,"backend":"local"}
+{"v":1,"ts":"2026-11-18T18:39:16Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":127,"chars":4410,"backend":"local"}
+{"v":1,"ts":"2026-11-18T18:39:16Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":60,"chars":12468,"backend":"local"}
+{"v":1,"ts":"2026-11-18T18:39:16Z","kind":"stale_read","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","reasons":["unpushed_local_commits","dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T18:39:21Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"append_conversation","ok":true,"latency_ms":45,"chars":3929,"backend":"local"}
