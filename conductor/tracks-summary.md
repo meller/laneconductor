@@ -293,7 +293,7 @@ Generated: 2026-11-18T15:43:48Z
 | AM-10133 | Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins | review | queue | 85% | Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict va… | - | 2a39b0d0425a |
 | AM-10134 | Remote tier: a separate LaneConductor Remote plugin for the old remote, workers and Jira code | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18: not worked now; the focus is … | - | 7b6eb675a1b3 |
 | AM-10135 | Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | c8982f81672c |
-| AM-10136 | Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate | plan | running | 100% | New | - | a1cb5d4047f4 |
+| AM-10136 | Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | b1826ef94fbd |
 | AM-10137 | Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome | plan | running | 100% | New | - | fd83f0a1af78 |
 | AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18; depends on 10137. | - | 607bfb5a8b82 |
 | AM-10139 | Marker parser: first match wins, CRLF, case, and a repair_index write | plan | running | 0% | New | - | 3e98249a0d74 |
