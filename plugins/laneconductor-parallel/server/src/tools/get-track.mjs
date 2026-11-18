@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { parseMarkers } from '../markers.mjs';
-import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
+import { dependenciesOf, dependencyState } from '../dependencies.mjs';
+import { rowOf } from '../summary.mjs';
+import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readEntries, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
 const input = z.object({
   project: projectField,
@@ -79,6 +81,12 @@ export const getTrack = {
         warnings.push(`${name}.md was truncated to fit the response limit. Fetch it alone with files ["${name}"]; a truncated file cannot be overwritten.`);
       }
       f.returned_chars = f.content.length;
+    }
+    // Track AM-10136: only a track with dependencies pays for reading the other tracks.
+    const own = rowOf(folder, index);
+    if (dependenciesOf(own).length) {
+      const state = dependencyState((await readEntries(store)).map((e) => rowOf(e.folder, e.index)));
+      if (state.has(own.number)) data.dependencies = state.get(own.number);
     }
     const m = data.track.markers;
     return { data, warnings, summary: `Track ${data.track.id}: ${data.track.title} (lane ${m['Lane'] ?? '?'}, ${m['Lane Status'] ?? '?'}, ${m['Progress'] ?? '?'}).` };

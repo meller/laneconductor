@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { fail } from '../errors.mjs';
 import { LANES, framing, guideSources, loadGuide, newServeId } from '../guides.mjs';
-import { projectField, readOnly, sizeOf, workflowVocabulary } from './common.mjs';
+import { readyToResume } from '../dependencies.mjs';
+import { rowOf } from '../summary.mjs';
+import { projectField, readEntries, readOnly, sizeOf, workflowVocabulary } from './common.mjs';
 
 const CONTEXT_FILES = ['product.md', 'product-guidelines.md', 'tech-stack.md', 'workflow.md', 'quality-gate.md', 'kpis.md'];
 const STYLEGUIDE_DIR = 'conductor/code_styleguides';
@@ -49,6 +51,9 @@ export const getContext = {
     const present = known.filter((n, i) => got.get(paths[i]));
 
     const data = { valid: await workflowVocabulary(store, { withNext: 'lanes' }) };
+    // Track AM-10136: parked tracks whose dependencies are all done:success; resuming them is up to the person or agent.
+    const ready = readyToResume((await readEntries(store)).map((e) => rowOf(e.folder, e.index)));
+    if (ready.length) data.ready_to_resume = ready;
     if (!args.files && !args.lane) {
       data.manifest = present.map((n) => describeFile(n, got.get(`conductor/${n}`).content, got.get(`conductor/${n}`).sha));
       let transitions = null;
