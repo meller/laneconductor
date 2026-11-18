@@ -1,7 +1,7 @@
 # Track AM-10140: update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Track Kind**: bug
