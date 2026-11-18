@@ -46,7 +46,7 @@ Packaging of our own generic skills (decision pending, see track 10129): either 
 
 ## Phase 4: The install proposal
 
-- [ ] Task 1: Propose, do not install: show the exact built-in command in its own bash fence and what it adds; on an explicit yes run `claude plugin install ... --scope local` via Bash (the Bash permission prompt still applies), then remind to `/reload-plugins` and confirm it loaded
+- [ ] Task 1: Propose, do not install: show the exact built-in command in its own bash fence and what it adds; the person runs it (the base never runs an install), then remind to `/reload-plugins` and confirm it loaded
 - [ ] Task 2: Failure is reported with the command and its output, never retried silently, never worked around by editing settings or permissions
 - [ ] Task 3: A catalog entry and base command `/laneconductor:skills` (what is recommended for the current lane and stack; install on request); coverage test; a dry run that prints the commands without running them
 - [ ] Task 4: The optional offer to record the plugin in the project's `.claude/settings.json` (ask first; show the exact diff)
