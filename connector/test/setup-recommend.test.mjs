@@ -9,6 +9,7 @@ import { REPO, RELS, RECOMMENDED, ADDONS, NAMES, buildPlugin, installCommands, i
 const BASE = path.join(REPO, RELS.base, 'skills/laneconductor');
 const read = (rel) => fs.readFileSync(path.join(BASE, rel), 'utf8');
 const HOOK = '<!-- Starter set: reserved for the skill advisor -->';
+import { ADDONS_INSTALL } from '../../scripts/plugin-texts.mjs';
 const bashFences = (text) => [...text.matchAll(/```bash\n([\s\S]*?)\n```/g)].map((m) => m[1]);
 
 test('TC-15 every catalog entry has a one-line setup_fit of 10 to 200 characters', () => {
@@ -16,7 +17,7 @@ test('TC-15 every catalog entry has a one-line setup_fit of 10 to 200 characters
 });
 
 test('TC-16 the generated block in setup.md and new-project.md names exactly the catalog add-ons, each command alone in its own bash fence, then the reload step', () => {
-  const expected = RECOMMENDED.flatMap((e) => installCommands(e.name));
+  const expected = [...RECOMMENDED.flatMap((e) => installCommands(e.name)), ADDONS_INSTALL]; // the one-line install of both add-ons comes last (AM-10128)
   for (const rel of ['setup/setup.md', 'ops/new-project.md']) {
     const text = read(rel);
     assert.ok(!text.includes(RECOMMEND_MARKER), `${rel}: the marker is replaced`);
@@ -62,7 +63,7 @@ test('TC-21 the block is built from the catalog: a fake skillpack entry gets its
   const fake = { name: 'fake-skillpack', kind: 'skillpack', display: 'Fake', source: { marketplace: 'fakemarket', add: 'someone/fake', plugin: 'fake-skillpack' }, installs_code: false, why: 'a pack of fake skills for tests of the block', adds: ['x'], setup_fit: 'the project has fake needs of some kind', detect: 'a skill named fake exists', triggers: ['the person asks for fake things'] };
   const text = setupRecommendBlock([...RECOMMENDED, fake]);
   assert.ok(text.includes('**`fake-skillpack`**') && text.includes('It fits when the project has fake needs of some kind.'));
-  assert.deepEqual(bashFences(text), [...RECOMMENDED, fake].flatMap((e) => [`claude plugin marketplace add ${e.source.add}`, `claude plugin install ${e.source.plugin}@${e.source.marketplace}`]));
+  assert.deepEqual(bashFences(text), [...[...RECOMMENDED, fake].flatMap((e) => [`claude plugin marketplace add ${e.source.add}`, `claude plugin install ${e.source.plugin}@${e.source.marketplace}`]), ADDONS_INSTALL]);
 });
 
 test('ADD-ONS.md prints each entry\'s setup_fit, and the setup command points at the step', () => {

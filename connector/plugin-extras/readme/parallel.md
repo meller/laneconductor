@@ -29,6 +29,8 @@ connector's tools and prompts and the subagent still work.
 
 {{INSTALL_SELF}}
 
+{{FULL_INSTALL}}
+
 Add `--scope local` to install it for one project only (just for
 you), or `--scope user` for every project. It needs Node.js 20 or newer and installs two npm packages (`@modelcontextprotocol/server`,
 `zod`) from the lockfile in this plugin; if the connector does not show in `/mcp`, run `npm ci` inside the plugin's folder.

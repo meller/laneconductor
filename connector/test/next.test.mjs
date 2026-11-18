@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { REPO, RELS, NAMES, buildPlugin, diffAgainstDisk, setupRecommendBlock, RECOMMEND_MARKER, ADDONS, NEXT_JOURNEY } from '../../scripts/build-plugin.mjs';
+import { ADDONS_INSTALL } from '../../scripts/plugin-texts.mjs';
 import { COMMANDS, GROUPS, helpText, helpLines, fillProcedure } from '../src/commands.mjs';
 import { buildInstructions } from '../src/instructions.mjs';
 import { buildFixture, FIXTURES, RANKING } from './helpers/next-fixtures.mjs';
@@ -210,7 +211,7 @@ test('TC-9, TC-10: the parallel add-on offers next as a prompt, and the plugin m
   assert.deepEqual(diffAgainstDisk(REPO), []);
 });
 
-test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block, from the one catalog, with four install commands each in its own bash block', () => {
+test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block, from the one catalog, with four install commands and the one-line add-ons install, each in its own bash block', () => {
   const block = setupRecommendBlock();
   for (const profile of ['base']) {
     const files = buildPlugin(REPO, profile);
@@ -222,7 +223,8 @@ test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block, 
   assert.ok(NEXT_MD.includes(RECOMMEND_MARKER), 'the source holds the marker, not the text');
   for (const e of ADDONS) assert.ok(!NEXT_MD.includes(e.name), `the source ops/next.md names no add-on by hand (${e.name})`);
   const fences = [...block.matchAll(/```bash\n([^\n]+)\n```/g)].map((m) => m[1]);
-  assert.equal(fences.length, 4);
+  assert.equal(fences.length, 5);
+  assert.equal(fences[4], ADDONS_INSTALL, 'the fifth is the one-line install of both add-ons');
   assert.ok(ADDONS.every((e) => fences.some((f) => f.includes(`install ${e.name}@`))));
 });
 

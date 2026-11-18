@@ -254,7 +254,14 @@ temp copy), `test/addons.test.mjs` (the add-ons' layout; the board script runnin
 `test/interop.test.mjs` (the matrix: base alone, + parallel, + board, all three), `test/plugin-map.test.mjs`,
 `test/try-local.test.mjs` and `test/lane-names.test.mjs` (the otralingo fixes).
 
-Install (HUMAN, from a Claude Code session; this edits your real settings, so it is not run by the tests):
+Install (HUMAN, from a Claude Code session; this edits your real settings, so it is not run by the tests).
+The full version in one line:
+
+```bash
+claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor@laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
+```
+
+Or one plugin at a time:
 
 ```bash
 claude plugin marketplace add <path-or-git-url-of-this-repo>

@@ -57,6 +57,12 @@ claude plugin install laneconductor@laneconductor
 Add `--scope local` to install it for one project only (just for you), or `--scope user` to have it in every
 project. Then run `/reload-plugins` in your session.
 
+The full version in one line:
+
+```bash
+claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor@laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
+```
+
 Check that it loaded:
 
 - `claude plugin list` shows `laneconductor`.

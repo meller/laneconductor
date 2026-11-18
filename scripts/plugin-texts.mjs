@@ -69,6 +69,25 @@ export const installsNote = (profileOrName) => {
     ? `It installs ${e.installs} on your computer, from the owner's marketplace (\`${e.source.add}\`), not from Anthropic's directory.`
     : 'It is Markdown only: it installs no program.';
 };
+/**
+ * The one-line installs (track AM-10128, owner decision 2026-11-18), derived from the catalog's `bundles` (plugin names) and the marketplace
+ * of each entry: one `claude plugin marketplace add` per distinct source, then one `claude plugin install <plugin>@<marketplace>` per plugin,
+ * joined by `&&`. The base is not an entry (it is the plugin everything else is added to), so it resolves from NAMES.base and MARKETPLACE.
+ */
+const sourceOfPlugin = (name) => (name === NAMES.base ? { marketplace: MARKETPLACE, add: MARKETPLACE_SOURCE, plugin: name } : entryOf(name).source);
+export const oneLineInstall = (names) => {
+  const sources = names.map(sourceOfPlugin);
+  const adds = [...new Set(sources.map((s) => `claude plugin marketplace add ${s.add}`))];
+  return [...adds, ...sources.map((s) => `claude plugin install ${s.plugin}@${s.marketplace}`)].join(' && ');
+};
+export const BUNDLES = CATALOG.bundles;
+/** For use OUTSIDE Claude (website, READMEs): the base and both add-ons. */
+export const FULL_INSTALL = oneLineInstall(BUNDLES.full_install);
+/** For use INSIDE a Claude session where the base is already installed: both add-ons. */
+export const ADDONS_INSTALL = oneLineInstall(BUNDLES.addons_install);
+/** The README paragraph "The full version in one line", with the line alone in its bash fence. */
+export const fullInstallBlock = () => `The full version in one line:\n\n\`\`\`bash\n${FULL_INSTALL}\n\`\`\``;
+
 export const MIGRATION_UNINSTALL_COMMAND = `claude plugin uninstall ${NAMES.base}`;
 
 /** Connector tools a catalog procedure names (plain names in backticks), in order of first use. */
@@ -105,6 +124,18 @@ export const setupRecommendBlock = (entries = RECOMMENDED) => {
     const fit = e.setup_fit ? ` It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.` : '';
     return `**\`${e.name}\`**: ${e.why[0].toUpperCase()}${e.why.slice(1)}.${fit} ${installsNote(e)} It counts as installed when ${e.detect}.\n\n${installBlock(e)}`;
   }).join('\n\n');
+  const addons = entries.filter((e) => e.kind === 'addon');
+  const both = addons.length >= 2 // both add-ons of the live catalog; one add-on alone keeps only its own offer
+    ? `
+
+When BOTH add-ons (${addons.map((e) => `\`${e.name}\``).join(' and ')}) are missing, after the offers above, also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
+
+Both add-ons in one line:
+
+\`\`\`bash
+${ADDONS_INSTALL}
+\`\`\``
+    : '';
   return `After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
 the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
 that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
@@ -118,7 +149,7 @@ How to offer one:
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
 - A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
 
-${list}`;
+${list}${both}`;
 };
 
 export function skillEdits() {

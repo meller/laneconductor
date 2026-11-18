@@ -23,7 +23,7 @@ It is Markdown only, and it works on its own:
 - one read-only subagent, `plan-reviewer`, which reads a track's spec and plan and reports gaps without changing anything.
 
 Claude edits the track files directly, following the skill's file formats, and asks before any merge or push. The plugin declares
-no pre-approved tools, so nothing is allowed without your say.
+no pre-approved tools.
 
 It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
 policy is {{PRIVACY_URL}}.
@@ -52,6 +52,8 @@ claude plugin marketplace add meller/laneconductor
 ```bash
 claude plugin install laneconductor@laneconductor
 ```
+
+{{FULL_INSTALL}}
 
 Add `--scope local` to install it for one project only (just for you), or `--scope user` for every project. Or use "Upload plugin"
 in Claude (desktop app or claude.ai: Customize, Plugins, Add) with `laneconductor-<version>.zip` from the Releases page of
