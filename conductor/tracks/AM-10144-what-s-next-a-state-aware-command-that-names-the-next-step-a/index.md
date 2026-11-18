@@ -1,9 +1,9 @@
 # Track AM-10144: What's next: a state-aware command that names the next step and explains it (onboarding as a tutorial)
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 75%
-**Phase**: Phases 1 to 6 built and merged to local main 2026-11-18 (493 connector tests, strict validate x4), shipped in plugins 1.2.0 (not pushed yet). Open: Phase 7, the real-session walk-through (TC-31 to TC-42, owner runs it on Fiti PLUG), and Phase 8 (swap in the audit signals, partly done: blocked_by and ready_to_resume are used when the connector is present).
+**Lane**: quality-gate
+**Lane Status**: waiting
+**Progress**: 90%
+**Phase**: Reviewed by a read-only reviewer (pass). Phases 1 to 6 (the next command) shipped on main and pushed with plugins 1.2.2 (516 connector tests, strict validate on all three plugins); Phase 8 partly done (blocked_by and ready_to_resume used when the connector is present). Open: Phase 7 real-session walk-through TC-31 to TC-42 on Fiti PLUG (owner).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -26,3 +26,6 @@ Open design questions: one command or also a hint at the end of every other comm
 
 Deliverable: command `next` in the command catalog (so the base, parallel and help list it), the procedure text, tests that feed fixture projects in each state and check the named step, and a walk-through on the Fiti PLUG project.
 **Summary**: A read-only command `next`, the universal front door: it reads where the project stands (files in git; the connector only adds valid.next and freshness), names the one next step with the exact command, one sentence on what and why, and teaches the lane model on the way (explain or short). With no conductor folder it offers three paths (continue an existing project, start a new one, look around); with no tracks it recommends the add-ons that fit, from the one catalog. Ships without the audit tracks 10135, 10136 and 10141, using git-only heuristics; the audit signals replace them later.
+**Part Of**: 10145
+**Verdict**: pass
+**Waiting Reason**: Phase 7 walk-through TC-31 to TC-42 in a real session on Fiti PLUG (owner); Phase 8 partly done.
