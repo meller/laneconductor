@@ -11,10 +11,10 @@
 
 ## Phase 2: Lane-to-skill map
 
-- [ ] Task 1: "Skills that help here" section in the six lane guides (suggestions, second-opinion style)
-- [ ] Task 2: Optional `skills` object in workflow.json: document in `setup/templates.md`, lane guides read it
-- [ ] Task 3: Test that workflow.json with and without `skills` is read by the connector and the legacy parsers
-- [ ] Task 4: Test for the lane-guide sections
+- [x] Task 1: "Skills that help here" section in the six lane guides (suggestions, second-opinion style)
+- [x] Task 2: Optional `skills` object in workflow.json: document in `setup/templates.md`, lane guides read it
+- [x] Task 3: Test that workflow.json with and without `skills` is read by the connector and the legacy parsers
+- [x] Task 4: Test for the lane-guide sections
 
 ## Phase 3: Version 0.6.0 and verify
 

@@ -75,3 +75,15 @@ Boundary: this lane only merges or opens a PR for code that already passed revie
 quality-gate. Write no feature code here; the only code changes it should make are those needed
 to resolve a conflict between the track branch and `main`. `workflow.json` stays the authority
 for target lanes.
+
+## Skills that help here
+
+These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
+named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
+and carry on without it. `finishing-a-development-branch` helps with the last steps (what to merge, what to clean up, what to leave to the human) without skipping the question about pushing.
+
+Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"merge"`, such as
+`{ "skills": { "merge": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
+it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
+own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
+skill's method, not its output paths.

@@ -23,6 +23,10 @@ advice can be fixed or pruned. Two things are firm because breaking them corrupt
 overrides the human: the file formats and base-commit checks below, and the human's authority
 (ask before merge or push, never handle secrets).
 
+Each lane guide ends with "Skills that help here": skills worth using at that lane if they are installed, plus any the
+project lists under `skills` in `conductor/workflow.json`. LaneConductor only knows which skills help; it does not
+wrap or bundle them.
+
 ## How to run a command
 
 1. Take the first argument (`/laneconductor plan 123` -> `plan`) and find it in the table below.

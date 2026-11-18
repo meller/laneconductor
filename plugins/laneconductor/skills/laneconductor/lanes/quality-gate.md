@@ -95,3 +95,15 @@ code is on `main`.
      `blocked` although this step already resolved a routable outcome, and the sync worker's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
+
+## Skills that help here
+
+These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
+named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
+and carry on without it. `verification-before-completion` helps keep the rule this lane already has: run the check this time and read the real output before marking anything done.
+
+Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"quality-gate"`, such as
+`{ "skills": { "quality-gate": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
+it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
+own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
+skill's method, not its output paths.
