@@ -1,9 +1,9 @@
 # Track AM-10124: Skill advisor: recommend the right skill at the right lane, install it with consent
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 15%
-**Phase**: Experience simplified 2026-11-18 (owner): plain text offers at the moment of intent, a starter set at setup, and the add-ons (parallel, board) are ordinary catalog entries, not special. The base is the discovery module (planning, implementation, setup); everything else is something it can offer.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 85%
+**Phase**: Built and released in plugins 1.8.0: a catalog of 12 vetted entries with a checker, the lookup fix, /laneconductor:suggest-skills, offers in the lane guides, next and setup, the work-without-a-track rule, the README disclosure. Open: review, and Phase 6 real use (owner): a bug track, a marketing track and a firebase project.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -25,5 +25,3 @@ Parts to design in the plan lane:
 
 Depends on track 10123 (the lane-to-skill map). Not before it. Open questions: catalog format; where the per-project declined list lives (never in git without the person's yes); whether installs should be offered through the platform's own suggest-install card where the client has one.
 **Summary**: Idea (human, 2026-11-18): today Claude is missing something. When a person hits a problem, they have to know which skill to load; Claude sees only the descriptions of skills that are already installed
-**Run Started**: 2026-11-18T20:28:40.810Z
-**Run By**: claude-code c_613d88774206
