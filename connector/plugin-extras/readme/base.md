@@ -6,6 +6,10 @@ to plan, implement, review, quality-gate and merge a track, how to set LaneCondu
 
 Version {{VERSION}}.
 
+## Getting started
+
+{{NEXT_JOURNEY}}
+
 ## What is in it
 
 It is Markdown only, and it works on its own:

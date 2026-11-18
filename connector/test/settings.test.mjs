@@ -18,7 +18,7 @@ const TMP = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-settings-
 after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 let n = 0;
 const BOARD = path.join(REPO, 'connector/bin/lc-board.mjs');
-const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'project.name'];
+const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'project.name', 'next.level'];
 const SETTINGS_SRC = path.join(REPO, '.claude/skills/laneconductor/ops/settings.md');
 
 function repo(settings, { branch = 'main' } = {}) {
@@ -32,7 +32,7 @@ function repo(settings, { branch = 'main' } = {}) {
   return dir;
 }
 
-test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the six keys, says optional and personal, and names the .gitignore line', () => {
+test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the seven keys, says optional and personal, and names the .gitignore line', () => {
   const built = buildPlugin(REPO, 'base');
   const f = (built.files ?? built).get('skills/laneconductor/ops/settings.md');
   assert.ok(f, 'the base ships ops/settings.md');
@@ -55,7 +55,7 @@ test('TC-2 parity: every key the code reads is listed in ops/settings.md, and ev
   const read = new Set([...code.matchAll(/\bcfg\??\.([a-z_]+)\??\.([a-z_]+)/g)].map((m) => `${m[1]}.${m[2]}`));
   assert.ok(read.size >= 4, `found ${[...read]}`);
   for (const k of read) assert.ok(listed.has(k), `the code reads ${k}, which ops/settings.md does not list`);
-  const procedure = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops/board.md'), 'utf8');
+  const procedure = ['board.md', 'next.md'].map((f) => fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops', f), 'utf8')).join('\n');
   for (const k of listed) assert.ok(read.has(k) || procedure.includes(k), `${k} is listed but read nowhere`);
 });
 

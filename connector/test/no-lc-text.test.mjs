@@ -60,11 +60,11 @@ test('the generator, the catalog, the command catalog, the connector and its doc
   assert.deepEqual(hits, []);
 });
 
-test('the settings file is named only where the base explains it: ops/settings.md, the board texts, the README and the skill pointer; never by setup', () => {
+test('the settings file is named only where the base explains it: ops/settings.md, the board texts, the next procedure, the README and the skill pointer; never by setup', () => {
   const skill = path.join(REPO, RELS.base, 'skills/laneconductor');
   const base = path.join(REPO, RELS.base);
   const files = walk(base, skipNoise).filter((p) => TEXT.test(p));
-  const allowed = new Set(['skills/laneconductor/ops/settings.md', 'skills/laneconductor/ops/board.md', 'skills/laneconductor/SKILL.md', 'commands/board.md', 'commands/show-board.md', 'commands/refresh-board.md', 'README.md']);
+  const allowed = new Set(['skills/laneconductor/ops/settings.md', 'skills/laneconductor/ops/board.md', 'skills/laneconductor/ops/next.md', 'skills/laneconductor/SKILL.md', 'commands/board.md', 'commands/show-board.md', 'commands/refresh-board.md', 'README.md']);
   const named = files.filter((f) => read(f).includes('.laneconductor.json')).map((f) => path.relative(base, f));
   assert.deepEqual(named.filter((r) => !allowed.has(r)), [], 'a text outside the allowed list names the settings file');
   for (const r of ['setup/setup.md', 'setup/scaffold.md', 'setup/templates.md', 'ops/new-project.md']) assert.ok(!read(path.join(skill, r)).includes('.laneconductor.json'), `${r} never names the settings file`);

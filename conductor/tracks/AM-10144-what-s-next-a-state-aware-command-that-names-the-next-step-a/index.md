@@ -1,8 +1,8 @@
 # Track AM-10144: What's next: a state-aware command that names the next step and explains it (onboarding as a tutorial)
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: running
+**Progress**: 75%
 **Phase**: Planned 2026-11-18 (spec, plan and test cases written, 8 phases; owner decisions D1-D12 have defaults). Waiting for the owner's go, and for 10143 to merge first (both edit connector/src/commands.mjs).
 **Track Kind**: feature
 **Type**: dev

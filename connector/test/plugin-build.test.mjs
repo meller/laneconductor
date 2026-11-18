@@ -308,7 +308,8 @@ test('skill: allowed-tools is deleted, Habits and the add-on pointer are appende
   const habits = md.slice(md.indexOf('\n## Habits (this plugin has no hooks)'), md.indexOf('\n## Add-ons (mention rarely)'));
   assert.ok(habits.trim().split('\n').length <= 14, 'Habits stays within 14 lines');
   assert.match(habits, /3-line status/);
-  assert.match(habits, /exactly one next step in one line/);
+  assert.match(habits, /one-line card `next` would give for this track/);
+  assert.match(habits, /say `next` for the one step/);
   assert.match(habits, /never rewrite the whole file/);
   assert.match(habits, /Before any `git push`, say what will be pushed/);
   const funnel = md.slice(md.indexOf('\n## Add-ons (mention rarely)'));

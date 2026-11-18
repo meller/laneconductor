@@ -7,10 +7,10 @@
 // behaviour (frontmatter, sub-agent names, the fallback line, the Artifact tool) lives in the generator's profile.
 //
 // An entry: name, group, title, description (one line), example (one natural phrase), args [{ name, hint, description, required }],
-// connector (the procedure uses connector tools: the Claude adapter adds the fallback line), needsBoardScript (set when the command needs the
+// connector (the procedure uses connector tools: the Claude adapter adds the fallback line), readOnly (the command writes nothing: the adapter says the tools are for reading), needsBoardScript (set when the command needs the
 // board script of the optional board add-on for a part of its work), procedure (text with {{arg}} placeholders), or `render: 'help'`.
 
-export const GROUPS = ['plan and deliver', 'create and manage', 'board', 'setup and deploy'];
+export const GROUPS = ['start here', 'plan and deliver', 'create and manage', 'board', 'setup and deploy'];
 
 const TRACK = { name: 'track', hint: 'track number or title', description: 'The track number (10106 or AM-10106) or a part of its title.', required: true };
 const ACTION = (hint, description) => ({ name: 'action', hint, description, required: false });
@@ -52,6 +52,21 @@ const REFRESH_BOARD = (
 );
 
 export const COMMANDS = [
+  {
+    name: 'next', group: 'start here', title: 'What\'s next',
+    description: 'Name the one next step for this project and explain it (read only)',
+    example: 'what\'s next', readOnly: true,
+    args: [{ name: 'option', hint: 'explain | short | track number', description: '`explain` or `short` sets how much it explains; a track number limits it to that track; empty means the whole project.', required: false }],
+    procedure: 'What\'s next: {{option}} (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. The procedure is the skill file `ops/next.md`; read it in full first and follow it.\n\n'
+      + '1. Gather where the project stands as the file says: its own files and read-only git. With the connector, `list_tracks` and `get_track` give the same facts and say how fresh they are.\n'
+      + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track.\n'
+      + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go.',
+  },
+  {
+    name: 'help', group: 'start here', title: 'Help',
+    description: 'List every LaneConductor command with an example phrase',
+    example: 'what can LaneConductor do', args: [], render: 'help',
+  },
   {
     name: 'plan', group: 'plan and deliver', title: 'Plan a track',
     description: 'Plan a track: write its spec, plan and test cases (the plan lane)',
@@ -145,7 +160,8 @@ export const COMMANDS = [
     procedure: 'Show status for: {{track}} (nothing given means every track not done). Read only; change nothing. The procedure is the skill file `ops/tracks.md` (`status`).\n\n'
       + '1. With a track number or title: call `get_track` and report lane, lane status, progress, phase, summary and the last conversation entries, and whether a human comment is waiting for a reply.\n'
       + '2. With nothing: call `list_tracks` and print the tracks grouped by lane, one line each (id, title, lane status, progress).\n'
-      + '3. If a result says it is stale or possibly stale, say so before relying on it.',
+      + '3. If a result says it is stale or possibly stale, say so before relying on it.\n'
+    + '4. End by saying that `next` names the one step to take.',
   },
   {
     name: 'move', group: 'create and manage', title: 'Move a track',
@@ -186,11 +202,6 @@ export const COMMANDS = [
       + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'
       + '3. Show what the scaffold will create and ask before writing it, then create the first tracks in the plan lane.\n'
       + '4. Summarize, then ask before any commit. Never push.',
-  },
-  {
-    name: 'help', group: 'create and manage', title: 'Help',
-    description: 'List every LaneConductor command with an example phrase',
-    example: 'what can LaneConductor do', args: [], render: 'help',
   },
   {
     name: 'board', group: 'board', title: 'Board',
@@ -251,8 +262,9 @@ export function fillProcedure(cmd, values = {}) {
 }
 
 /** The command lines of `help`, grouped, one example phrase per command (no closing note). Adapters add their own note. */
+export const NOT_SURE = 'Not sure where to go? Use `next`: it reads this project and names the one step.';
 export function helpLines(intro = 'LaneConductor commands. Say one in your own words, or use it as a prompt.') {
-  const lines = [intro, ''];
+  const lines = [intro, NOT_SURE, ''];
   for (const g of GROUPS) {
     lines.push(`${g[0].toUpperCase()}${g.slice(1)}`);
     for (const c of COMMANDS.filter((x) => x.group === g)) {

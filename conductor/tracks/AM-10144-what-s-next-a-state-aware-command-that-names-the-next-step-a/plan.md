@@ -7,12 +7,12 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: Nothing in the skill says what to do when the person is unsure; the state table and ranking must exist as one reference the command points to.
 **Solution**: One new skill file, `ops/next.md`, with the state table (same ids as the spec), the gathering steps (base and connector), the ranking rule, the card format, the levels and the front door. The card text never names a track number or a future version.
 
-- [ ] Task 1.1: Write `.claude/skills/laneconductor/ops/next.md`: sections "When to use it" (any time the person is unsure; read only), "Gather" (REQ-6 to REQ-11 in order, base first, then what the connector adds), "States" (the S01 to S21 table with an id column, one row each, command column), "Rank" (REQ-19 as a numbered list), "The card" (REQ-5, with the short and explain forms as two worked examples), "Levels" (REQ-21 to REQ-23), "The front door" (REQ-14 to REQ-16, with the marker line `<!-- generated: recommended plugins -->`), "Rules" (read only; ask before anything is written; never push; never run an install).
-    - [ ] Sub-task: the primer for the explain level: five lanes, five statuses, `done:queue` versus `done:success`, what a marker is, why this order; at most twelve lines.
-    - [ ] Sub-task: a short section for the stale question and for the S21 damaged-track line, with the exact wording.
-- [ ] Task 1.2: `SKILL.md` (source): add the routing-table row for `next` ("May start unprompted: yes, read only"), a line under the table saying that "I am not sure what to do" and "what now" mean `next`, and the `Priority` row in the markers table (`high | normal | low`, optional, read by `next`).
-- [ ] Task 1.3: `ops/settings.md`: one key row `next.level` (`auto`, `explain`, `short`; default `auto`; read by the `next` command only) and one rule line (a missing file or unknown value means `auto`).
-- [ ] Task 1.4: `ops/new-project.md` and `setup/setup.md` end-of-run lines: replace the free-form next-step line with "Next: run `/laneconductor:next`" (REQ-26), keeping the generated-recommendation marker and the "once per session" rule intact.
+- [x] Task 1.1: Write `.claude/skills/laneconductor/ops/next.md`: sections "When to use it" (any time the person is unsure; read only), "Gather" (REQ-6 to REQ-11 in order, base first, then what the connector adds), "States" (the S01 to S21 table with an id column, one row each, command column), "Rank" (REQ-19 as a numbered list), "The card" (REQ-5, with the short and explain forms as two worked examples), "Levels" (REQ-21 to REQ-23), "The front door" (REQ-14 to REQ-16, with the marker line `<!-- generated: recommended plugins -->`), "Rules" (read only; ask before anything is written; never push; never run an install).
+    - [x] Sub-task: the primer for the explain level: five lanes, five statuses, `done:queue` versus `done:success`, what a marker is, why this order; at most twelve lines.
+    - [x] Sub-task: a short section for the stale question and for the S21 damaged-track line, with the exact wording.
+- [x] Task 1.2: `SKILL.md` (source): add the routing-table row for `next` ("May start unprompted: yes, read only"), a line under the table saying that "I am not sure what to do" and "what now" mean `next`, and the `Priority` row in the markers table (`high | normal | low`, optional, read by `next`).
+- [x] Task 1.3: `ops/settings.md`: one key row `next.level` (`auto`, `explain`, `short`; default `auto`; read by the `next` command only) and one rule line (a missing file or unknown value means `auto`).
+- [x] Task 1.4: `ops/new-project.md` and `setup/setup.md` end-of-run lines: replace the free-form next-step line with "Next: run `/laneconductor:next`" (REQ-26), keeping the generated-recommendation marker and the "once per session" rule intact.
 
 **Impact**: A reader of the skill can follow `next` by hand; no code yet.
 
@@ -21,10 +21,10 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: The command must appear in the base, the parallel add-on's prompts and `help`, generated from the one catalog.
 **Solution**: Add the entry to `connector/src/commands.mjs`, the base procedure and extras to `scripts/plugin-texts.mjs`, the recommendation block to `ops/next.md`, then rebuild.
 
-- [ ] Task 2.1: `connector/src/commands.mjs`: add group `start here` first in `GROUPS`, move `help` into it, add the entry `next` (title "What's next", description "Name the one next step for this project and explain it (read only)", example "what's next", arg `option` optional with hint `explain | short | track number`), procedure a short pointer to `ops/next.md` (read it in full first; read only; one step; the card). Add an entry flag `readOnly: true`.
-- [ ] Task 2.2: `scripts/plugin-texts.mjs`: `BASE_PROCEDURES.next` (files only: Glob, Grep, read-only git, the card; the same pointer), `BASE_EXTRAS.next` (the slash form `/laneconductor:next`), `connectorLine` for a `readOnly` command ("use the tools to read; they report freshness; this command writes nothing"), and `skillEdits()` gets `'ops/next.md': [recommend]` so the recommendation block is injected at the marker.
-- [ ] Task 2.3: `connector/plugin-extras/coverage.json`: nothing if the routing row exists (Task 1.2); otherwise a `catalogOnly` reason. Run the coverage test to see which.
-- [ ] Task 2.4: Rebuild with `node scripts/build-plugin.mjs`; commit the regenerated `plugins/*` files, `docs/plugin-map.md` and the README command lists (`README.md`, `connector/README.md`) by name. `node scripts/build-plugin.mjs --check` exits 0.
+- [x] Task 2.1: `connector/src/commands.mjs`: add group `start here` first in `GROUPS`, move `help` into it, add the entry `next` (title "What's next", description "Name the one next step for this project and explain it (read only)", example "what's next", arg `option` optional with hint `explain | short | track number`), procedure a short pointer to `ops/next.md` (read it in full first; read only; one step; the card). Add an entry flag `readOnly: true`.
+- [x] Task 2.2: `scripts/plugin-texts.mjs`: `BASE_PROCEDURES.next` (files only: Glob, Grep, read-only git, the card; the same pointer), `BASE_EXTRAS.next` (the slash form `/laneconductor:next`), `connectorLine` for a `readOnly` command ("use the tools to read; they report freshness; this command writes nothing"), and `skillEdits()` gets `'ops/next.md': [recommend]` so the recommendation block is injected at the marker.
+- [x] Task 2.3: `connector/plugin-extras/coverage.json`: nothing if the routing row exists (Task 1.2); otherwise a `catalogOnly` reason. Run the coverage test to see which.
+- [x] Task 2.4: Rebuild with `node scripts/build-plugin.mjs`; commit the regenerated `plugins/*` files, `docs/plugin-map.md` and the README command lists (`README.md`, `connector/README.md`) by name. `node scripts/build-plugin.mjs --check` exits 0.
 
 **Impact**: `next` is a command in the base, a prompt in the parallel add-on and a line in `help`.
 
@@ -33,10 +33,10 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: The universal fallback is only universal if every dead end points to it.
 **Solution**: Small edits in one place each; no footer on every command.
 
-- [ ] Task 3.1: `helpLines` intro in `connector/src/commands.mjs`: add the "Not sure where to go? Use `next`" line (REQ-25); `BASE_HELP_FOOTER` unchanged.
-- [ ] Task 3.2: `BASE_HABITS` in `scripts/plugin-texts.mjs`: the two edits of REQ-27.
-- [ ] Task 3.3: `connector/src/instructions.mjs`: the one sentence of REQ-29; the KC-8 length test stays green.
-- [ ] Task 3.4: Check `status` ends its procedure with a pointer to `next` for the choice; the `status` text change is one sentence in the base and catalog procedure.
+- [x] Task 3.1: `helpLines` intro in `connector/src/commands.mjs`: add the "Not sure where to go? Use `next`" line (REQ-25); `BASE_HELP_FOOTER` unchanged.
+- [x] Task 3.2: `BASE_HABITS` in `scripts/plugin-texts.mjs`: the two edits of REQ-27.
+- [x] Task 3.3: `connector/src/instructions.mjs`: the one sentence of REQ-29; the KC-8 length test stays green.
+- [x] Task 3.4: Check `status` ends its procedure with a pointer to `next` for the choice; the `status` text change is one sentence in the base and catalog procedure.
 
 **Impact**: Help, setup, a finished lane and the session start all point to the same command.
 
@@ -45,8 +45,8 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: The tutorial must teach early and get out of the way without writing files nobody asked for.
 **Solution**: Stateless `auto`, explicit `next explain` and `next short`, and an opt-in stored level.
 
-- [ ] Task 4.1: In `ops/next.md`, write the `auto` rule (REQ-22) with the exact counting rule (tracks whose lane is review, quality-gate or done, fewer than three means young) and the "ask first, then add the ignore line" write path (REQ-23), copying the wording of the board procedure for the ignore line.
-- [ ] Task 4.2: Settings read: a missing, invalid or unknown-valued file means `auto` with no message beyond one line when the JSON is invalid (as `ops/settings.md` says).
+- [x] Task 4.1: In `ops/next.md`, write the `auto` rule (REQ-22) with the exact counting rule (tracks whose lane is review, quality-gate or done, fewer than three means young) and the "ask first, then add the ignore line" write path (REQ-23), copying the wording of the board procedure for the ignore line.
+- [x] Task 4.2: Settings read: a missing, invalid or unknown-valued file means `auto` with no message beyond one line when the JSON is invalid (as `ops/settings.md` says).
 
 **Impact**: First-time users get the primer; others get one line; the setting exists only if wanted.
 
@@ -55,9 +55,9 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: The owner wants the same "install, run next, progress" story on the site.
 **Solution**: One generated block.
 
-- [ ] Task 5.1: `NEXT_JOURNEY` in `scripts/plugin-texts.mjs` (REQ-31), built from the catalog (the add-on names and install blocks come from `recommended-plugins.json`, not retyped).
-- [ ] Task 5.2: Include it in the base README through the existing generated-block mechanism (`build-plugin.mjs`), between markers; `--check` covers it.
-- [ ] Task 5.3: Export the block for the landing track (AM-10125); this track does not edit `landing/`.
+- [x] Task 5.1: `NEXT_JOURNEY` in `scripts/plugin-texts.mjs` (REQ-31), built from the catalog (the add-on names and install blocks come from `recommended-plugins.json`, not retyped).
+- [x] Task 5.2: Include it in the base README through the existing generated-block mechanism (`build-plugin.mjs`), between markers; `--check` covers it.
+- [x] Task 5.3: Export the block for the landing track (AM-10125); this track does not edit `landing/`.
 
 **Impact**: One source for the README and the website.
 
@@ -66,11 +66,11 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 **Problem**: The behaviour is Markdown an agent follows, so the tests pin its contract: the table, the ranking, the texts and the build.
 **Solution**: A reference classifier over fixture projects as the oracle, parity checks between it and `ops/next.md`, text tests, catalog tests.
 
-- [ ] Task 6.1: `connector/test/helpers/next-fixtures.mjs`: builds a fixture repository in a temporary directory with its own `git init` (the `makeRepo` helper) from a compact description (tracks with lane, status, extra markers, stub or real plan, optional last comment, optional branch merged or not, optional age of the last commit through `GIT_COMMITTER_DATE`); one description per state S01 to S21 plus the multi-candidate ranking cases, each with its expected state id, track and command.
-- [ ] Task 6.2: `connector/test/helpers/next-reference.mjs`: the reference classifier (state id, ranked candidates) implementing REQ-6 to REQ-20 over a fixture directory; no shipped code uses it.
-- [ ] Task 6.3: `connector/test/next.test.mjs`: (a) every fixture gives the expected state, track and command through the reference; (b) the table of `ops/next.md` has exactly the ids S01 to S21, each with a command cell that matches the fixture's expected command shape; (c) the ranking list in `ops/next.md` has the six steps in REQ-19's order; (d) `next` is in the catalog with the group, the argument and the example; (e) it is listed by `help`, the generated base command, the parallel profile's prompt list and `docs/plugin-map.md`; (f) the generated command is read only (no `update_track` or `create_track` in its text); (g) the recommendation block is injected in `ops/next.md` for both add-ons and equals the setup block (one source); (h) the text rules of REQ-32 on `ops/next.md`, `commands/next.md`, the README journey block and the help line.
-- [ ] Task 6.4: Extend `connector/test/commands.test.mjs`' expected name list and `connector/test/plugin-coverage.test.mjs` for `next`; extend `connector/test/settings.test.mjs` for the `next.level` row; extend `connector/test/directory-base.test.mjs` so the base still contains no file type other than Markdown and the known assets after this change.
-- [ ] Task 6.5: Run the whole connector suite: `cd connector && npm test` (the project's own command; it spawns no workers), and `node scripts/build-plugin.mjs --check`. Check for leaked processes afterwards.
+- [x] Task 6.1: `connector/test/helpers/next-fixtures.mjs`: builds a fixture repository in a temporary directory with its own `git init` (the `makeRepo` helper) from a compact description (tracks with lane, status, extra markers, stub or real plan, optional last comment, optional branch merged or not, optional age of the last commit through `GIT_COMMITTER_DATE`); one description per state S01 to S21 plus the multi-candidate ranking cases, each with its expected state id, track and command.
+- [x] Task 6.2: `connector/test/helpers/next-reference.mjs`: the reference classifier (state id, ranked candidates) implementing REQ-6 to REQ-20 over a fixture directory; no shipped code uses it.
+- [x] Task 6.3: `connector/test/next.test.mjs`: (a) every fixture gives the expected state, track and command through the reference; (b) the table of `ops/next.md` has exactly the ids S01 to S21, each with a command cell that matches the fixture's expected command shape; (c) the ranking list in `ops/next.md` has the six steps in REQ-19's order; (d) `next` is in the catalog with the group, the argument and the example; (e) it is listed by `help`, the generated base command, the parallel profile's prompt list and `docs/plugin-map.md`; (f) the generated command is read only (no `update_track` or `create_track` in its text); (g) the recommendation block is injected in `ops/next.md` for both add-ons and equals the setup block (one source); (h) the text rules of REQ-32 on `ops/next.md`, `commands/next.md`, the README journey block and the help line.
+- [x] Task 6.4: Extend `connector/test/commands.test.mjs`' expected name list and `connector/test/plugin-coverage.test.mjs` for `next`; extend `connector/test/settings.test.mjs` for the `next.level` row; extend `connector/test/directory-base.test.mjs` so the base still contains no file type other than Markdown and the known assets after this change.
+- [x] Task 6.5: Run the whole connector suite: `cd connector && npm test` (the project's own command; it spawns no workers), and `node scripts/build-plugin.mjs --check`. Check for leaked processes afterwards.
 
 **Impact**: A change to the table, the order or the wording fails a test.
 

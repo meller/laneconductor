@@ -124,7 +124,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 ## 6. Summarize and ask before any commit
 
 Print what was created (counts and folders, the track numbers and titles), what the person has to do themselves (listed,
-never done by you), and the next step in one line (plan the first track). Ask: "Commit this
+never done by you), and the line "Next: run `/laneconductor:next`" (it names the one next step; do not name the step yourself). Ask: "Commit this
 scaffold?". On yes, `git add` the created paths by name (never `git add -A`) and make one commit
 `chore: add the LaneConductor scaffold`. Do not push, and do not offer to; if they ask, say what would be pushed and
 ask again.

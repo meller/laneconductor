@@ -212,7 +212,7 @@ test('commands that use the connector name its tools only for when they are pres
     const t = read(`commands/${c}.md`);
     assert.match(t, /add-on's tools are present/, `${c}: says when the tools apply`);
     assert.match(t, /If they are not present, the steps above are the whole job/, `${c}: says what to do when they are not`);
-    assert.match(t, /ops\/tracks\.md|\bops\/(working-a-track|new-project)\.md/, `${c}: points at the skill for the file formats`);
+    assert.match(t, /ops\/tracks\.md|\bops\/(working-a-track|new-project|next)\.md/, `${c}: points at the skill for the file formats`);
     // Every tool the catalog's own procedure uses is named, with the add-on's prefix (generated, not hand-written).
     const cat = CATALOG.find((x) => x.name === c);
     for (const tool of toolsUsedBy(cat.procedure)) assert.ok(t.includes(`${MCP_PREFIX}${tool}`), `${c}: names ${MCP_PREFIX}${tool}`);

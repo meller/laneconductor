@@ -118,6 +118,7 @@ Open your project in Claude Code and ask in plain words, or use a command:
 - `/laneconductor:new-project <name or idea>` starts a project from a short chat: it asks a few questions one at a
   time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
   any commit and never pushes.
+- `/laneconductor:next` is the front door: it reads where the project stands and names the one next step, with the command and why (it writes nothing).
 - `/laneconductor:plan 12`, `:implement 12`, `:review 12`, `:quality-gate 12`, `:merge 12` take a track through
   its lanes. `:run` recommends the next step and asks before it starts anything.
 - `/laneconductor:status`, `:move`, `:comment`, `:workflow`, `:brainstorm` and `:review-plan` do what they say.

@@ -4,6 +4,11 @@ description: List every LaneConductor command with an example phrase
 Show me this list as it is; run nothing else.
 
 LaneConductor commands. Say one in your own words, or use it as a slash command.
+Not sure where to go? Use `next`: it reads this project and names the one step.
+
+Start here
+- next [explain | short | track number]: Name the one next step for this project and explain it (read only). Example: "what's next"
+- help: List every LaneConductor command with an example phrase. Example: "what can LaneConductor do"
 
 Plan and deliver
 - plan <track number or title>: Plan a track: write its spec, plan and test cases (the plan lane). Example: "plan track 10106"
@@ -23,7 +28,6 @@ Create and manage
 - move <track number> <lane[:status]>: Move a track to another lane, or set its status markers. Example: "move 10106 to implement"
 - comment <track number> <comment text>: Add a comment to a track's conversation. Example: "comment on 10106: ship it after the review"
 - workflow [lane key value]: Show the lane workflow, or change one lane setting. Example: "show the workflow"
-- help: List every LaneConductor command with an example phrase. Example: "what can LaneConductor do"
 
 Board
 - board [show | update]: Show or refresh the project board (asks which when unclear). Example: "show the board"

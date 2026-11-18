@@ -21,7 +21,8 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
    touched, and `.gitignore` only gets the three lines it lacks.
 4. **Say what else fits.** After the project is read, say which optional plugins would help this project (see "What else fits this
    project" below), then wait for the person's answer.
-5. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`).
+5. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
+   line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
 
 ## What else fits this project
 

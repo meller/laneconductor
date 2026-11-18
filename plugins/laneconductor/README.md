@@ -6,6 +6,15 @@ to plan, implement, review, quality-gate and merge a track, how to set LaneCondu
 
 Version 1.1.1.
 
+## Getting started
+
+<!-- generated: next journey (scripts/plugin-texts.mjs) -->
+1. Install the base plugin (the install commands are under "Install" below).
+2. Type `/laneconductor:next`.
+3. Do the one step it names, then type `/laneconductor:next` again, and keep going.
+4. In a folder with no `conductor/` yet it offers three paths (continue this project, start a new project, or look around) and shows the optional add-ons that fit (`laneconductor-parallel` and `laneconductor-board`). Each install command is in its own block; you run it yourself, nothing is installed for you.
+<!-- end generated: next journey -->
+
 ## What is in it
 
 It is Markdown only, and it works on its own:

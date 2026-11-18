@@ -38,6 +38,7 @@ wrap or bundle them.
 
 | Command | Read | May start unprompted |
 |---------|------|----------------------|
+| `next` | [ops/next.md](ops/next.md) ("what's next", "what now"; names the one next step for this project and explains it; read only) | yes, read only |
 | `plan` | [lanes/plan.md](lanes/plan.md) | yes |
 | `brainstorm` | [lanes/brainstorm.md](lanes/brainstorm.md) | yes |
 | `implement` | [lanes/implement.md](lanes/implement.md) | yes |
@@ -54,6 +55,9 @@ wrap or bundle them.
 | `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, the `conductor/` scaffold, the first tracks) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
+
+**Not sure what to do.** "I am not sure what to do", "what now" and "what's next" all mean `next`: it reads where the project
+stands and names the one next step, with the command and the reason ([ops/next.md](ops/next.md)).
 
 **The board.** `board` (or "show the board", "update the board") gives the project one private page that
 shows every track by lane, with a needs-attention list. The board script of the optional
@@ -149,6 +153,7 @@ skill-only session, so re-read the file yourself.
 | `**Merge Mode**: direct\|pr` | How the done lane integrates the branch (absent means `pr`). |
 | `**PR URL**` | Written by the merge lane in pr mode. |
 | `**Verdict**: pass\|fail` | Written by review and quality-gate; cleared at claim. |
+| `**Priority**: high\|normal\|low` | Optional; absent means `normal`. Read by `next` to rank candidates. |
 | `**Depends On**: NNN, NNN` | Tracks that must be `done` before a queued lane action may auto-launch. |
 | `**Waiting On Tracks**: NNN, NNN` | See parking above. |
 

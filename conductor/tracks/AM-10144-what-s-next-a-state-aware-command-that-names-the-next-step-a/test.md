@@ -53,54 +53,54 @@ F23, the ranking fixture: 10001 `plan:queue`; 10002 `implement:queue` with real 
 
 ### Phase 1: The procedure text and the skill edits
 
-- [ ] TC-1: `ops/next.md` exists in the source skill and has a table whose first column is exactly S01 to S21, once each - expected: the parity test finds the 21 ids and no other id.
-- [ ] TC-2: The ranking section of `ops/next.md` lists six steps in the order of REQ-19 - expected: the steps' leading words are, in order, human reply, failed or stuck, ready to resume, priority, lane order, number.
-- [ ] TC-3: The `SKILL.md` routing table has a `next` row and the markers table has a `Priority` row - expected: both found.
-- [ ] TC-4: `ops/settings.md` has a `next.level` row whose values are `auto`, `explain`, `short` and default `auto` - expected: found; `settings.test.mjs` still passes.
-- [ ] TC-5: `setup/setup.md` and `ops/new-project.md` end with a line pointing to `/laneconductor:next` and still carry the generated-recommendation marker - expected: both strings present in each file.
+- [x] TC-1: `ops/next.md` exists in the source skill and has a table whose first column is exactly S01 to S21, once each - expected: the parity test finds the 21 ids and no other id.
+- [x] TC-2: The ranking section of `ops/next.md` lists six steps in the order of REQ-19 - expected: the steps' leading words are, in order, human reply, failed or stuck, ready to resume, priority, lane order, number.
+- [x] TC-3: The `SKILL.md` routing table has a `next` row and the markers table has a `Priority` row - expected: both found.
+- [x] TC-4: `ops/settings.md` has a `next.level` row whose values are `auto`, `explain`, `short` and default `auto` - expected: found; `settings.test.mjs` still passes.
+- [x] TC-5: `setup/setup.md` and `ops/new-project.md` end with a line pointing to `/laneconductor:next` and still carry the generated-recommendation marker - expected: both strings present in each file.
 
 ### Phase 2: The catalog entry, the generated texts and the build
 
-- [ ] TC-6: `COMMAND_NAMES` contains `next` once; group `start here` is first in `GROUPS`; `help` is in the same group; the argument is optional - expected: `commands.test.mjs` passes with the new name in its list.
-- [ ] TC-7: `help` (the base command file, the MCP prompt and the help tool) lists `next` before the `plan and deliver` group, with its example phrase "what's next" - expected: the three outputs agree and contain the line.
-- [ ] TC-8: `plugins/laneconductor/commands/next.md` exists with `argument-hint: "[explain | short | track number]"`, names `ops/next.md`, and contains none of `update_track`, `create_track`, `append_conversation` - expected: pass (read only).
-- [ ] TC-9: The parallel profile lists `next` among its MCP prompts and the generated line for it says the tools are for reading - expected: `plugin-coverage.test.mjs` and the new test pass.
-- [ ] TC-10: `docs/plugin-map.md` lists `next` in the base commands and in the parallel prompts - expected: `node scripts/build-plugin.mjs --check` exits 0.
-- [ ] TC-11: The recommendation block in `plugins/laneconductor/skills/laneconductor/ops/next.md` is byte for byte the block in `setup/setup.md` of the same build, and names `laneconductor-parallel` and `laneconductor-board` each with two install commands, each command alone in its own bash fence - expected: equal; four fences.
-- [ ] TC-12: Changing a `why` line in `recommended-plugins.json` changes the text in `setup`, `new-project` and `next` after a rebuild, and no add-on sentence is typed by hand - expected: grep of the `ops/next.md` source finds no add-on sentence outside the marker.
+- [x] TC-6: `COMMAND_NAMES` contains `next` once; group `start here` is first in `GROUPS`; `help` is in the same group; the argument is optional - expected: `commands.test.mjs` passes with the new name in its list.
+- [x] TC-7: `help` (the base command file, the MCP prompt and the help tool) lists `next` before the `plan and deliver` group, with its example phrase "what's next" - expected: the three outputs agree and contain the line.
+- [x] TC-8: `plugins/laneconductor/commands/next.md` exists with `argument-hint: "[explain | short | track number]"`, names `ops/next.md`, and contains none of `update_track`, `create_track`, `append_conversation` - expected: pass (read only).
+- [x] TC-9: The parallel profile lists `next` among its MCP prompts and the generated line for it says the tools are for reading - expected: `plugin-coverage.test.mjs` and the new test pass.
+- [x] TC-10: `docs/plugin-map.md` lists `next` in the base commands and in the parallel prompts - expected: `node scripts/build-plugin.mjs --check` exits 0.
+- [x] TC-11: The recommendation block in `plugins/laneconductor/skills/laneconductor/ops/next.md` is byte for byte the block in `setup/setup.md` of the same build, and names `laneconductor-parallel` and `laneconductor-board` each with two install commands, each command alone in its own bash fence - expected: equal; four fences.
+- [x] TC-12: Changing a `why` line in `recommended-plugins.json` changes the text in `setup`, `new-project` and `next` after a rebuild, and no add-on sentence is typed by hand - expected: grep of the `ops/next.md` source finds no add-on sentence outside the marker.
 
 ### Phase 3: Closing hints
 
-- [ ] TC-13: The first lines of `help` contain "Not sure where to go? Use `next`" - expected: found in the base command, the prompt and the tool output.
-- [ ] TC-14: `BASE_HABITS` carries the two edits (the status line ends with `next`; "offer exactly one next step" is the card of that track) - expected: both phrases present in the base `SKILL.md`.
-- [ ] TC-15: The server instructions mention the `next` prompt and stay under 4,096 characters - expected: KC-8 passes.
-- [ ] TC-16: The `new`, `bug` and `feature` procedures and `create-track.mjs` are byte-identical to their state on the branch point - expected: `git diff <base> -- connector/src/tools/create-track.mjs` is empty and the three procedure strings are unchanged.
+- [x] TC-13: The first lines of `help` contain "Not sure where to go? Use `next`" - expected: found in the base command, the prompt and the tool output.
+- [x] TC-14: `BASE_HABITS` carries the two edits (the status line ends with `next`; "offer exactly one next step" is the card of that track) - expected: both phrases present in the base `SKILL.md`.
+- [x] TC-15: The server instructions mention the `next` prompt and stay under 4,096 characters - expected: KC-8 passes.
+- [x] TC-16: The `new`, `bug` and `feature` procedures and `create-track.mjs` are byte-identical to their state on the branch point - expected: `git diff <base> -- connector/src/tools/create-track.mjs` is empty and the three procedure strings are unchanged.
 
 ### Phase 4: Levels and the personal setting
 
-- [ ] TC-17: F24 (setting `short`): the card is one line; the same fixture with `next explain` gives the full card plus the primer - expected: line counts differ as specified, the primer has at most 12 lines.
-- [ ] TC-18: F25 (a mature project, no file): `auto` resolves to short; F04 (no tracks): `auto` resolves to explain - expected: matches.
-- [ ] TC-19: A missing, empty, invalid-JSON or unknown-valued settings file gives `auto` and the card is the same as with no file (one line about invalid JSON allowed) - expected: no failure, no write.
+- [x] TC-17: F24 (setting `short`): the card is one line; the same fixture with `next explain` gives the full card plus the primer - expected: line counts differ as specified, the primer has at most 12 lines.
+- [x] TC-18: F25 (a mature project, no file): `auto` resolves to short; F04 (no tracks): `auto` resolves to explain - expected: matches.
+- [x] TC-19: A missing, empty, invalid-JSON or unknown-valued settings file gives `auto` and the card is the same as with no file (one line about invalid JSON allowed) - expected: no failure, no write.
 - [ ] TC-20: Saying "always short" in a fixture with no settings file: the card asks before creating `.laneconductor.json` and before adding the ignore line; on yes the file holds only `next.level`; on no nothing is written - expected: file system diff matches.
-- [ ] TC-21: Running `next` in every fixture changes no tracked or untracked file (`git status --porcelain` before and after) except TC-20's write - expected: identical.
+- [x] TC-21: Running `next` in every fixture changes no tracked or untracked file (`git status --porcelain` before and after) except TC-20's write - expected: identical.
 
 ### Phase 5: The journey text
 
-- [ ] TC-22: `NEXT_JOURNEY` is generated from the catalog and appears in the base README between its markers; `--check` fails if the README block is edited by hand - expected: pass and fail respectively.
-- [ ] TC-23: The block mentions the three first-run outcomes and the add-on install commands only through the generated block, and has no sentence about work that is not shipped - expected: the text rules of TC-27 pass on it.
+- [x] TC-22: `NEXT_JOURNEY` is generated from the catalog and appears in the base README between its markers; `--check` fails if the README block is edited by hand - expected: pass and fail respectively.
+- [x] TC-23: The block mentions the three first-run outcomes and the add-on install commands only through the generated block, and has no sentence about work that is not shipped - expected: the text rules of TC-27 pass on it.
 
 ### Phase 6: The state table (fixtures and the reference classifier)
 
-- [ ] TC-24: Every fixture F01 to F26 yields its expected state id, track and command through the reference classifier - expected: all green, one assertion per row of the fixture table.
-- [ ] TC-25: The ranking cases (F23 and its variants) yield the order of REQ-19 - expected: the exact order stated above; ties by lower number.
-- [ ] TC-26: A `done:queue` track counts as not shipped for S10 (a dependent stays blocked) and as shipped only when `done:success` - expected: F10 blocks 10002; F09 resumes it.
+- [x] TC-24: Every fixture F01 to F26 yields its expected state id, track and command through the reference classifier - expected: all green, one assertion per row of the fixture table.
+- [x] TC-25: The ranking cases (F23 and its variants) yield the order of REQ-19 - expected: the exact order stated above; ties by lower number.
+- [x] TC-26: A `done:queue` track counts as not shipped for S10 (a dependent stays blocked) and as shipped only when `done:success` - expected: F10 blocks 10002; F09 resumes it.
 
 ### Text rules (the base stays free of daemon-era words, no `lc` command, Markdown only)
 
-- [ ] TC-27: `ops/next.md`, the generated `commands/next.md` and the README block contain none of `make install`, `laneconductorrc`, `worker`, `workers`, `collection`, `daemon` (the base test's own pattern), no `lc ` subcommand (the pattern of `no-lc-text.test.mjs`), no track number (`10\d\d\d`), no `legacy`, and none of: "coming soon", "will be added", "in a future", "later version", "roadmap" - expected: no hits. The lane name `backlog` and state S19 are allowed by an explicit anchor in the test.
-- [ ] TC-28: Nothing under `plugins/laneconductor` gains a file that is not Markdown, and no `.mjs`, `.json` or `.sh` file is added to the base by this track - expected: the file list of the base differs from the previous build only by `.md` files.
-- [ ] TC-29: The base command names no tool other than Read, Glob, Grep and read-only git in its own steps; every `mcp__plugin_laneconductor-parallel_lc__` name in it is a read tool (`list_tracks`, `get_track`, `get_context`) - expected: pass.
-- [ ] TC-30: No shipped text calls the daemon or worker tier "legacy" and none names it; where an internal file must name it (this track's files), it says "experimental, currently unmaintained" - expected: grep of shipped files finds neither word.
+- [x] TC-27: `ops/next.md`, the generated `commands/next.md` and the README block contain none of `make install`, `laneconductorrc`, `worker`, `workers`, `collection`, `daemon` (the base test's own pattern), no `lc ` subcommand (the pattern of `no-lc-text.test.mjs`), no track number (`10\d\d\d`), no `legacy`, and none of: "coming soon", "will be added", "in a future", "later version", "roadmap" - expected: no hits. The lane name `backlog` and state S19 are allowed by an explicit anchor in the test.
+- [x] TC-28: Nothing under `plugins/laneconductor` gains a file that is not Markdown, and no `.mjs`, `.json` or `.sh` file is added to the base by this track - expected: the file list of the base differs from the previous build only by `.md` files.
+- [x] TC-29: The base command names no tool other than Read, Glob, Grep and read-only git in its own steps; every `mcp__plugin_laneconductor-parallel_lc__` name in it is a read tool (`list_tracks`, `get_track`, `get_context`) - expected: pass.
+- [x] TC-30: No shipped text calls the daemon or worker tier "legacy" and none names it; where an internal file must name it (this track's files), it says "experimental, currently unmaintained" - expected: grep of shipped files finds neither word.
 
 ### Phase 7: Walk-through on a scratch repository (human-judged, an agent runs it)
 

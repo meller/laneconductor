@@ -129,6 +129,7 @@ export function skillEdits() {
     ],
     'ops/new-project.md': [recommend],
     'setup/setup.md': [recommend],
+    'ops/next.md': [recommend],
   };
 }
 
@@ -136,8 +137,8 @@ export function skillEdits() {
 export const BASE_HABITS = `
 ## Habits (this plugin has no hooks)
 
-- First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has \`conductor/tracks\`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from \`git status -sb\`), reading the files directly. Once per session; never on unrelated prompts.
-- When a lane finishes, offer exactly one next step in one line (review the plan, move on) and wait. Do not act on it.
+- First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has \`conductor/tracks\`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from \`git status -sb\`), reading the files directly, and end it with "say \`next\` for the one step". Once per session; never on unrelated prompts.
+- When a lane finishes, give the one-line card \`next\` would give for this track (the rows for that track in the skill's \`ops/next.md\`) and wait. Do not act on it.
 - Re-read a track file right before editing it and change only the marker lines; never rewrite the whole file. If the connector tools \`${CONNECTOR_TOOL_PREFIX}*\` are present, change markers with them instead (they refuse a stale write).
 - Before any \`git push\`, say what will be pushed (branch, commits, files) and ask. Nothing here scans for secrets, so the check is yours.
 
@@ -239,7 +240,8 @@ export const BASE_PROCEDURES = {
     + '2. Report the number and folder of the track you updated or created. Do not start planning it unless I ask.',
   status: 'Show status for: {{track}} (nothing given means every track not done). Read only; change nothing. The procedure is the skill file `ops/tracks.md` (`status`).\n\n'
     + '1. With a track number or title: read its `index.md` and the end of `conversation.md`, and report lane, lane status, progress, phase, summary and the last conversation entries, and whether a human comment is waiting for a reply.\n'
-    + '2. With nothing: read every track\'s `index.md` under `conductor/tracks/` and print the tracks grouped by lane, one line each (id, title, lane status, progress).',
+    + '2. With nothing: read every track\'s `index.md` under `conductor/tracks/` and print the tracks grouped by lane, one line each (id, title, lane status, progress).\n'
+    + '3. End by saying that `next` names the one step to take.',
   move: 'Move track {{track}} to {{lane}} (a `lane` or `lane:status`; a bare lane means `queue`). The procedure is the skill file `ops/tracks.md` (`move`, `pulse`, `updateTrack`).\n\n'
     + '1. Check `conductor/workflow.json` for a `lane:status` that lane defines; use the lane names of that file (a project may call a lane `planning` or `in-progress`). If the move is "this lane\'s action finished", read the target with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane), never from the raw file by guess.\n'
     + '2. Re-read the track\'s `index.md` right before editing, then change only the marker lines: `**Lane**` and `**Lane Status**` (a progress or phase update is `**Progress**` or `**Phase**`).\n'
@@ -247,6 +249,10 @@ export const BASE_PROCEDURES = {
   comment: 'Add a comment to track {{track}}: {{text}}. The procedure is the skill file `ops/tracks.md` (`comment`).\n\n'
     + '1. Find the track\'s folder if the number is unclear, then append my words to its `conversation.md` as `> **human**: <my words>` (every further line also starts with `> `); create the file if it is missing.\n'
     + '2. Confirm the entry was added. Do not answer it or change the track unless I ask.',
+  next: 'What\'s next: {{option}} (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. The procedure is the skill file `ops/next.md`; read it in full first and follow it.\n\n'
+    + '1. Gather where the project stands as the file says, with Glob, Grep, Read and read-only git (`git branch --list`, `git merge-base --is-ancestor`, `git log`); nothing else.\n'
+    + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track.\n'
+    + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go.',
   'new-project': 'New project: {{idea}} (nothing given means ask me). This runs only because I named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
     + '1. Detect whether this is an empty folder or an existing repository (then offer only the `conductor/` scaffold).\n'
     + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'
@@ -259,6 +265,7 @@ export const BASE_EXTRAS = {
   review: [`In Claude Code the add-on's sub-agent is \`${TRACK_RUNNER_AGENT}\`. See "Plugin users" in the skill's \`ops/working-a-track.md\`.`],
   run: [`In Claude Code the add-on's sub-agent is \`${TRACK_RUNNER_AGENT}\`. See "Plugin users" in the skill's \`ops/working-a-track.md\`.`],
   'review-plan': [`Dispatch the \`${NAMES.base}:plan-reviewer\` subagent (read only) with that prompt.`],
+  next: [`In Claude Code, type it as \`/${NAMES.base}:next\`; the commands in the card are written in that form.`],
   help: [`In Claude Code, type a command as \`/${NAMES.base}:<name>\`, for example \`/${NAMES.base}:plan 10106\`; typing \`/${NAMES.base}:\` lists them all.`],
   'show-board': [OPEN_NOTE],
   'refresh-board': [PUBLISH_NOTE, BOARD_SCRIPT_NOTE],
@@ -269,7 +276,21 @@ export const BASE_EXTRAS = {
 export function connectorLine(cmd) {
   const tools = toolsUsedBy(cmd.procedure);
   if (!tools.length) return null;
+  if (cmd.readOnly) return `If the ${NAMES.parallel} add-on's tools are present (${tools.map((t) => `\`${toolRef(t)}\``).join(', ')}), use them to read: they report how fresh the state is. This command writes nothing. If they are not present, the steps above are the whole job.`;
   return `If the ${NAMES.parallel} add-on's tools are present (${tools.map((t) => `\`${toolRef(t)}\``).join(', ')}), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass \`update_track\` the \`base\` from \`get_track\` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.`;
 }
 
 export const BASE_HELP_FOOTER = `Works on its own: every command edits the track files directly. Needs the ${NAMES.board} add-on: board (only to refresh) and refresh-board; without it they say so and show how to get it. With the ${NAMES.parallel} add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.`;
+
+/**
+ * The journey in four lines (install, type next, follow the step, what appears at the start), generated from the catalog so the README and
+ * the website use one text. It says nothing about anything that is not shipped.
+ */
+export const NEXT_JOURNEY_START = '<!-- generated: next journey (scripts/plugin-texts.mjs) -->';
+export const NEXT_JOURNEY_END = '<!-- end generated: next journey -->';
+export const NEXT_JOURNEY = `${NEXT_JOURNEY_START}
+1. Install the base plugin (the install commands are under "Install" below).
+2. Type \`/${NAMES.base}:next\`.
+3. Do the one step it names, then type \`/${NAMES.base}:next\` again, and keep going.
+4. In a folder with no \`conductor/\` yet it offers three paths (continue this project, start a new project, or look around) and shows the optional add-ons that fit (${ADDONS.map((e) => `\`${e.name}\``).join(' and ')}). Each install command is in its own block; you run it yourself, nothing is installed for you.
+${NEXT_JOURNEY_END}`;
