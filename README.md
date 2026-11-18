@@ -162,7 +162,7 @@ directly only if the connector's MCP server fails to start.
 
 ## Skills for each lane
 
-LaneConductor does not keep a library of its own recipes. Something solved and worth repeating is an ordinary skill,
+LaneConductor does not keep a library of reusable procedures of its own. Something solved and worth repeating is an ordinary skill,
 and Anthropic's skills, plugins and marketplaces already handle discovery, sharing and updates; put yours in your own
 plugin or marketplace. What LaneConductor adds is the map: each lane guide suggests skills that help at that lane (for
 example test-driven development and systematic debugging at implement, verification before completion at the quality

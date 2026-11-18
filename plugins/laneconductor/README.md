@@ -6,7 +6,7 @@ LaneConductor keeps a project's plans as plain files in git: one folder per trac
 quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy) and includes
 the local connector that reads and writes the track files safely and the board generator.
 
-Version 0.5.0.
+Version 0.6.0.
 
 ## What is in it
 

@@ -18,6 +18,6 @@
 
 ## Phase 3: Version 0.6.0 and verify
 
-- [ ] Task 1: Bump connector/package.json, both lock lines, plugin-build.test.mjs (two places)
-- [ ] Task 2: `node scripts/build-plugin.mjs`, then `--check`
-- [ ] Task 3: `cd connector && npm test`, both `claude plugin validate --strict`, grep for leftover recipe wording
+- [x] Task 1: Bump connector/package.json, both lock lines, plugin-build.test.mjs (two places)
+- [x] Task 2: `node scripts/build-plugin.mjs`, then `--check`
+- [x] Task 3: `cd connector && npm test`, both `claude plugin validate --strict`, grep for leftover recipe wording
