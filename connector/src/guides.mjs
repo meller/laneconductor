@@ -32,17 +32,30 @@ export async function bundledGuide(lane) {
 }
 
 /** @returns {{ content: string, source: string }} */
+/**
+ * Reads one repo guide, or null when it is absent or cannot be used. A project-level `.claude/skills/laneconductor`
+ * that is a symlink out of the repository (a leftover of the old install, often an absolute path into somebody's
+ * home directory) resolves outside the repo and the store refuses it; that must not break the tool, the bundled
+ * guide serves instead.
+ */
+async function readRepoGuide(store, rel) {
+  try {
+    return (await store.readFiles([rel])).get(rel) ?? null;
+  } catch (e) {
+    if (e?.code === 'VALIDATION_FAILED') return null;
+    throw e;
+  }
+}
+
 export async function loadGuide(store, lane, version) {
   const rel = repoGuidePath(lane);
-  const got = await store.readFiles([rel]);
-  const f = got.get(rel);
+  const f = await readRepoGuide(store, rel);
   if (f) return { content: f.content, source: `repo:${rel}@${f.sha.slice(0, 12)}` };
   const b = await bundledGuide(lane);
   return { content: b.content, source: `bundled@${version}` };
 }
 
 export async function guideSources(store) {
-  const paths = LANES.map(repoGuidePath);
-  const got = await store.readFiles(paths);
-  return LANES.map((lane, i) => ({ lane, source: got.get(paths[i]) ? 'repo' : 'bundled' }));
+  const found = await Promise.all(LANES.map((lane) => readRepoGuide(store, repoGuidePath(lane))));
+  return LANES.map((lane, i) => ({ lane, source: found[i] ? 'repo' : 'bundled' }));
 }

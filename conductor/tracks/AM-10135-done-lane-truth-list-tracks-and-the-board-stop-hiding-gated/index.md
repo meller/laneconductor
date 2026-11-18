@@ -1,7 +1,7 @@
 # Track AM-10135: Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Track Kind**: bug
