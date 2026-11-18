@@ -83,6 +83,7 @@ import { createCollectorRetryBuffer } from './services/collector-retry-buffer.mj
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { resolveTransition } from './services/daemon-transition.mjs';
 import { revalidateDispatchSnapshot, parseDispatchSnapshot } from './services/dispatch-revalidation.mjs';
 import { shouldSkipLaneOnPull } from './services/db-pull-guard.mjs';
 import { createSuppressionLogThrottle } from './services/suppression-log-throttle.mjs';
@@ -2637,26 +2638,8 @@ function parseKpiSpec(specContent) {
  * Resolves a transition string (e.g. "implement:queue" or "plan") 
  * into a target lane and lane_action_status.
  */
-function resolveTransition(configValue, currentLane, isSuccess, isMaxRetries) {
-  if (!configValue || configValue === 'stay' || configValue === 'stop') {
-    return {
-      lane: currentLane || Lanes.PLAN,
-      status: isSuccess ? 'success' : (isMaxRetries ? 'failure' : 'queue')
-    };
-  }
-
-  const [lane, status] = configValue.split(':');
-  if (!status) {
-    // Default logic if no status provided:
-    // Moving lane -> 'queue'
-    // Staying in lane -> 'success' or 'failure'
-    const movingToNewLane = lane !== currentLane;
-    const defaultStatus = movingToNewLane ? 'queue' : (isSuccess ? 'success' : (isMaxRetries ? 'failure' : 'queue'));
-    return { lane: lane || currentLane || Lanes.PLAN, status: defaultStatus };
-  }
-
-  return { lane: lane || currentLane || Lanes.PLAN, status };
-}
+// Track AM-10131: the target computation moved to the one shared module (conductor/services/workflow-transitions.mjs), adapted for this
+// call site by conductor/services/daemon-transition.mjs (resolveTransition, imported above); nothing else here changed.
 
 function parsePhaseStep(content, laneStatus) {
   const stepMatch = content.match(/\*\*Step\*\*:\s*([^\n]+)/i);

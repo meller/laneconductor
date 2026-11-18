@@ -22,6 +22,7 @@ import os from 'os';
 // in active use (conductor/jira-collector.mjs, conductor/tests/mock-collector.mjs).
 import { post, patch, get, resolveToken, getUserToken } from './target-client.mjs';
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import { runtimeTargetLane } from './services/daemon-transition.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -431,12 +432,9 @@ export async function spawnCli(command, args, label, trackNumber, cli, laneStatu
             content = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${nextActionStatus}`);
             
             // Handle lane transitions based on workflow
-            let targetLane = laneStatus;
-            if (isSuccess && laneConfig.on_success && laneConfig.on_success !== 'stay') {
-              targetLane = laneConfig.on_success;
-              content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${targetLane}`);
-            } else if (!isSuccess && laneConfig.on_failure && laneConfig.on_failure !== 'stay') {
-              targetLane = laneConfig.on_failure;
+            // Track AM-10131: the lane part of the target, from the shared transition module (was the raw on_success / on_failure string).
+            const targetLane = runtimeTargetLane(laneConfig, isSuccess, laneStatus);
+            if (targetLane !== laneStatus) {
               content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${targetLane}`);
             }
             writeFileSync(indexPath, content, 'utf8');

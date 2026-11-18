@@ -1,3 +1,5 @@
+import { targetLaneOf } from './workflow-transitions.mjs';
+
 // Track 1110 Phase 6: if the sync worker process restarts while a
 // dispatch's spawned CLI child is still running, the child keeps running
 // and finishes on its own — but the worker's in-memory `on('exit')`
@@ -25,13 +27,13 @@
 // `action` per workflow.json's own transition table. Returns which
 // transition matched ('on_success' | 'on_failure'), or null if the
 // mismatch isn't a recognized transition at all (still worth flagging).
-function matchForwardTransition(action, lane, workflowConfig) {
+export function matchForwardTransition(action, lane, workflowConfig) {
   const laneConfig = workflowConfig?.lanes?.[action?.trim()];
   if (!laneConfig || !lane) return null;
-  const targetLaneOf = (transition) => transition?.split(':')[0]?.trim().toLowerCase();
+  // Track AM-10131: the destination lane comes from the one shared transition module.
   const normalizedLane = lane.trim().toLowerCase();
-  if (targetLaneOf(laneConfig.on_success) === normalizedLane) return 'on_success';
-  if (targetLaneOf(laneConfig.on_failure) === normalizedLane) return 'on_failure';
+  if (targetLaneOf(laneConfig.on_success, action, 'success') === normalizedLane) return 'on_success';
+  if (targetLaneOf(laneConfig.on_failure, action, 'failure') === normalizedLane) return 'on_failure';
   return null;
 }
 

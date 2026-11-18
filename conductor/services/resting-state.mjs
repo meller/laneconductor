@@ -16,6 +16,7 @@
 // Pure module, no I/O — mirrors lane-regression-guard.mjs's style.
 
 import { LANE_ORDER } from './lane-regression-guard.mjs';
+import { targetLaneOf } from './workflow-transitions.mjs';
 
 // Statuses that are never a "hidden" resting state regardless of lane —
 // queue/running are actively poll-able-or-in-progress, failure/blocked are
@@ -49,8 +50,8 @@ export function deriveValidRestingStates(workflow) {
       continue;
     }
 
-    const [targetLane] = onSuccess.split(':');
-    if (targetLane === lane) {
+    // Track AM-10131: the destination lane comes from the one shared transition module.
+    if (targetLaneOf(onSuccess, lane, 'success') === lane.trim().toLowerCase()) {
       // Self-referencing on_success (this project's own
       // plan.on_success: "plan:success") — a deliberate park, not a
       // stranding. Valid.
