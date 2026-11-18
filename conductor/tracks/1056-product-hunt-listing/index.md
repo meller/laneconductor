@@ -2,6 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
+**Result**: not measured (no KPI value was recorded when this launch post was closed)
 **Progress**: 0%
 **Phase**: Cancelled
 **Type**: marketing

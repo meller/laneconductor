@@ -2,6 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
+**Result**: not measured (no KPI value was recorded when this launch post was closed)
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: KPI Window — waiting 72h

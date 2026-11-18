@@ -3,6 +3,7 @@
 **Lane**: done
 **Last Run**: 2026-05-07
 **Lane Status**: success
+**Result**: not measured (no KPI value was recorded when this launch post was closed)
 **Progress**: 100%
 **Phase**: KPI Window — waiting 72h
 **Type**: marketing
