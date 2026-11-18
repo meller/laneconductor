@@ -13,7 +13,7 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 | MCP prompts | none | `next`, `suggest-skills`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `setup`, `deploy` (the command catalog, served by the connector) | none |
 | Scripts | none | `server/bin/lc-connector.mjs`, `server/bin/lc-scaffold.mjs` | `server/bin/lc-board.mjs` |
 | Files | Markdown, JSON and one PNG only (what the directory portal accepts) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) |
-| Installs code | no | yes: an MCP server (the connector, a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
+| Installs code | no | yes: an MCP server (a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
 | Needs the others | no: each works alone | no: each works alone | no: each works alone |
 
 The base is the plugin prepared for Anthropic's directory; the add-ons are installed from the marketplace `meller/laneconductor` only. No plugin depends on another: the base looks at what is installed (the tools by their prefix, the agent by name, the board script by Glob), uses it when present and recommends nothing; when it is missing it mentions the add-on once, only when relevant, shows the install commands and never runs them.

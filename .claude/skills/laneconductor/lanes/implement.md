@@ -4,8 +4,6 @@ Execute the track's `plan.md`, phase by phase, communicating through files. A ru
 normally has already started you in `.worktrees/NNN`; that is where the
 commits go.
 
-Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
-
 0. **Claim the track first.** Write `**Lane**: implement` and `**Lane Status**: running` to the
    track's `index.md`. Set `**Lane**` explicitly: a human may run this right after planning, and
    this project's `workflow.json` keeps `plan.on_success: plan:success`, so the track does not
@@ -46,16 +44,11 @@ Before step 1, look at "Offer a missing skill" near the end of this guide: one c
    - TDD is recommended because `test.md` is written for it: per phase, write the test, watch it
      fail, write the minimal code, watch it pass.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
-   - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`,
-     `copywriting`, `social`, `analytics`, `ab-testing`; sales: `sales-enablement`, `cold-email`,
-     `prospecting`, `revops`; support: `ticket-triage`, `draft-response`, `kb-article`). A skill
-     counts as installed when it is in the skills list this session shows you (that covers project,
-     user and plugin skills), when `claude plugin list` shows its plugin, or when it is in
-     `.claude/skills/` or `~/.claude/skills/`; an older name counts too (`social-content`,
-     `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one that is installed say
-     "you have `<skill>` installed, use it before writing the content" and use it. Offer only the
-     ones that are missing, as "Offer a missing skill" below says (at most two, plain text, never
-     blocking, and not again if the person declined them).
+   - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
+     `ab-testing`; sales: `sales-enablement`, `cold-email`, `prospecting`, `revops`; support: `ticket-triage`, `draft-response`,
+     `kb-article`). A skill is installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or
+     `~/.claude/skills/` (an older name counts: `social-content`, `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one
+     installed, say "you have `<skill>` installed, use it before writing the content". Offer the missing ones as "Offer a missing skill" says.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
      `### Publish Instructions` to the user.
    - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
@@ -109,7 +102,7 @@ should end as `success` or `queue` according to the outcome.
 
 ## Offer a missing skill
 
-Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
 
 <!-- generated: skill offers for this lane -->
 

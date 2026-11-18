@@ -6,12 +6,12 @@ end of SKILL.md), at most once per session, in a sentence or two, as an option. 
 
 ## laneconductor-parallel
 
-Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes.
+Parallel work: sub-agents per track in worktrees, conflict-checked track writes.
 
-- **Installed when**: its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed.
+- **Installed when**: its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed.
 - **Adds**: conflict-checked writes (a write is refused if someone edited first, so several sessions, people or sub-agents can write the same tracks at once); automatic commits of the track changes it makes, and freshness warnings; a generated summary of all tracks; a secret and personal-data scan; an advice log and a health report; a scaffold script for a new project; the `track-runner` sub-agent: one per track, each in its own git worktree.
-- **Installs**: It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
-- **Relevant when**: the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report.
+- **Installs**: It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+- **Relevant when**: several sessions, people or sub-agents write the same tracks, or overwrites are a worry; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report.
 - **Offered at setup when**: the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
 
 ```bash
@@ -26,7 +26,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 
 ## laneconductor-board
 
-The board, one private page of every track by lane, which Claude publishes as an artifact.
+The board: one private page of every track by lane.
 
 - **Installed when**: Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`.
 - **Adds**: the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval; it works with or without the other add-on.

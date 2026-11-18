@@ -4,8 +4,6 @@ An optional deepening step before implement: ask the human clarifying questions 
 `conversation.md`. It is not a lane and can run at any time. Write the first question to `conversation.md` and set
 `**Waiting for reply**: yes` in `index.md` yourself.
 
-Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
-
 1. **Load context.** On `FRESH_SESSION: false` read only `conversation.md` (you need the latest
    human reply; every question-answer round after the first is normally a resumed session).
    Otherwise read `conductor/product.md`, `tech-stack.md`, `deployment-stack.md` (if present), and
@@ -26,7 +24,7 @@ Before step 1, look at "Offer a missing skill" near the end of this guide: one c
 
 ## Offer a missing skill
 
-Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
 
 <!-- generated: skill offers for this lane -->
 

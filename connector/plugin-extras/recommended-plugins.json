@@ -42,8 +42,8 @@
       },
       "licence": "Elastic-2.0",
       "installs_code": true,
-      "installs": "an MCP server (the connector, a Node.js program) and a scaffold script",
-      "why": "parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes",
+      "installs": "an MCP server (a Node.js program) and a scaffold script",
+      "why": "parallel work: sub-agents per track in worktrees, conflict-checked track writes",
       "lanes": [
         "implement",
         "review"
@@ -68,9 +68,9 @@
         "the `track-runner` sub-agent: one per track, each in its own git worktree"
       ],
       "setup_fit": "the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents",
-      "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed",
+      "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed",
       "triggers": [
-        "the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites",
+        "several sessions, people or sub-agents write the same tracks, or overwrites are a worry",
         "the person mentions worktrees or running tracks in parallel",
         "the person asks for automatic commits, a privacy scan or a health report"
       ],
@@ -88,7 +88,7 @@
       "licence": "Elastic-2.0",
       "installs_code": true,
       "installs": "a script (a Node.js program, no packages) and its page",
-      "why": "the board, one private page of every track by lane, which Claude publishes as an artifact",
+      "why": "the board: one private page of every track by lane",
       "lanes": [
         "setup"
       ],
@@ -127,8 +127,8 @@
       },
       "licence": "MIT",
       "installs_code": true,
-      "installs": "a shell hook script that runs when each session starts, plus Markdown skills",
-      "why": "process skills for the lanes: brainstorming and writing plans, test-first work, systematic debugging, sub-agent execution, worktrees, code review and verification before done",
+      "installs": "a session-start hook script, plus Markdown skills",
+      "why": "process skills: plans, test-first, debugging, sub-agents, worktrees, review, verification",
       "lanes": [
         "setup",
         "brainstorm",
@@ -226,7 +226,7 @@
       },
       "licence": "Apache-2.0",
       "installs_code": false,
-      "why": "design direction for a new or reshaped UI: typography, layout and choices that do not read as templated defaults",
+      "why": "design direction for UI: typography, layout, no templated defaults",
       "lanes": [
         "setup",
         "plan",
@@ -266,7 +266,7 @@
       },
       "licence": "Apache-2.0",
       "installs_code": false,
-      "why": "review agents for a change: comments, tests, error handling, type design and simplification",
+      "why": "review agents: comments, tests, error handling, types, simplification",
       "lanes": [
         "review"
       ],
@@ -300,8 +300,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "a Python hook script that runs before file edits and when a turn ends, to warn about security problems",
-      "why": "security warnings on edits and a diff review when a turn ends, for injection, XSS, hardcoded secrets and other vulnerability classes",
+      "installs": "a Python hook script that checks edits",
+      "why": "security warnings on edits and a diff review when a turn ends",
       "lanes": [
         "quality-gate"
       ],
@@ -314,7 +314,7 @@
         "claude plugin install security-guidance@claude-plugins-official"
       ],
       "skills": [],
-      "detect": "`claude plugin list` shows `security-guidance@claude-plugins-official`",
+      "detect": "`claude plugin list` shows `security-guidance`",
       "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path plugins/security-guidance, Apache-2.0); hooks/hooks.json and a Python hook found in the plugin cache (read only)"
     },
     {
@@ -328,8 +328,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "an MCP server (the Playwright MCP Node.js program from Microsoft, fetched with npx) that drives a real browser",
-      "why": "drives a real browser to check a UI flow, click through it and take screenshots, for the quality gate of a UI track",
+      "installs": "an MCP server (Node.js, via npx) that drives a browser",
+      "why": "drives a real browser to check a UI flow and take screenshots",
       "lanes": [
         "setup",
         "quality-gate"
@@ -345,7 +345,7 @@
         "claude plugin install playwright@claude-plugins-official"
       ],
       "skills": [],
-      "detect": "its browser tools are among your tools (they start with `mcp__plugin_playwright_playwright__`), or `claude plugin list` shows `playwright@claude-plugins-official`",
+      "detect": "its tools start with `mcp__plugin_playwright_playwright__`, or `claude plugin list` shows it",
       "setup_fit": "the project has a web UI that a person checks in a browser",
       "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path external_plugins/playwright, repository Apache-2.0); its .mcp.json runs npx @playwright/mcp (npm: Apache-2.0)"
     },
@@ -360,8 +360,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "an MCP server (the `firebase-tools` Node.js program from Google, fetched with npx) that can change your Firebase project when you ask",
-      "why": "Firebase tools for Claude: Firestore, auth, functions, hosting and storage, including the steps to deploy hosting",
+      "installs": "an MCP server (firebase-tools, via npx) that can change your Firebase project",
+      "why": "Firebase tools: Firestore, auth, functions, hosting, and hosting deploys",
       "lanes": [
         "setup",
         "implement",
@@ -378,7 +378,7 @@
         "claude plugin install firebase@claude-plugins-official"
       ],
       "skills": [],
-      "detect": "its tools are among your tools (they start with `mcp__plugin_firebase_firebase__`), or `claude plugin list` shows `firebase@claude-plugins-official`",
+      "detect": "its tools start with `mcp__plugin_firebase_firebase__`, or `claude plugin list` shows it",
       "setup_fit": "the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack",
       "verified": "2026-11-18: listed in anthropics/claude-plugins-official (path external_plugins/firebase, repository Apache-2.0); its .mcp.json runs npx firebase-tools mcp (npm: MIT)"
     },
@@ -393,8 +393,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "a connection to Cloudflare's hosted MCP server (no local program; you sign in to use it), plus Markdown skills",
-      "why": "Cloudflare platform skills and its hosted MCP server for edge functions, Durable Objects and deployments",
+      "installs": "a connection to Cloudflare's hosted MCP server, plus skills",
+      "why": "Cloudflare skills and hosted MCP server for edge functions and deploys",
       "lanes": [
         "setup",
         "implement",
@@ -435,7 +435,7 @@
       },
       "licence": "MIT",
       "installs_code": false,
-      "why": "marketing and sales skills for content: strategy, launch plans, copywriting, social posts, sales enablement, prospecting, cold email, analytics and A/B tests (53 skills in all)",
+      "why": "marketing and sales skills: strategy, launch, copy, social, cold email, analytics",
       "lanes": [
         "setup",
         "plan",
@@ -573,8 +573,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "connection settings for hosted services (Slack, Intercom, HubSpot, Notion and others; no local program, each asks you to sign in before it connects), plus Markdown skills",
-      "why": "support skills: ticket triage, draft replies, knowledge-base articles and escalations",
+      "installs": "connections to hosted services (Slack, Intercom and more), plus skills",
+      "why": "support skills: ticket triage, draft replies, knowledge-base articles, escalations",
       "lanes": [
         "plan",
         "implement"
@@ -635,8 +635,8 @@
       },
       "licence": "Apache-2.0",
       "installs_code": true,
-      "installs": "connection settings for hosted data services (BigQuery, Amplitude, Hex and others; no local program, each asks you to sign in before it connects), plus Markdown skills",
-      "why": "data skills for a dashboard or chart: build a dashboard, create a visualization, explore and validate the data",
+      "installs": "connections to hosted data services, plus skills",
+      "why": "data skills: dashboards, charts, exploring and validating data",
       "lanes": [
         "plan",
         "implement"

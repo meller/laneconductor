@@ -18,21 +18,24 @@ test('TC-15 every starter-set candidate has a one-line setup_fit of 10 to 200 ch
   for (const e of STARTER) assert.ok(typeof e.setup_fit === 'string' && !e.setup_fit.includes('\n') && e.setup_fit.length >= 10 && e.setup_fit.length <= 200, `${e.name}: setup_fit`);
 });
 
-test('TC-16 the generated block in setup.md and new-project.md names exactly the starter candidates, each command alone in its own bash fence, then the reload step', () => {
-  const expected = [...offerOrder(STARTER).flatMap((e) => installCommands(e)), ADDONS_INSTALL]; // the one-line install of both add-ons comes last (AM-10128)
+test('TC-16 the generated block in setup.md and new-project.md names exactly the starter candidates, one line each with its commands in inline code (Claude shows each alone in its own bash block), and the one-line add-ons install in its own fence', () => {
+  const expected = [ADDONS_INSTALL]; // the one-line install of both add-ons is the one fence (AM-10128)
   for (const rel of ['setup/setup.md', 'ops/new-project.md']) {
     const text = read(rel);
     assert.ok(!text.includes(RECOMMEND_MARKER), `${rel}: the marker is replaced`);
-    assert.deepEqual(bashFences(text), expected, `${rel}: fences equal the catalog's commands, in order`);
+    assert.deepEqual(bashFences(text), expected, `${rel}: one fence, the add-ons line`);
     assert.ok(text.includes(setupRecommendBlock()), `${rel}: holds the generated block`);
-    assert.equal(text.split(`\`${RELOAD_COMMAND}\``).length - 1 >= STARTER.length, true, `${rel}: the reload step follows`);
-    for (const e of STARTER) assert.ok(text.includes(`**\`${e.name}\`**`), `${rel}: names ${e.name}`);
+    assert.ok(text.includes(`then the reload step`) && text.includes(`\`${RELOAD_COMMAND}\``), `${rel}: the reload step`);
+    const order = offerOrder(STARTER).map((e) => e.name);
+    const lines = text.split('\n').filter((l) => /^- `[a-z0-9-]+`/.test(l));
+    assert.deepEqual(lines.map((l) => l.match(/^- `([a-z0-9-]+)`/)[1]), order, `${rel}: one line per starter candidate, in offer order`);
+    for (const e of STARTER) assert.ok(lines.find((l) => l.startsWith(`- \`${e.name}\``)).includes(installCommands(e).map((c) => `\`${c}\``).join(', ')), `${rel}: ${e.name} carries its commands`);
   }
   const market = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin/marketplace.json'), 'utf8'));
   const own = new Set(ADDONS.map((e) => e.name));
-  for (const c of bashFences(read('setup/setup.md'))) if (c.startsWith('claude plugin install')) {
-    const e = STARTER.find((x) => c === `claude plugin install ${x.source.plugin}@${x.source.marketplace}`);
-    assert.ok(e, `${c} is a starter entry's command`);
+  for (const e of STARTER) {
+    const c = `claude plugin install ${e.source.plugin}@${e.source.marketplace}`;
+    assert.ok(read('setup/setup.md').includes(`\`${c}\``), `${c} is shown`);
     if (own.has(e.name)) assert.ok(c.endsWith(`@${market.name}`), c);
   }
 });
@@ -45,7 +48,8 @@ test('TC-17 the block shows only: it says never run, no install without a yes, s
   assert.match(text, /If nothing fits, say nothing and go on/);
   assert.match(text, /Mention each plugin once in this session/);
   assert.ok(!/\b(now|then|please)\s+run\s+`?claude plugin/i.test(text));
-  for (const e of ADDONS) assert.ok(text.includes(installsNote(e.name)) && text.includes(e.detect), `${e.name}: note and detection`);
+  for (const e of ADDONS) assert.ok(text.includes(`Installs ${e.installs}.`) && text.includes(e.detect), `${e.name}: what it installs, and detection`);
+  for (const e of STARTER.filter((x) => !x.installs_code)) assert.ok(text.split('\n').find((l) => l.startsWith(`- \`${e.name}\``)).includes('Markdown only.'), `${e.name}: says it is Markdown only`);
 });
 
 test('TC-11 TC-12 the starter set: at most four, none installed, once; derived from the stack and Type; "later" defers to the moment of intent', () => {
@@ -75,10 +79,11 @@ test('TC-19/20 no other base text recommends an add-on unconditionally or names 
 });
 
 test('TC-21 the block is built from the catalog: a fake skillpack entry gets its own paragraph and fences', () => {
-  const fake = { name: 'fake-skillpack', kind: 'skillpack', display: 'Fake', source: { marketplace: 'fakemarket', add: 'someone/fake', plugin: 'fake-skillpack' }, installs_code: false, why: 'a pack of fake skills for tests of the block', adds: ['x'], setup_fit: 'the project has fake needs of some kind', detect: 'a skill named fake exists', triggers: ['the person asks for fake things'] };
+  const fake = { name: 'fake-skillpack', kind: 'skillpack', display: 'Fake', source: { marketplace: 'fakemarket', add: 'someone/fake', plugin: 'fake-skillpack' }, installs_code: false, lanes: ['plan'], types: ['dev'], stack: [], level: 'helps', skills: [], licence: 'MIT', why: 'a pack of fake skills for tests of the block', adds: ['x'], setup_fit: 'the project has fake needs of some kind', detect: 'a skill named fake exists', triggers: ['the person asks for fake things'] };
   const text = setupRecommendBlock([...STARTER, fake]);
-  assert.ok(text.includes('**`fake-skillpack`**') && text.includes('It fits when the project has fake needs of some kind.'));
-  assert.deepEqual(bashFences(text), [...offerOrder([...STARTER, fake]).flatMap((e) => installCommands(e)), ADDONS_INSTALL]);
+  assert.ok(text.includes('- `fake-skillpack`') && text.includes('It fits when the project has fake needs of some kind.'));
+  assert.ok(text.includes('`claude plugin marketplace add someone/fake`, `claude plugin install fake-skillpack@fakemarket`'));
+  assert.deepEqual(bashFences(text), [ADDONS_INSTALL]);
 });
 
 test('ADD-ONS.md prints each entry\'s setup_fit, and the setup command points at the step', () => {

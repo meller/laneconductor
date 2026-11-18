@@ -66,7 +66,7 @@ test('the block is for the case where BOTH add-ons are missing; with one add-on 
   // a catalog with a single add-on offers no combined line
   const one = setupRecommendBlock(RECOMMENDED.slice(0, 1));
   assert.ok(!one.includes('Both add-ons in one line') && !bashFences(one).includes(ADDONS_INSTALL));
-  assert.equal(bashFences(one).length, 2, 'only the two per-add-on commands');
+  assert.equal(bashFences(one).length, 0, 'the per-add-on commands are inline code, there is no combined fence');
   // a catalog where the second entry is a skill pack, not an add-on, offers none either
   const withPack = setupRecommendBlock([RECOMMENDED[0], { ...RECOMMENDED[1], kind: 'skillpack' }]);
   assert.ok(!withPack.includes('Both add-ons in one line'));
@@ -76,9 +76,10 @@ test('the generated texts carry the block: ops/next.md (S02-S04 through "The fro
   const files = ['skills/laneconductor/ops/next.md', 'skills/laneconductor/setup/setup.md', 'skills/laneconductor/ops/new-project.md', 'commands/setup.md', 'commands/next.md', 'commands/new-project.md'];
   for (const f of files) {
     const text = generated(`${RELS.base}/${f}`);
-    const both = setupRecommendBlock().slice(setupRecommendBlock().indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
+    const shared = f.includes('next') ? setupRecommendBlock(ADDONS) : setupRecommendBlock(); // next keeps the add-ons offer of the front door; setup and new-project carry the starter set
+    const both = shared.slice(shared.indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
     assert.ok(text.includes(both), `${f} carries the one-line part of the shared block`);
-    if (f.startsWith('skills/')) assert.ok(text.includes(setupRecommendBlock()), `${f} carries the shared block`);
+    if (f.startsWith('skills/')) assert.ok(text.includes(shared), `${f} carries the shared block`);
     assert.ok(text.includes(`Both add-ons in one line:\n\n\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``), f);
   }
   const source = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops/next.md'), 'utf8');

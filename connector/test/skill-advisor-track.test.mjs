@@ -34,13 +34,13 @@ test('TC-19 small things get no offer, "no track" once is the end of it for the 
 });
 
 test('TC-20 the current track: the prompt, a branch named after a track, or the track this session has running; written once and used by the base skill, suggest-skills and next', () => {
-  const lookup = /\*\*The current track\*\* is, in this order: the track the person named in the prompt \(a number or a title\); the track a branch is named after \(`git branch --show-current`, for example `track-NNN` or a name holding a track number, matched to its folder under `conductor\/tracks\/`\); the track this session has running \(its `index\.md` says `\*\*Lane Status\*\*: running`, and with the connector `\*\*Run By\*\*` names this client\)\./;
+  const lookup = /\*\*The current track\*\* is, in this order: the track named in the prompt \(a number or a title\); the track a branch is named after \(`git branch --show-current`, matched to its folder under `conductor\/tracks\/`\); the track this session has running \(`\*\*Lane Status\*\*: running`, and with the connector `\*\*Run By\*\*` names this client\)\./;
   for (const [label, text] of [['the base skill', baseSkill()], ['ops/suggest-skills.md', skillFile('ops/suggest-skills.md')], ['ops/next.md', skillFile('ops/next.md')], ['the suggest-skills command', read('commands/suggest-skills.md')], ['the next command', read('commands/next.md')]]) {
     assert.match(text, lookup, label);
     assert.equal(text.split('**The current track** is, in this order').length - 1, 1, `${label}: written once`);
-    assert.match(text, /With one in play, the work follows its lane, `\*\*Type\*\*`, stack and skill offers; with none, skill offers go by the project's stack only, and there is no KPI block to write \(that belongs to a marketing or sales track\)\./, label);
+    assert.match(text, /With one in play, its lane, `\*\*Type\*\*` and stack apply; with none, no track is in play and skill offers go by the stack only \(a KPI block belongs to a marketing or sales track, so there is none to write\)\./, label);
   }
-  for (const lane of ['plan', 'implement', 'review', 'quality-gate', 'merge', 'brainstorm']) assert.match(skillFile(`lanes/${lane}.md`), /The track is the one this command names, so its lane, `\*\*Type\*\*` and stack are known\./, lane);
+  for (const lane of ['plan', 'implement', 'review', 'quality-gate', 'merge', 'brainstorm']) assert.match(skillFile(`lanes/${lane}.md`), /The track is the one this command names\./, lane);
   // no marker is left anywhere in the shipped base
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   for (const f of walk(BASE).filter((x) => x.endsWith('.md'))) assert.ok(!/<!-- generated: (current track|track context|skill )/.test(fs.readFileSync(f, 'utf8')), `${path.relative(BASE, f)}: a marker is left`);

@@ -3,7 +3,7 @@
 Run only when the user asks for it by name. A deploy changes something live, so say which environment and which
 command you are about to run and wait for a yes first.
 
-Before step 1, offer the stack's deploy pack if it is missing (usually silent; it never blocks the deploy; `/laneconductor:suggest-skills` is the whole procedure):
+Before step 1, offer the stack's deploy pack if it is missing (usually silent, never blocking):
 
 <!-- generated: skill offers for this lane -->
 

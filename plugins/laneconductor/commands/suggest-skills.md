@@ -47,7 +47,7 @@ The arguments (all optional):
 
 ### The current track
 
-**The current track** is, in this order: the track the person named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, for example `track-NNN` or a name holding a track number, matched to its folder under `conductor/tracks/`); the track this session has running (its `index.md` says `**Lane Status**: running`, and with the connector `**Run By**` names this client). When none of these gives one, no track is in play. With one in play, the work follows its lane, `**Type**`, stack and skill offers; with none, skill offers go by the project's stack only, and there is no KPI block to write (that belongs to a marketing or sales track).
+**The current track** is, in this order: the track named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, matched to its folder under `conductor/tracks/`); the track this session has running (`**Lane Status**: running`, and with the connector `**Run By**` names this client). With one in play, its lane, `**Type**` and stack apply; with none, no track is in play and skill offers go by the stack only (a KPI block belongs to a marketing or sales track, so there is none to write).
 
 **How to offer.** Plain text in your reply: never a form, a menu or a question that blocks the work.
 
@@ -101,144 +101,20 @@ fallback below rather than guessing another source.
 
 ### The entries (checked 2026-11-18)
 
-#### `laneconductor-parallel`
+One line each: the entry, when it applies, its licence, what it installs and the commands (show each command alone in its own bash block when you offer it).
 
-Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. LaneConductor add-on, licence Elastic-2.0, from `meller/laneconductor`. Fits `implement`, `review` (lanes), Type `dev`, any stack. Level: `helps`. Mention it only when: the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report.
-It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
-
-```bash
-claude plugin marketplace add meller/laneconductor
-```
-
-```bash
-claude plugin install laneconductor-parallel@laneconductor
-```
-
-#### `laneconductor-board`
-
-The board, one private page of every track by lane, which Claude publishes as an artifact. LaneConductor add-on, licence Elastic-2.0, from `meller/laneconductor`. Fits `setup` (lanes), Type `dev`, `marketing`, `sales`, `support`, any stack. Level: `helps`. Mention it only when: the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`).
-It has no tool or agent to look for, and finding its files means searching the plugin install folder, which is outside the project and not read here: offer it as an option, once, and say it can be ignored if it is already installed. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
-
-```bash
-claude plugin marketplace add meller/laneconductor
-```
-
-```bash
-claude plugin install laneconductor-board@laneconductor
-```
-
-#### `frontend-design`
-
-Design direction for a new or reshaped UI: typography, layout and choices that do not read as templated defaults. Third-party, licence Apache-2.0, from `anthropics/claude-plugins-official`. Fits `setup`, `plan`, `implement` (lanes), Type `dev`, only when the project has `ui`. Level: `prerequisite`.
-Skills: `frontend-design`.
-It counts as installed when a skill named `frontend-design` is in the session's skills list (it may show as `frontend-design:frontend-design`), or `claude plugin list` shows `frontend-design@claude-plugins-official`. It is Markdown only: it adds knowledge and installs no program. It comes from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install frontend-design@claude-plugins-official
-```
-
-#### `marketing-skills`
-
-Marketing and sales skills for content: strategy, launch plans, copywriting, social posts, sales enablement, prospecting, cold email, analytics and A/B tests (53 skills in all). Third-party, licence MIT, from `coreyhaines31/marketingskills`. Fits `setup`, `plan`, `implement`, `quality-gate` (lanes), Type `marketing`, `sales`, any stack. Level: `prerequisite`.
-Skills: `content-strategy`, `launch` (older installs list it as `launch-strategy`), `copywriting`, `social` (older installs list it as `social-content`), `sales-enablement`, `cold-email`, `prospecting`, `revops`, `analytics` (older installs list it as `analytics-tracking`), `ab-testing` (older installs list it as `ab-test-setup`).
-It counts as installed when a skill from it (for example `copywriting` or `cold-email`) is in the session's skills list, in `.claude/skills` or `~/.claude/skills`, or `claude plugin list` shows `marketing-skills@marketingskills`. It is Markdown only: it adds knowledge and installs no program. It comes from `coreyhaines31/marketingskills`, a third-party source, not LaneConductor.
-
-```bash
-claude plugin marketplace add coreyhaines31/marketingskills
-```
-
-```bash
-claude plugin install marketing-skills@marketingskills
-```
-
-#### `superpowers`
-
-Process skills for the lanes: brainstorming and writing plans, test-first work, systematic debugging, sub-agent execution, worktrees, code review and verification before done. Third-party, licence MIT, from `anthropics/claude-plugins-official`. Fits `setup`, `brainstorm`, `plan`, `implement`, `review`, `quality-gate`, `merge` (lanes), Type `dev`, any stack. Level: `helps`.
-Skills: `brainstorming`, `writing-plans`, `test-driven-development`, `systematic-debugging`, `subagent-driven-development`, `using-git-worktrees`, `requesting-code-review`, `receiving-code-review`, `verification-before-completion`, `finishing-a-development-branch`.
-It counts as installed when one of its skills (for example `test-driven-development`) is in the session's skills list, or `claude plugin list` shows `superpowers@claude-plugins-official`. It installs a shell hook script that runs when each session starts, plus Markdown skills on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install superpowers@claude-plugins-official
-```
-
-#### `pr-review-toolkit`
-
-Review agents for a change: comments, tests, error handling, type design and simplification. Third-party, licence Apache-2.0, from `anthropics/claude-plugins-official`. Fits `review` (lanes), Type `dev`, any stack. Level: `helps`.
-Skills: `review-pr`.
-It counts as installed when the command `/pr-review-toolkit:review-pr` exists, or `claude plugin list` shows `pr-review-toolkit@claude-plugins-official`. It is Markdown only: it adds knowledge and installs no program. It comes from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install pr-review-toolkit@claude-plugins-official
-```
-
-#### `security-guidance`
-
-Security warnings on edits and a diff review when a turn ends, for injection, XSS, hardcoded secrets and other vulnerability classes. Third-party, licence Apache-2.0, from `anthropics/claude-plugins-official`. Fits `quality-gate` (lanes), Type `dev`, any stack. Level: `helps`.
-It counts as installed when `claude plugin list` shows `security-guidance@claude-plugins-official`. It installs a Python hook script that runs before file edits and when a turn ends, to warn about security problems on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install security-guidance@claude-plugins-official
-```
-
-#### `playwright`
-
-Drives a real browser to check a UI flow, click through it and take screenshots, for the quality gate of a UI track. Third-party, licence Apache-2.0, from `anthropics/claude-plugins-official`. Fits `setup`, `quality-gate` (lanes), Type `dev`, only when the project has `ui`. Level: `helps`.
-It counts as installed when its browser tools are among your tools (they start with `mcp__plugin_playwright_playwright__`), or `claude plugin list` shows `playwright@claude-plugins-official`. It installs an MCP server (the Playwright MCP Node.js program from Microsoft, fetched with npx) that drives a real browser on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install playwright@claude-plugins-official
-```
-
-#### `firebase`
-
-Firebase tools for Claude: Firestore, auth, functions, hosting and storage, including the steps to deploy hosting. Third-party, licence Apache-2.0, from `anthropics/claude-plugins-official`. Fits `setup`, `implement`, `deploy` (lanes), Type `dev`, only when the project has `firebase`. Level: `helps`.
-It counts as installed when its tools are among your tools (they start with `mcp__plugin_firebase_firebase__`), or `claude plugin list` shows `firebase@claude-plugins-official`. It installs an MCP server (the `firebase-tools` Node.js program from Google, fetched with npx) that can change your Firebase project when you ask on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace.
-
-```bash
-claude plugin install firebase@claude-plugins-official
-```
-
-#### `cloudflare`
-
-Cloudflare platform skills and its hosted MCP server for edge functions, Durable Objects and deployments. Third-party, licence Apache-2.0, from `cloudflare/skills`. Fits `setup`, `implement`, `deploy` (lanes), Type `dev`, only when the project has `cloudflare`. Level: `helps`.
-Skills: `cloudflare`.
-It counts as installed when a skill named `cloudflare` is in the session's skills list, or `claude plugin list` shows `cloudflare@cloudflare`. It installs a connection to Cloudflare's hosted MCP server (no local program; you sign in to use it), plus Markdown skills on your computer, from `cloudflare/skills`, a third-party source, not LaneConductor.
-
-```bash
-claude plugin marketplace add cloudflare/skills
-```
-
-```bash
-claude plugin install cloudflare@cloudflare
-```
-
-#### `customer-support`
-
-Support skills: ticket triage, draft replies, knowledge-base articles and escalations. Third-party, licence Apache-2.0, from `anthropics/knowledge-work-plugins`. Fits `plan`, `implement` (lanes), Type `support`, any stack. Level: `helps`.
-Skills: `ticket-triage`, `draft-response`, `kb-article`, `customer-escalation`, `customer-research`.
-It counts as installed when a skill from it (for example `ticket-triage`) is in the session's skills list, or `claude plugin list` shows `customer-support@knowledge-work-plugins`. It installs connection settings for hosted services (Slack, Intercom, HubSpot, Notion and others; no local program, each asks you to sign in before it connects), plus Markdown skills on your computer, from `anthropics/knowledge-work-plugins`, a third-party source, not LaneConductor.
-
-```bash
-claude plugin marketplace add anthropics/knowledge-work-plugins
-```
-
-```bash
-claude plugin install customer-support@knowledge-work-plugins
-```
-
-#### `data`
-
-Data skills for a dashboard or chart: build a dashboard, create a visualization, explore and validate the data. Third-party, licence Apache-2.0, from `anthropics/knowledge-work-plugins`. Fits `plan`, `implement` (lanes), Type `dev`, only when the project has `dashboard`. Level: `helps`.
-Skills: `build-dashboard`, `create-viz`, `data-visualization`.
-It counts as installed when a skill from it (for example `build-dashboard`) is in the session's skills list, or `claude plugin list` shows `data@knowledge-work-plugins`. It installs connection settings for hosted data services (BigQuery, Amplitude, Hex and others; no local program, each asks you to sign in before it connects), plus Markdown skills on your computer, from `anthropics/knowledge-work-plugins`, a third-party source, not LaneConductor.
-
-```bash
-claude plugin marketplace add anthropics/knowledge-work-plugins
-```
-
-```bash
-claude plugin install data@knowledge-work-plugins
-```
+- `laneconductor-parallel` (Elastic-2.0): parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor`
+- `laneconductor-board` (Type dev/marketing/sales/support; Elastic-2.0): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and finding its files means searching the plugin install folder, which is outside the project and not read here: offer it as an option, once, and say it can be ignored if it is already installed. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor`
+- `frontend-design` (prerequisite; stack ui; Apache-2.0): design direction for UI: typography, layout, no templated defaults. Skills: frontend-design. Markdown only. `claude plugin install frontend-design@claude-plugins-official`
+- `marketing-skills` (prerequisite; Type marketing/sales; MIT): marketing and sales skills: strategy, launch, copy, social, cold email, analytics. Skills: content-strategy, launch (was launch-strategy), copywriting, social (was social-content), sales-enablement, cold-email, prospecting, revops, analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
+- `superpowers` (MIT): process skills: plans, test-first, debugging, sub-agents, worktrees, review, verification. Skills: brainstorming, writing-plans, test-driven-development, systematic-debugging, subagent-driven-development, using-git-worktrees, requesting-code-review, receiving-code-review, verification-before-completion, finishing-a-development-branch. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`
+- `pr-review-toolkit` (Apache-2.0): review agents: comments, tests, error handling, types, simplification. Skills: review-pr. Markdown only. `claude plugin install pr-review-toolkit@claude-plugins-official`
+- `security-guidance` (Apache-2.0): security warnings on edits and a diff review when a turn ends. Installs a Python hook script that checks edits. It counts as installed when `claude plugin list` shows `security-guidance`. `claude plugin install security-guidance@claude-plugins-official`
+- `playwright` (stack ui; Apache-2.0): drives a real browser to check a UI flow and take screenshots. Installs an MCP server (Node.js, via npx) that drives a browser. It counts as installed when its tools start with `mcp__plugin_playwright_playwright__`, or `claude plugin list` shows it. `claude plugin install playwright@claude-plugins-official`
+- `firebase` (stack firebase; Apache-2.0): Firebase tools: Firestore, auth, functions, hosting, and hosting deploys. Installs an MCP server (firebase-tools, via npx) that can change your Firebase project. It counts as installed when its tools start with `mcp__plugin_firebase_firebase__`, or `claude plugin list` shows it. `claude plugin install firebase@claude-plugins-official`
+- `cloudflare` (stack cloudflare; Apache-2.0): Cloudflare skills and hosted MCP server for edge functions and deploys. Skills: cloudflare. Installs a connection to Cloudflare's hosted MCP server, plus skills. `claude plugin marketplace add cloudflare/skills`, `claude plugin install cloudflare@cloudflare`
+- `customer-support` (Type support; Apache-2.0): support skills: ticket triage, draft replies, knowledge-base articles, escalations. Skills: ticket-triage, draft-response, kb-article, customer-escalation, customer-research. Installs connections to hosted services (Slack, Intercom and more), plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install customer-support@knowledge-work-plugins`
+- `data` (stack dashboard; Apache-2.0): data skills: dashboards, charts, exploring and validating data. Skills: build-dashboard, create-viz, data-visualization. Installs connections to hosted data services, plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install data@knowledge-work-plugins`
 
 ### If nothing in the catalog fits
 

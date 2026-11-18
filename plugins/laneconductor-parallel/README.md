@@ -29,7 +29,7 @@ connector's tools and prompts and the subagent still work.
 
 ## Install
 
-It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

@@ -374,7 +374,7 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
       assert.ok(!m[2].includes('\n') && !m[2].startsWith('$') && /^claude plugin (marketplace add|install|uninstall|update)\b/.test(m[2]), `${rel}: one command per fence, no $: ${m[2]}`);
     }
     // No install command outside a bash fence (the README's inline notes about updating are not installs).
-    const outside = text.replace(/```[\s\S]*?```/g, '');
+    const outside = text.replace(/```[\s\S]*?```/g, '').split('\n').filter((l) => !/^- `[a-z0-9-]+`.*`claude plugin (install|marketplace add) /.test(l)).join('\n'); // a candidate line of the skill offers carries its commands in inline code; Claude shows each alone in its own bash block
     assert.ok(!/claude plugin (install|marketplace add)/.test(outside.replace(/`claude plugin install laneconductor@laneconductor`/g, '')), `${rel}: an install command outside a bash fence`);
     // Advice, not an instruction to run: nothing tells Claude to run an install.
     assert.ok(!/\b(now|then|please|you should|go ahead and)\s+run\s+`?claude plugin/i.test(text), `${rel} tells Claude to run an install command`);
@@ -397,7 +397,7 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
   // Without any add-on, run explains parallel work by hand and what the add-on adds, and otherwise mentions nothing.
   const run = read('commands/run.md');
   assert.match(run, /git worktree add \.worktrees\/track-<number> -b track-<number>/, 'run explains the by-hand worktree');
-  assert.match(run, /isolated sub-agents, one per track in its own worktree, and safe shared state/, 'run says what the add-on adds');
+  assert.match(run, /sub-agents per track in worktrees, conflict-checked track writes/, 'run says what the add-on adds');
   assert.match(run, /It installs an MCP server .* on your computer, from the owner's marketplace/, 'and that it installs a local program');
   assert.match(run, /Otherwise mention nothing/);
 });
@@ -405,7 +405,7 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
 test('README: over 40 words, says what it is and is not; no hard-coded command count; no claim of being in the directory; the add-ons are shown as optional', () => {
   const readme = read('README.md');
   const words = readme.replace(/```[\s\S]*?```/g, ' ').split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
-  assert.ok(words > 40 && words < 1100, `${words} words`);
+  assert.ok(words > 40 && words < 900, `${words} words`);
   assert.ok(!readme.includes('{{'), 'a template placeholder was left');
   const version = JSON.parse(fs.readFileSync(path.join(REPO, 'connector/package.json'), 'utf8')).version;
   assert.ok(readme.includes(`Version ${version}`));

@@ -77,13 +77,9 @@ markers). By hand:
    track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
    that already exists without the markers keeps the old fallbacks.
 3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing`, `sales` or `support`, look for the skills the Type works
-   best with, and say which are installed and which are missing. A skill counts as installed when
-   it is in the skills list this session shows you (that covers project, user and plugin skills),
-   when `claude plugin list` shows its plugin, or when it is in `.claude/skills/` or
-   `~/.claude/skills/`; an older name counts too. For each one that is installed say "you have
-   `<skill>` installed, use it before writing the content". Offer only the missing ones, once, as
-   below; the same offer comes again when the track is planned and implemented.
+4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
+   name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
 
    <!-- generated: skill offers for non-dev types -->
 

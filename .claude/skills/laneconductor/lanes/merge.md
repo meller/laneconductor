@@ -4,8 +4,6 @@ The `done` lane's standard action. It runs in the **primary checkout, on `main`*
 `done:success` means the code is reachable from local `main` (direct mode) or the PR is merged on
 GitHub (pr mode), and nothing less.
 
-Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
-
 Markers this lane reads and writes:
 - `**Merge Mode**: direct|pr` (absent means `pr`). `direct` merges straight to main in this
   session; `pr` pushes the branch and opens a GitHub PR, landing at `done:waiting`.
@@ -73,7 +71,7 @@ for target lanes (how a target is read, and `done:queue` against `done:success`,
 
 ## Offer a missing skill
 
-Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+Before the work, look at what fits this lane and offer what is missing; usually this is silent. The track is the one this command names.
 
 <!-- generated: skill offers for this lane -->
 

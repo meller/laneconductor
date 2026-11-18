@@ -172,7 +172,7 @@ The board is the one add-on that is also named when it is installed. In S02, S03
 
 ## A skill tip
 
-After the card, add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first: the skills list this session shows you, `claude plugin list` (read only), `.claude/skills/` and `~/.claude/skills/`; an older name counts. Say nothing when nothing is missing, nothing for an entry the person declined (the project's declined list is the file `skill-advisor-declined.txt` inside the directory that `git rev-parse --git-common-dir` prints), and never show a command here: the tip points at `/laneconductor:suggest-skills`. It never replaces the step.
+After the card, add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`, `~/.claude/skills/`; an older name counts). Say nothing when nothing is missing or the person declined it (the file `skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints), and never show a command here. It never replaces the step.
 
 <!-- generated: current track -->
 
