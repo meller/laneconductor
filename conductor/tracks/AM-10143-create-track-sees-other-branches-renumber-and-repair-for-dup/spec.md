@@ -6,13 +6,19 @@ From the audit (findings D4, D5, severity medium). Number allocation (connector/
 
 Scope: also scan `refs/heads/*` and `refs/remotes/*` trees for `conductor/tracks/` when allocating; surface duplicates as a `create_track` warning; add a repair prompt or command that renames the newer folder, fixes its `# Track` id and the summary, with a yes first; board keeps hiding `_duplicate-` folders. Also drop the always-on `possibly_stale` noise when the repo is only ahead of upstream with no upstream consumer (audit D7), keep `behind_upstream`.
 
-## Added 2026-11-18 (owner rule): reuse a track before opening one
+## Added 2026-11-18 (owner rule): search first, the default is update, not create
 
-Owner: do not open a new track every time; if a track can take the work, extend it; open a new one only when nothing fits. The agent in the otralingo project kept opening tracks, so the rule must ship in the general plugin, not only live in this project's memory. This belongs here because the place where tracks get created is `create_track`, so the fix is in the same code and the same guides.
+Owner: look for an existing track before creating one. The person is asked, but the question is "update track N?", and the default answer is yes. Creating is the exception, never the default. The agent in the otralingo project kept opening tracks, so the rule must ship in the general plugin, not only live in this project's memory. It belongs here because tracks get created in `create_track`, so the fix is in the same code and the same guides.
 
-- Text, base plugin and add-ons (source skill and connector guides, regenerated into the plugins): the procedures for `new`, `bug`, `feature` and `newTrack` (ops/tracks.md, the commands, the connector `create_track` description) start with a search: list the tracks (query on the key words, including the backlog and done lanes), and when one fits, extend it (add the work to its spec or plan, through the track write) instead of creating a new one. When several small gaps appear in one session, put them in one fitting track, an epic or one backlog track, not one track each. Ask the person only when the match is borderline; name the track found and the reason. Create a new track only when nothing fits, and say which tracks were looked at.
-- Connector: `create_track` returns a `similar_tracks` field (up to 5 by title and summary words, any lane, with number, lane and lane status) and a warning when one matches strongly, so the caller sees it before the track exists. It never blocks: the caller may still create. Keep the context-size budget test (KC-8) passing; it is nearly at its limit.
-- Tests: fixture projects where the new work matches an existing track (similar_tracks lists it), matches nothing (empty), matches only a done track (still listed, marked done); text test that the `new`, `bug` and `feature` procedures contain the search-first step and name the backlog lane.
+The flow, in every procedure that could create a track (`new`, `bug`, `feature`, `newTrack`, and any agent that decides on its own that "this needs a track"):
+1. Search first: list the tracks by the key words of the request, in every lane including the backlog and done, and read the best matches.
+2. If one fits: say so and ask "Update track N (title, lane) with this? [default: yes]". On yes (or no answer to a default-yes question), extend that track (its spec or plan, through the normal conflict-checked write) and do NOT create. If the match is a done track, the question is the same and the update reopens it only with the person's yes.
+3. If the person says no, or nothing fits: create, and say which tracks were looked at and why none fit.
+4. Several small gaps in one session go into one fitting track, an epic or one backlog track, not one track each.
+
+Connector: `create_track` returns a `similar_tracks` field (up to 5 by title and summary words, any lane, with number, lane and lane status) and a warning on a strong match, so the caller sees it before the track exists. It never blocks: the caller may still create after the person has said no. Keep the context-size budget test (KC-8) passing; it is nearly at its limit.
+
+Tests: fixture projects where the new work matches an existing track (similar_tracks lists it), matches nothing (empty), matches only a done track (listed, marked done); text tests that the `new`, `bug` and `feature` procedures contain the search-first step, the default-yes question and the line that create is the fallback, and name the backlog lane.
 
 ## Symptom
 
