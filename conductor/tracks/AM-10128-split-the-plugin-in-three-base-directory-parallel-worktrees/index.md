@@ -3,7 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 85%
-**Phase**: Built, verified and merged to main, PUSHED (2b759cac): three plugins (base `laneconductor` 1.0.0 Markdown only, `laneconductor-parallel`, `laneconductor-board`) from one generator and one catalog (recommended-plugins.json); 320 tests, --check and strict validation pass; the portal's Validate on plugins/laneconductor: no blocking issues (2 reviewer holds, 1 expected warning). Connector fixes done (lane and status suggestions, valid names in get_track and get_context, exit reasons). Open: the owner's local trial with scripts/try-local.sh (TC-10), the owner's directory submission (TC-11), docs/why-laneconductor.md and the landing page and wiki for the three-plugin story and the migration, and a release note to existing 0.x users.
+**Phase**: Built, verified and merged to main, PUSHED (2b759cac): three plugins (base `laneconductor` 1.0.0 Markdown only, `laneconductor-parallel`, `laneconductor-board`) from one generator and one catalog (recommended-plugins.json); 320 tests, --check and strict validation pass; the portal's Validate on plugins/laneconductor: no blocking issues (2 reviewer holds, 1 expected warning). Connector fixes done (lane and status suggestions, valid names in get_track and get_context, exit reasons). Open: the owner's local trial with scripts/try-local.sh (TC-10), the owner's directory submission (TC-11), docs/why-laneconductor.md and the landing page and wiki for the three-plugin story and the migration, and a release note to existing 0.x users. Owner decision 2026-11-18 added: one-command full install and fewer visible commands (Phase 8).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

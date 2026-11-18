@@ -42,4 +42,17 @@ The design is in spec.md. The owner's requirement (2026-11-18): the three plugin
 - [ ] Task 1: Push; the lead re-runs the portal's Validate on `plugins/laneconductor` (a check only) until the blocking list is empty
 - [ ] Task 2 (HUMAN): the owner answers the data-handling questions, ticks the acknowledgements and submits
 
+## Phase 8: one command for the full version and command tiers
+
+Owner decision 2026-11-18 (design in spec.md, section "One command for the full version, and fewer visible commands").
+
+- [ ] Task 1 (8.1): Catalog lines `full_install` and `addons_install` in `connector/plugin-extras/recommended-plugins.json` and the shared block built from them in `next`, setup and the READMEs (show-not-run; shown inside Claude only when both add-ons are missing). In progress 2026-11-18, runner.
+- [ ] Task 2 (8.2): The website's second install box shows the one-liner (deploy only when the owner says so)
+- [ ] Task 3 (8.3): try-local test of a dependency-only `laneconductor-full` plugin (does `claude plugin install` install dependencies automatically?) and a go/no-go recorded in spec.md
+- [ ] Task 4 (8.4): Help tiers: start here (`next`, `setup` or `new-project`, `board`), lanes (`plan`, `implement`, `review`, `quality-gate`, `merge`), more (the rest)
+- [ ] Task 5 (8.5): Fold `bug` and `feature` into `new` with an argument; natural-language use keeps working
+- [ ] Task 6 (8.6): Decide on removing `status` (`board` and `next` cover it) and record the decision
+- [ ] Task 7 (8.7): Trim the size of the carried command text (the `run` command is about 51 KB)
+- [ ] Task 8 (8.8): Ask the directory reviewer at submission whether 300 to 700 lines per command is acceptable, and record the answer
+
 **Impact**: People find the base in the directory and get the full plan-first process; the add-ons give parallel worktrees with safe shared state and the board, and everything works together.
