@@ -1,9 +1,9 @@
 # Track AM-10133: Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Planned 2026-11-18: inventory done, owner decisions D1-D8 open (see spec)
+**Phase**: Owner accepted defaults D1-D8 on 2026-11-18 (README on the Remote tier: still open); implementation starting
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
