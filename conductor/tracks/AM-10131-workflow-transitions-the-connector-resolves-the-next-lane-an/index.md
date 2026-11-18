@@ -1,9 +1,9 @@
 # Track AM-10131: Workflow transitions: the connector resolves the next lane and status from workflow.json (legacy and current formats)
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: Planned 2026-11-18 incl. the owner's rule: the daemon uses the SAME transition logic (one shared module, a different caller); implement lane starting, tests first.
+**Progress**: 100%
+**Phase**: Implemented and merged to local main 2026-11-18 (365 then 378 connector tests, strict validate x4). Owner accepted parity differences D1-D11. Open: TC-14, finish a real otralingo track with outcome:success and see it on the board.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
