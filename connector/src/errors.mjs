@@ -5,18 +5,19 @@ export const COUNTED_CODES = ['NUMBER_COLLISION', 'WRITE_FAILED', 'BACKEND_UNAVA
 const COUNTS = new Set(COUNTED_CODES);
 
 export class ConnectorError extends Error {
-  constructor(code, message, { details, hint } = {}) {
+  constructor(code, message, { details, hint, base } = {}) {
     super(message);
     this.name = 'ConnectorError';
     this.code = code;
     this.details = details ?? null;
     this.hint = hint ?? null;
+    this.base = base ?? null;
   }
   get countsAsError() {
     return COUNTS.has(this.code);
   }
   toJSON() {
-    return { code: this.code, message: this.message, details: this.details, hint: this.hint };
+    return { code: this.code, message: this.message, details: this.details, hint: this.hint, ...(this.base ? { base: this.base } : {}) };
   }
 }
 

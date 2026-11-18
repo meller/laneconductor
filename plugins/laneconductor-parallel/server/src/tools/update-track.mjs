@@ -26,6 +26,7 @@ const input = z.object({
   summary: z.string().optional().describe('Shorthand for setting the **Summary** marker.'),
   outcome: z.enum(['success', 'failure']).optional().describe('Finished lane action: apply the workflow move (valid.next).'),
   repair_index: z.boolean().optional(),
+  reopen: z.boolean().optional(),
 });
 
 export const updateTrack = {
@@ -98,7 +99,9 @@ export const updateTrack = {
         }
         if (refusal) markerNames = [...new Set([...markerNames, 'Lane', 'Lane Status'])];
       }
-      for (const name of markerNames) {
+      // Track AM-10140: Lane Status only means something on the lane the caller saw, so Lane is compared whenever Lane Status is set.
+      const compared = markerNames.includes('Lane Status') && !markerNames.includes('Lane') ? [...markerNames, 'Lane'] : markerNames;
+      for (const name of compared) {
         const b = base.markers[name];
         const c = curMarkers[name];
         if (b !== c) conflicts.push({ marker: name, base: b ?? null, current: c ?? null });
@@ -106,7 +109,8 @@ export const updateTrack = {
       if (conflicts.length) {
         throw fail('CONFLICT', `${conflicts.length} item${conflicts.length === 1 ? '' : 's'} changed since your base: ${conflicts.map((c) => c.file ?? `marker ${c.marker}`).join(', ')}`, {
           details: conflicts,
-          hint: 'Someone else edited first. Re-read with get_track, merge their change with yours, and retry with the new base. The earlier edit is untouched.',
+          hint: 'Someone else edited first. Re-read with get_track, merge their change with yours, and retry with the new base. The earlier edit is untouched. `base` here is the current head and markers (no files): retrying with the same old base fails again.',
+          base: { commit: (await tx.head()).commit, files: {}, markers: curMarkers },
         });
       }
       if (refusal) throw refusal;
@@ -120,6 +124,12 @@ export const updateTrack = {
         next.index = idx;
       }
       if (next.index !== undefined) {
+        // Track AM-10140: a track in done stays there unless the caller says `reopen`; a valid base alone is not enough.
+        const laneBefore = parseMarkers(indexNow).values['Lane'];
+        const laneAfter = parseMarkers(next.index).values['Lane'];
+        if (laneBefore === 'done' && laneAfter !== 'done' && args.reopen !== true) {
+          throw fail('VALIDATION_FAILED', `Track ${trackIdentity(folder, indexNow).id} is done; moving it to ${laneAfter ?? 'no lane'} needs reopen`, { details: { lane: 'done', to: laneAfter ?? null }, hint: 'Ask the human: reopening a done track is their call. On their yes, repeat the call with `reopen: true`.' });
+        }
         const lanes = await workflowLanes(tx);
         const problems = validateIndex(next.index, lanes);
         if (problems.length) {
