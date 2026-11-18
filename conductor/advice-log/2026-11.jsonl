@@ -72,3 +72,12 @@
 {"v":1,"ts":"2026-11-18T11:56:31Z","kind":"call","session":"c_18e158cb25bc","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":113,"chars":4287,"backend":"local"}
 {"v":1,"ts":"2026-11-18T11:58:48Z","kind":"call","session":"c_18e158cb25bc","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":138,"chars":4449,"backend":"local"}
 {"v":1,"ts":"2026-11-18T12:02:50Z","kind":"call","session":"c_18e158cb25bc","surface":"claude-code","tool":"create_track","ok":true,"latency_ms":134,"chars":5095,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:07:31Z","kind":"call","session":"c_18e158cb25bc","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":132,"chars":4125,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:20:51Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","ok":true,"latency_ms":212,"chars":5098,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:20:51Z","kind":"stale_read","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:24:28Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"create_track","ok":true,"latency_ms":213,"chars":5067,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:25:02Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":345,"chars":4009,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:25:22Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","ok":true,"latency_ms":182,"chars":5673,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:25:22Z","kind":"stale_read","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","reasons":["unpushed_local_commits","dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:25:56Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":126,"chars":4212,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:26:44Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":123,"chars":4334,"backend":"local"}
