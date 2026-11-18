@@ -28,33 +28,33 @@ Packaging of our own generic skills (decision pending, see track 10129): either 
 
 ## Phase 2: The catalog
 
-- [ ] Task 1: Catalog format (one small JSON or Markdown file in the skill, dated): per lane, per problem type and per stack tag the skill or pack name, source (marketplace and plugin, or repository), why it helps, licence, the install command
-- [ ] Task 2: Seed it from the 10123 map (Superpowers skills, MIT) and our own generic packs once they exist; check that every source exists and the named skill is really in it; record the date
-- [ ] Task 3: A checker script that fails on a missing field, an unknown lane, a source that does not resolve, or a private-looking name; tests with fixtures
-- [ ] Task 4: Vet `find-skills` (read its SKILL.md and what it runs, its licence, whether it needs `npx`) before it is named as the fallback; record the verdict; if it fails the vetting, name no fallback
+- [x] Task 1: Catalog format (one small JSON or Markdown file in the skill, dated): per lane, per problem type and per stack tag the skill or pack name, source (marketplace and plugin, or repository), why it helps, licence, the install command
+- [x] Task 2: Seed it from the 10123 map (Superpowers skills, MIT) and our own generic packs once they exist; check that every source exists and the named skill is really in it; record the date
+- [x] Task 3: A checker script that fails on a missing field, an unknown lane, a source that does not resolve, or a private-looking name; tests with fixtures
+- [x] Task 4: Vet `find-skills` (read its SKILL.md and what it runs, its licence, whether it needs `npx`) before it is named as the fallback; record the verdict; if it fails the vetting, name no fallback
 
 ## Phase 3: When to recommend
 
-- [ ] Task 1: A skill procedure `ops/skills.md`: detect what is installed (the session's skills list, `claude plugin list`), read the project's stack from `conductor/tech-stack.md` and marker files, compare with the catalog for the current lane, situation and stack, recommend only what is missing, with the reason, the source and the cost note (`claude plugin details` after installing)
-- [ ] Task 2: Hook it into the lane guides: at lane start, and on a matching situation (a bug track, a failing quality gate, a review to answer, work that needs a worktree), and in `/laneconductor:new-project` once the stack is known
-- [ ] Task 3: Declined answers are remembered per project outside git (under `.git/`, never committed), so a declined skill is not offered twice
+- [x] Task 1: A skill procedure `ops/suggest-skills.md`: detect what is installed (the session's skills list, `claude plugin list`), read the project's stack from `conductor/tech-stack.md` and marker files, compare with the catalog for the current lane, situation and stack, recommend only what is missing, with the reason, the source and the cost note (`claude plugin details` after installing)
+- [x] Task 2: Hook it into the lane guides: at lane start, and on a matching situation (a bug track, a failing quality gate, a review to answer, work that needs a worktree), and in `/laneconductor:new-project` once the stack is known
+- [x] Task 3: Declined answers are remembered per project outside git (under `.git/`, never committed), so a declined skill is not offered twice
 
 ## Phase 3b: Track context (REQ-12)
 
-- [ ] Task 1: A short rule in the base skill (a few lines, same text source as the other offers): real work with no track in play gets one sentence and three ways in (update the nearest track, create one, go on without one); small things get nothing; never blocks; never creates without a yes; "no track" once silences it for the session
-- [ ] Task 2: How the current track is found (the prompt, a branch named after a track, the track this session has running) written once and used by the advisor, `next` and the lane guides; text tests (TC-18 to TC-20)
+- [x] Task 1: A short rule in the base skill (a few lines, same text source as the other offers): real work with no track in play gets one sentence and three ways in (update the nearest track, create one, go on without one); small things get nothing; never blocks; never creates without a yes; "no track" once silences it for the session
+- [x] Task 2: How the current track is found (the prompt, a branch named after a track, the track this session has running) written once and used by the advisor, `next` and the lane guides; text tests (TC-18 to TC-20)
 
 ## Phase 4: The install proposal
 
-- [ ] Task 1: Propose, do not install: show the exact built-in command in its own bash fence and what it adds; the person runs it (the base never runs an install), then remind to `/reload-plugins` and confirm it loaded
-- [ ] Task 2: Failure is reported with the command and its output, never retried silently, never worked around by editing settings or permissions
-- [ ] Task 3: A catalog entry and base command `/laneconductor:skills` (what is recommended for the current lane and stack; install on request); coverage test; a dry run that prints the commands without running them
-- [ ] Task 4: The optional offer to record the plugin in the project's `.claude/settings.json` (ask first; show the exact diff)
+- [x] Task 1: Propose, do not install: show the exact built-in command in its own bash fence and what it adds; the person runs it (the base never runs an install), then remind to `/reload-plugins` and confirm it loaded
+- [x] Task 2: Failure is reported with the command and its output, never retried silently, never worked around by editing settings or permissions
+- [x] Task 3: A catalog entry and base command `/laneconductor:suggest-skills` (what is recommended for the current lane and stack; install on request); coverage test; a dry run that prints the commands without running them
+- [x] Task 4: The optional offer to record the plugin in the project's `.claude/settings.json` (ask first; show the exact diff)
 
 ## Phase 5: Disclosure, release
 
-- [ ] Task 1: README and plugin README say plainly that the plugin installs nothing without the person's yes, from the named sources, and what it runs (the directory's security scan reads this)
-- [ ] Task 2: Version bump, regenerate, tests, build check, strict validate on the plugins and the marketplace
+- [x] Task 1: README and plugin README say plainly that the plugin installs nothing without the person's yes, from the named sources, and what it runs (the directory's security scan reads this)
+- [x] Task 2: Version bump, regenerate, tests, build check, strict validate on the plugins and the marketplace
 
 ## Phase 6: Real use (HUMAN)
 
