@@ -34,10 +34,10 @@ The stages map onto the lanes and statuses that exist today:
 
 ## Decisions
 
-- 2026-11-18 (proposed, owner to confirm): general "owner step", not marketing-only. A track of any Type may carry the markers.
-- 2026-11-18 (proposed, owner to confirm): a campaign is a TEMPLATE of the existing `marketing` and `sales` types, not a new Type and not a new lane.
-- 2026-11-18 (proposed, owner to confirm): the cap on open owner actions is advice in `next` (default 2), not a gate.
-- 2026-11-18 (proposed): a killed campaign closes as `done:success` with `killed:` in `Result`, because `done:failure` already means the merge failed.
+- 2026-11-18 (owner confirmed): general "owner step", not marketing-only. A track of any Type may carry the markers.
+- 2026-11-18 (owner confirmed): a campaign is a TEMPLATE of the existing `marketing` and `sales` types, not a new Type and not a new lane.
+- 2026-11-18 (owner confirmed): the cap on open owner actions is advice in `next` (default 2), not a gate.
+- 2026-11-18 (owner confirmed): a killed campaign closes as `done:success` with `killed:` in `Result`, because `done:failure` already means the merge failed.
 - 2026-11-18: no new lanes; the stages use the lanes and statuses above. Builds on track 10136 (Waiting Reason, ready-to-resume) and on the board work of track 10115.
 
 ## Data model and API

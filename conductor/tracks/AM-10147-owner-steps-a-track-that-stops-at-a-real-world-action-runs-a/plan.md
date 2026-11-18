@@ -4,7 +4,7 @@ The design is in spec.md. Builds on track 10136 (Waiting Reason, ready-to-resume
 
 ## Phase 1: Confirm the design (owner)
 
-- [ ] Task 1 (HUMAN): confirm or change the four proposed decisions in spec.md (general owner step, template not a new Type, cap as advice, a killed campaign closes as done:success with `killed:` in `Result`)
+- [x] Task 1 (HUMAN): confirm or change the four proposed decisions in spec.md (general owner step, template not a new Type, cap as advice, a killed campaign closes as done:success with `killed:` in `Result`)
 - [ ] Task 2: review the plan with the read-only plan reviewer and fix its gaps
 
 ## Phase 2: Markers and the connector
