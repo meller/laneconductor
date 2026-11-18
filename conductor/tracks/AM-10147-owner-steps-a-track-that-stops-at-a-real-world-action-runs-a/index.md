@@ -14,4 +14,4 @@
 The same stall exists for any track with a human step (our own: submit to a directory, approve a deploy), so this is not only marketing. Owner decision (2026-11-18): do it the LaneConductor way, with files in git, markers, lanes and statuses; no new lanes, no new infrastructure, no marketing tool.
 
 Proposed design (to confirm in the plan lane, see spec.md): an owner step is a track in `waiting` that names ONE concrete action with a due date and a kit; a run window ends on a date; a readout reads the result; the track closes with a result. `next` and the board make the owner actions and the due readouts impossible to miss. The campaign template, channel kits and the readout format are skills (in the person's own library), not core.
-**Summary**: Found 2026-11-18 on a real project with 11 marketing-type tracks: the agent finished the preparation (copy, page, tagged links, schedule), then the track stopped at a step only the owner can do (recor
+**Summary**: Design of the owner-step track: markers, next, board, lane guides, skills outside core
