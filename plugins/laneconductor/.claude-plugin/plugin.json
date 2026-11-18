@@ -1,7 +1,8 @@
 {
   "name": "laneconductor",
-  "version": "0.6.0",
-  "description": "LaneConductor: the planning and delivery workflow for tracks kept as files in git. A skill, slash commands, subagents, a local MCP connector for safe track writes, and a board generator.",
+  "displayName": "LaneConductor",
+  "version": "1.0.0",
+  "description": "LaneConductor: the plan-first process for tracks kept as files in git, in Markdown only: a skill, slash commands and a read-only plan reviewer. Optional add-ons add parallel work in worktrees and a board.",
   "author": {
     "name": "Asaf Meller",
     "url": "https://github.com/meller"
@@ -15,6 +16,5 @@
     "planning",
     "git"
   ],
-  "documentationUrl": "https://github.com/meller/laneconductor/blob/main/connector/PLUGIN-README.md",
-  "supportUrl": "https://github.com/meller/laneconductor/issues"
+  "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
 }

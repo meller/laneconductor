@@ -213,7 +213,7 @@ the parked sync worker and are not added by `new-project`.
 
 
 
-**Track spec forms** (bug and feature tracks; used by `ops/tracks.md`, and written by the connector's `create_track` with `track_kind`). A hand-made bug or feature track uses the same sections. `spec.md` starts with the title and `## Problem Statement` holding the request text unchanged; the sections below follow it in this order, each left as `(To be filled in.)` until the plan lane fills it. Set `**Track Kind**: bug` or `feature` in `index.md`. With no kind, keep the generic skeleton (`## Problem Statement`, then `## Requirements`).
+**Track spec forms** (bug and feature tracks; used by `ops/tracks.md`, and written by `mcp__plugin_laneconductor-parallel_lc__create_track` of the laneconductor-parallel add-on when it is present). A hand-made bug or feature track uses the same sections. `spec.md` starts with the title and `## Problem Statement` holding the request text unchanged; the sections below follow it in this order, each left as `(To be filled in.)` until the plan lane fills it. Set `**Track Kind**: bug` or `feature` in `index.md`. With no kind, keep the generic skeleton (`## Problem Statement`, then `## Requirements`).
 
 ```markdown
 # Spec: [title]

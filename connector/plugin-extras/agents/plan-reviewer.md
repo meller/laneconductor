@@ -1,7 +1,7 @@
 ---
 name: plan-reviewer
 description: Read-only review of one track's spec.md and plan.md. Returns gaps, missing tests, unclear tasks and risks; changes nothing.
-tools: Read, Grep, Glob, mcp__plugin_laneconductor_lc__get_track, mcp__plugin_laneconductor_lc__get_context
+tools: Read, Grep, Glob, mcp__plugin_laneconductor-parallel_lc__get_track, mcp__plugin_laneconductor-parallel_lc__get_context
 maxTurns: 15
 color: blue
 ---

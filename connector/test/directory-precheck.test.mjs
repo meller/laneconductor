@@ -1,24 +1,24 @@
-// Local pre-checks of the one plugin (plugins/laneconductor, profile `full`), track AM-10106 Phase 5e. Anthropic's directory
-// submission is PARKED (the portal accepts only Markdown from a publisher that is not Verified; this plugin runs a local
-// program), so what is checked here is what a local install needs and what stays good practice: `claude plugin validate
-// --strict` on the plugin and the marketplace, the version/manifest/size limits (512 files, 256 KiB per file), a secrets scan,
-// no top-level bin/, and the connector starting over stdio from a temp copy and answering tools/list. The directory's own rules
-// (Markdown only, no scripts, no .mcp.json, ...) are emulated against LaneConductor Lite (plugins/laneconductor-lite) in directory-lite.test.mjs.
+// Local pre-checks of the three plugins (plugins/laneconductor, plugins/laneconductor-parallel, plugins/laneconductor-board), tracks
+// AM-10106 Phase 5e and AM-10128. Anthropic's directory accepts only Markdown from a publisher that is not Verified: the rules are
+// emulated against the base in directory-base.test.mjs. What is checked here is what a local install needs and what stays good practice:
+// `claude plugin validate --strict` on each plugin and the marketplace, the version/manifest/size limits (512 files, 256 KiB per file),
+// a secrets scan, no top-level bin/, and the add-on connector starting over stdio from a temp copy and answering tools/list.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL, LITE_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, CONNECTOR_TOOL_PREFIX } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
-const PLUGIN = path.join(REPO, PLUGIN_REL);
-const LITE = path.join(REPO, LITE_REL);
-const PLUGINS = [['the plugin', PLUGIN], ['LaneConductor Lite', LITE]];
+const BASE = path.join(REPO, PLUGIN_REL);
+const PLUGIN = path.join(REPO, PARALLEL_REL); // the add-on that runs a program: the connector
+const BOARD = path.join(REPO, BOARD_REL);
+const PLUGINS = [['the base', BASE], ['laneconductor-parallel', PLUGIN], ['laneconductor-board', BOARD]];
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const KIB = 1024;
 const MIB = KIB * KIB;
@@ -38,7 +38,7 @@ function claudeAvailable() {
   return !r.error && r.status === 0;
 }
 
-for (const [label, target] of [['the plugin folder', PLUGIN], ['the LaneConductor Lite folder', LITE], ['the marketplace (repo root)', REPO]]) {
+for (const [label, target] of [['the base folder', BASE], ['the laneconductor-parallel folder', PLUGIN], ['the laneconductor-board folder', BOARD], ['the marketplace (repo root)', REPO]]) {
   test(`claude plugin validate --strict passes on ${label}`, (t) => {
     if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH: run `claude plugin validate <path> --strict` by hand');
     const r = spawnSync('claude', ['plugin', 'validate', target, '--strict'], { encoding: 'utf8', cwd: os.tmpdir() });
@@ -47,7 +47,7 @@ for (const [label, target] of [['the plugin folder', PLUGIN], ['the LaneConducto
   });
 }
 
-for (const [label, PLUGIN] of PLUGINS) test(`${label}: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config (the package.json and lockfile are the connector's)`, () => {
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config (the package.json and lockfile are the connector's, in laneconductor-parallel)`, () => {
   const list = files(PLUGIN);
   assert.ok(list.length <= 512, `${list.length} files (limit 512)`);
   const junk = /(^|\/)(\.DS_Store|Thumbs\.db|__MACOSX|\.npmrc|\.yarnrc(\.yml)?|\.pnpmrc|bunfig\.toml)$|(^|\/)__MACOSX\//;
@@ -90,7 +90,7 @@ for (const [label, PLUGIN] of PLUGINS) test(`${label}: the secret scan is clean`
   assert.deepEqual(hits, []);
 });
 
-test('.mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
+test('laneconductor-parallel .mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
   const mcp = readJson(path.join(PLUGIN, '.mcp.json'));
   const [name, s] = Object.entries(mcp.mcpServers)[0];
   assert.equal(Object.keys(mcp.mcpServers).length, 1);
@@ -105,18 +105,20 @@ test('.mcp.json: a local server started with node on a file inside the plugin, u
   assert.ok(s.args.every((a) => !a.startsWith('--') || a.length > 2), 'plain arguments');
 });
 
-test('version and manifest limits: semver version equal to connector/package.json, valid name, no top-level bin/, no hooks directory', () => {
-  const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
-  assert.match(m.version, /^\d+\.\d+\.\d+$/);
-  assert.equal(m.version, readJson(path.join(REPO, 'connector/package.json')).version);
-  assert.equal(readJson(path.join(PLUGIN, 'package.json')).version, m.version);
-  assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
-  assert.ok(m.name.length <= 64 && m.description.length <= 1024);
-  assert.ok(!fs.existsSync(path.join(PLUGIN, 'bin')), 'a top-level bin/ stops claude.ai and Cowork installing the plugin');
-  assert.ok(!fs.existsSync(path.join(PLUGIN, 'hooks')));
+test('version and manifest limits: semver version equal to connector/package.json for all three, valid names, no top-level bin/, no hooks directory', () => {
+  for (const [label, dir] of PLUGINS) {
+    const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));
+    assert.match(m.version, /^\d+\.\d+\.\d+$/, label);
+    assert.equal(m.version, readJson(path.join(REPO, 'connector/package.json')).version, label);
+    assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+    assert.ok(m.name.length <= 64 && m.description.length <= 1024);
+    assert.ok(!fs.existsSync(path.join(dir, 'bin')), `${label}: a top-level bin/ stops claude.ai and Cowork installing the plugin`);
+    assert.ok(!fs.existsSync(path.join(dir, 'hooks')));
+  }
+  assert.equal(readJson(path.join(PLUGIN, 'package.json')).version, readJson(path.join(PLUGIN, '.claude-plugin/plugin.json')).version);
 });
 
-test('the connector starts over stdio from a temp copy of the plugin and answers initialize + tools/list (and a call that reads guides and conductor/ helpers)', async (t) => {
+test('the add-on connector starts over stdio from a temp copy of laneconductor-parallel and answers initialize + tools/list (and a call that reads guides and conductor/ helpers)', async (t) => {
   const real = fs.realpathSync(os.tmpdir());
   const tmp = fs.mkdtempSync(path.join(real, 'lc-plugin-run-'));
   const copy = path.join(tmp, 'plugin');
@@ -154,6 +156,7 @@ test('the connector starts over stdio from a temp copy of the plugin and answers
     assert.ok(ctx.result && !ctx.result.isError, JSON.stringify(ctx));
     assert.ok(raw.stdoutLines.every((l) => { try { JSON.parse(l); return true; } catch { return false; } }), 'stdout is MCP-only');
     assert.ok(raw.stderr().includes('serving'), raw.stderr());
+    assert.ok(raw.stderr().includes(`v${readJson(path.join(copy, 'package.json')).version} serving`), raw.stderr());
   } finally {
     if (raw) await raw.kill();
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -168,7 +171,7 @@ test('.gitattributes: nothing that rewrites file contents (filter, LFS, export-i
     const lines = fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
     for (const l of lines) assert.ok(!/\b(filter|export-ignore|export-subst|eol|text|ident|working-tree-encoding)\b|\blfs\b/i.test(l.replace(/\s\bbinary\b/, '')), `${rel}: "${l}" rewrites or hides content`);
   }
-  assert.ok(!fs.existsSync(path.join(PLUGIN, '.gitattributes')));
+  for (const [, dir] of PLUGINS) assert.ok(!fs.existsSync(path.join(dir, '.gitattributes')));
 });
 
 test('the repository as GitHub archives it is under 50 MiB and 10,000 files', async (t) => {

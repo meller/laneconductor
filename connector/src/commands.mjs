@@ -235,9 +235,9 @@ export function fillProcedure(cmd, values = {}) {
   });
 }
 
-/** The list `help` returns, grouped, one example phrase per command, and the note on the `lc` command-line tool. */
-export function helpText() {
-  const lines = ['LaneConductor commands. Say one in your own words, or use it as a prompt.', ''];
+/** The command lines of `help`, grouped, one example phrase per command (no closing note). Adapters add their own note. */
+export function helpLines(intro = 'LaneConductor commands. Say one in your own words, or use it as a prompt.') {
+  const lines = [intro, ''];
   for (const g of GROUPS) {
     lines.push(`${g[0].toUpperCase()}${g.slice(1)}`);
     for (const c of COMMANDS.filter((x) => x.group === g)) {
@@ -246,12 +246,16 @@ export function helpText() {
     }
     lines.push('');
   }
+  return lines;
+}
+
+/** The list `help` returns, grouped, one example phrase per command, and the note on the `lc` command-line tool. */
+export function helpText() {
   const needs = COMMANDS.filter((c) => c.needsLc);
-  lines.push(
+  return [...helpLines(),
     `Needs the \`lc\` command-line tool (or the board script) when it is missing: ${needs.map((c) => `${c.name}${c.needsLc === 'refreshing' ? ' (only to refresh)' : ''}`).join(', ')}. `
     + 'Without it they say so and stop; every other command works through the connector tools or by editing the track files.',
-  );
-  return lines.join('\n');
+  ].join('\n');
 }
 
 /** What `prompts/get` and the help tool return for a command. */

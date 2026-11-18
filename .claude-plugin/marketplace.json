@@ -3,12 +3,28 @@
   "owner": {
     "name": "Asaf Meller"
   },
-  "description": "LaneConductor: the planning and delivery workflow plugin, with its local connector and board.",
+  "description": "LaneConductor: the plan-first workflow for tracks kept as files in git, as a Markdown-only base plugin and two optional add-ons.",
   "plugins": [
     {
       "name": "laneconductor",
       "source": "./plugins/laneconductor",
-      "description": "The LaneConductor skill, slash commands and subagents, a local MCP connector for safe track writes, and the board generator, for tracks kept as files in git.",
+      "description": "LaneConductor: the skill, slash commands and a read-only plan reviewer for tracks kept as files in git. Markdown only; works on its own.",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-parallel",
+      "source": "./plugins/laneconductor-parallel",
+      "description": "Add-on: parallel work in git worktrees with conflict-checked track writes (a local connector) and a track-runner subagent.",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-board",
+      "source": "./plugins/laneconductor-board",
+      "description": "Add-on: the board script and page, a private snapshot of every track by lane.",
       "author": {
         "name": "Asaf Meller"
       }

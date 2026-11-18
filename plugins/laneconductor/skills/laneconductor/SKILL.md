@@ -47,7 +47,7 @@ wrap or bundle them.
 | `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (prefer `lc new`, `lc update-track`, `lc report-bug`, `lc feature-request`) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
-| `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it) | yes |
+| `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
 | `setup`, `setup collection` | [setup/setup.md](setup/setup.md) | only when named |
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |
@@ -60,7 +60,7 @@ shows every track by lane, with a needs-attention list. `lc board --site <dir>` 
 data (and the documents of the tracks that are not done, shown when a track is opened); Claude then
 publishes them as an artifact and keeps its URL in `.laneconductor.json` (`board.artifact_url`). It is
 a snapshot: it changes only when Claude refreshes it. Sharing it shares those documents. Steps are in
-[ops/board.md](ops/board.md).
+[ops/board.md](ops/board.md); building the page needs the optional laneconductor-board add-on, and that file says what to show when it is missing.
 
 **New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
 time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks in the plan
@@ -157,9 +157,13 @@ check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers 
 Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): ...`,
 `docs(track-NNN): ...`; `refactor:` for changes across several tracks.
 
-## Habits (until the hooks extension ships)
+## Habits (this plugin has no hooks)
 
-- First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has `conductor/tracks`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from `git status -sb`), using the connector's tools or reading the files directly. Once per session; never on unrelated prompts.
-- When a lane finishes, offer exactly one next step in one line (update the board, review the plan, move on) and wait. Do not act on it.
-- The connector is included: change track markers with its tools (`mcp__plugin_laneconductor_lc__*`). If they are unavailable (its MCP server failed to start), re-read the file right before editing and change only the marker lines; never rewrite the whole file.
-- Before any `git push`, say what will be pushed (branch, commits, files) and ask. Until the hooks extension ships nothing scans for secrets automatically, so the check is yours.
+- First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has `conductor/tracks`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from `git status -sb`), reading the files directly. Once per session; never on unrelated prompts.
+- When a lane finishes, offer exactly one next step in one line (review the plan, move on) and wait. Do not act on it.
+- Re-read a track file right before editing it and change only the marker lines; never rewrite the whole file. If the connector tools `mcp__plugin_laneconductor-parallel_lc__*` are present, change markers with them instead (they refuse a stale write).
+- Before any `git push`, say what will be pushed (branch, commits, files) and ask. Nothing here scans for secrets, so the check is yours.
+
+## Add-ons (mention rarely)
+
+LaneConductor is complete on its own. Two optional add-ons exist. Tell what is installed from what you can see: the `laneconductor-parallel` add-on (conflict-checked track writes, an isolated sub-agent per track) is there when the tools `mcp__plugin_laneconductor-parallel_lc__*` or the agent `laneconductor-parallel:track-runner` exist; the `laneconductor-board` add-on (the board) is there when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` finds its script. When one is there, use it and recommend nothing. When it is missing, and only when the person asks for a board, mentions several sessions, people or sub-agents writing the same tracks, worktrees, or asks for automatic commits, a privacy scan or a health report, say in one or two sentences what it adds and read [ADD-ONS.md](ADD-ONS.md) for the install commands; show them as written. Once per session, as an option, never nagging; if the person declines, do not bring it up again. NEVER run an install command yourself.

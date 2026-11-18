@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// Builds the zip for Claude's "Upload plugin" from the generated plugin (profile `full`), deterministically: the same
+// Builds the zip for Claude's "Upload plugin" from one generated plugin (the base `laneconductor` by default), deterministically: the same
 // sources give the same bytes (sorted paths, fixed timestamp 1980-01-01, fixed permissions, no extra fields, no dependencies:
 // only node's zlib). The plugin's files sit at the zip's top level (.claude-plugin/plugin.json is at the root of the archive).
 //
-//   node scripts/make-zip.mjs --out <dir-or-file.zip>
+//   node scripts/make-zip.mjs --out <dir-or-file.zip> [--plugin base|parallel|board]
 //
 // --out is required, so nothing is ever written into the repository by accident (a path inside the repo is refused).
-// A directory gets `laneconductor-<version>.zip`. Prints the path, the file count, the size and the SHA-256.
+// A directory gets `<plugin name>-<version>.zip`. Prints the path, the file count, the size and the SHA-256.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { REPO, buildPlugin } from './build-plugin.mjs';
+import { REPO, NAMES, PROFILES, buildPlugin } from './build-plugin.mjs';
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -114,11 +114,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const i = process.argv.indexOf('--out');
   const outArg = i < 0 ? undefined : process.argv[i + 1];
   try {
-    if (!outArg) throw new Error('usage: node scripts/make-zip.mjs --out <dir-or-file.zip> (outside the repository)');
-    const files = buildPlugin(REPO, 'full');
+    if (!outArg) throw new Error('usage: node scripts/make-zip.mjs --out <dir-or-file.zip> [--plugin base|parallel|board] (outside the repository)');
+    const j = process.argv.indexOf('--plugin');
+    const profile = j < 0 ? 'base' : process.argv[j + 1];
+    if (!PROFILES.includes(profile)) throw new Error(`--plugin must be one of ${PROFILES.join(', ')}`);
+    const files = buildPlugin(REPO, profile);
     const version = JSON.parse(files.get('.claude-plugin/plugin.json').content.toString('utf8')).version;
     let out = path.resolve(outArg);
-    if (!out.endsWith('.zip')) out = path.join(out, `laneconductor-${version}.zip`); // a directory (created if missing)
+    if (!out.endsWith('.zip')) out = path.join(out, `${NAMES[profile]}-${version}.zip`); // a directory (created if missing)
     const rel = path.relative(REPO, out);
     if (!rel.startsWith('..') && !path.isAbsolute(rel)) throw new Error(`refusing to write inside the repository: ${out}`);
     const zip = makeZip(files);

@@ -130,7 +130,7 @@ A new bug or feature track is a form, not the generic skeleton. A bug `spec.md` 
 regression-test case that reproduces the bug and fails before the fix. A feature `spec.md` has
 `## The need`, `## Who it is for`, `## Wanted outcome`, `## Acceptance criteria`, `## Out of scope`.
 The exact text is in [setup/templates.md](../setup/templates.md) ("Track spec forms"); the
-connector's `create_track` with `track_kind` writes the same forms.
+laneconductor-parallel add-on's `mcp__plugin_laneconductor-parallel_lc__create_track` with `track_kind` writes the same forms when it is present.
 
 ## init-tracks-summary
 

@@ -3,10 +3,10 @@
 Start a project from a short conversation: interview, scaffold, first tracks. Run it only when the person asks for it by
 name. Nothing is committed without their yes, and nothing is ever pushed. It needs no daemon and no database.
 
-Scripts named below live in the plugin under `server/bin/` (find them with Glob `**/laneconductor/**/server/bin/<name>`
-under `~/.claude/plugins`; `${CLAUDE_PLUGIN_ROOT}` may not be substituted in command text) or in the LaneConductor
-repository under `connector/bin/`. If a script does not exist (the Markdown-only variant has none), do that step by hand
-exactly as described; the result is the same, only slower.
+The scaffold script named below, `lc-scaffold.mjs`, belongs to the optional laneconductor-parallel add-on. Find it with Glob
+`**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` under `~/.claude/plugins`, or in the LaneConductor repository under `connector/bin/`.
+If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the
+add-on for this.
 
 ## 1. Detect the situation
 
@@ -56,8 +56,8 @@ for a yes; after the yes run it again without `--dry-run`. By hand, the same res
 ## 4. First tracks
 
 One "Walking skeleton" track in the plan lane: the thinnest end-to-end slice of the product. `lc-scaffold` writes it.
-When the connector is present and the project already has its `conductor/` files, create further tracks with
-`create_track`; otherwise write the files as `ops/tracks.md` describes.
+When the add-on's connector tools are present and the project already has its `conductor/` files, create further tracks with
+`mcp__plugin_laneconductor-parallel_lc__create_track`; otherwise write the files as `ops/tracks.md` describes.
 
 ## 5. Summarize and ask before any commit
 
