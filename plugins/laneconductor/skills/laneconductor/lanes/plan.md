@@ -111,7 +111,7 @@ Your job ends here. The track waits in its new lane for the next step.
 plan, `history.md` the tracked run log, `conversation.md` the dialogue. When you write or refine a plan, keep it that
 way: status, releases, incidents and any dated entry never go into `plan.md` or `spec.md`; they are one dated line in
 `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <one line>`), and a design decision goes into `spec.md` with its date and its
-reason. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
+reason. Write the acceptance criteria in `spec.md` as checkboxes (review and the quality gate tick them), and give each plan task the requirement it serves when it helps (`REQ-3`); the implementing agent ticks the tasks. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
 "Splitting a plan that holds a log" in [../ops/tracks.md](../ops/tracks.md)). The full table is "What goes in each
 track file" in the same file.
 

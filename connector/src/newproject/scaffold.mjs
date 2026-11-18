@@ -158,6 +158,7 @@ Each track folder has six files with one job each. Keep a log out of the design 
 - \`conversation.md\`: the dialogue between people and agents. Untracked, may be private.
 
 Status, releases, incidents and any other dated entry never go into \`plan.md\` or \`spec.md\`: they are one line in \`history.md\`.
+Review and the quality gate tick the acceptance criteria of \`spec.md\`; the implementing agent ticks the tasks of \`plan.md\`. A plan task may name the requirement it serves (\`REQ-3\`).
 
 ## Workflow Configuration
 Machine-readable config lives in \`conductor/workflow.json\` (lane transitions, parallel limits, retries).

@@ -87,6 +87,8 @@ A track is a folder of six files. Each has one job; put a thing in the file whos
 | `history.md` | Run log: tracked in git, append-only | One dated line per event: what ran, commit hashes, deploys, incidents | Design, decisions, dialogue |
 | `conversation.md` | Dialogue between people and agents: untracked, may be private | Questions, answers, comments, a long write-up | The run log |
 
+**Who ticks what.** The acceptance criteria in `spec.md` are ticked by the review and the quality gate, after they saw the criterion hold. The tasks in `plan.md` are ticked by the implementing agent, as it finishes them. A plan task may name the requirement it serves (`REQ-3`), so a reader can trace the plan to the spec.
+
 **Where a status goes.** Status, a release, an incident or any other dated entry never goes into `plan.md` or `spec.md`. It is one line in `history.md`, newest last:
 
 ```
@@ -220,7 +222,7 @@ Your job ends here. The track waits in its new lane for the next step.
 plan, `history.md` the tracked run log, `conversation.md` the dialogue. When you write or refine a plan, keep it that
 way: status, releases, incidents and any dated entry never go into `plan.md` or `spec.md`; they are one dated line in
 `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <one line>`), and a design decision goes into `spec.md` with its date and its
-reason. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
+reason. Write the acceptance criteria in `spec.md` as checkboxes (review and the quality gate tick them), and give each plan task the requirement it serves when it helps (`REQ-3`); the implementing agent ticks the tasks. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
 "Splitting a plan that holds a log" in `ops/tracks.md`). The full table is "What goes in each
 track file" in the same file.
 
