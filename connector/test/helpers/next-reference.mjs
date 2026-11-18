@@ -139,6 +139,17 @@ const commandFor = (state, t) => {
   }
 };
 
+/** A project-level copy or link of the skill: { kind: 'link' | 'folder', tracked, remove } (the exact command to show), or null. Read only. */
+export function staleSkillOf(dir) {
+  const rel = '.claude/skills/laneconductor';
+  let st;
+  try { st = fs.lstatSync(path.join(dir, rel)); } catch { return null; }
+  const kind = st.isSymbolicLink() ? 'link' : 'folder';
+  const tracked = Boolean(git(dir, 'ls-files', rel));
+  const remove = tracked ? `git rm${kind === 'folder' ? ' -r' : ''} ${rel}` : kind === 'folder' ? `rm -r ${rel}` : `rm ${rel}`;
+  return { kind, tracked, remove };
+}
+
 /** The level `auto` resolves to, the explicit argument, or the saved setting. */
 export function resolveLevel(dir, { state, tracks = [], arg } = {}) {
   if (arg === 'explain' || arg === 'short') return arg;
@@ -157,6 +168,7 @@ export function resolveLevel(dir, { state, tracks = [], arg } = {}) {
 export function classify(dir, { installed = [], arg, now = Date.now() } = {}) {
   const offersFor = () => ADDONS_OFFERED.filter((a) => !installed.includes(a));
   const out = { state: null, track: undefined, command: null, ranked: [], skipped: [], blocked: [], damaged: [], offers: [], level: null };
+  out.stale = staleSkillOf(dir);
   const done = (state, extra = {}) => { Object.assign(out, { state }, extra); out.level = resolveLevel(dir, { state, tracks: extra.allTracks ?? [], arg }); delete out.allTracks; return out; };
 
   if (!ok(dir, 'rev-parse', '--is-inside-work-tree')) return done('S01', { command: '/laneconductor:setup' });

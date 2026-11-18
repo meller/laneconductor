@@ -19,9 +19,14 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
 3. **Show the plan, then write.** List the files the scaffold would create and the ones it would skip because they exist.
    After a yes, create only the missing ones. An existing README, `package.json` or any other file of the project is never
    touched, and `.gitignore` only gets the three lines it lacks.
-4. **Say what else fits.** After the project is read, say which optional plugins would help this project (see "What else fits this
+4. **Notice a stale project-level skill.** If `.claude/skills/laneconductor` exists in the project (Glob; `test -L` for a link,
+   `git ls-files` to see whether git tracks it; read only), say in one sentence that the plugin supplies the skill itself, so this
+   copy or link is stale, and offer its removal: show `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a
+   folder; `git rm` for one that git tracks, and removing it then needs a commit, which you ask about first). Never run it and
+   touch nothing else.
+5. **Say what else fits.** After the project is read, say which optional plugins would help this project (see "What else fits this
    project" below), then wait for the person's answer.
-5. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
+6. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
    line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
 
 ## What else fits this project

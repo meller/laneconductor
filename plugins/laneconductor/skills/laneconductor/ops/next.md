@@ -195,6 +195,24 @@ For "look around" (S02, path c): say in four sentences what LaneConductor is (th
 lanes, nothing to install but this plugin), show the list from `help`, write nothing, and end by saying that `next` can be asked
 again at any time.
 
+## A stale project-level skill
+
+The plugin supplies the skill itself. A copy or a link at `.claude/skills/laneconductor` in the project is left over from an older
+install (often a link into the home directory, sometimes committed to git, so broken for anyone who clones it) and is out of date.
+Look for it read only: Glob `.claude/skills/laneconductor`, `test -L .claude/skills/laneconductor` for a link, and
+`git ls-files .claude/skills/laneconductor` to see whether git tracks it. Touch nothing else.
+
+If it exists, say so in one sentence: "This project has its own copy of the LaneConductor skill (`.claude/skills/laneconductor`);
+the plugin already supplies it, so the copy is stale." Say it after the card in S02, S03 and S04, and as one extra line in later runs.
+Offer its removal and show the exact command alone in its own bash block; never run it. For a link that git does not track:
+
+```bash
+rm .claude/skills/laneconductor
+```
+
+For a folder that git does not track, `rm -r .claude/skills/laneconductor`. For one that git tracks, `git rm .claude/skills/laneconductor`
+(`git rm -r` for a folder); say that removing it then needs a commit, and ask before making one.
+
 ## Rules
 
 - Read only. Ask before anything is written. Never push. Never run an install command: show it and let the person run it.

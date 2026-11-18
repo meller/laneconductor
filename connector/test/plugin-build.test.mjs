@@ -335,7 +335,7 @@ test('skill path audit: no hard-coded project or machine paths outside the setup
     const inSetup = rel.startsWith('setup/') || rel.startsWith('legacy/');
     if (/\/home\/[a-z]+\//.test(text)) offenders.push(`${rel}: /home/<user>/ path`);
     if (!inSetup && /\$HOME\/Code\/laneconductor/.test(text)) offenders.push(`${rel}: $HOME/Code/laneconductor`);
-    if (!inSetup && rel !== 'SKILL.md' && /\.claude\/skills\/laneconductor/.test(text)) offenders.push(`${rel}: .claude/skills/laneconductor`);
+    if (!inSetup && rel !== 'SKILL.md' && rel !== 'ops/next.md' && /\.claude\/skills\/laneconductor/.test(text)) offenders.push(`${rel}: .claude/skills/laneconductor`);
   }
   assert.deepEqual(offenders, []);
   const head = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');

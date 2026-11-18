@@ -36,6 +36,8 @@ test('TC-24: every fixture gives the expected state, track and command', () => {
     assert.equal(got.command, e.command, `${id}: command`);
     if (e.default) assert.equal(got.default, e.default, `${id}: default path`);
     if (e.level) assert.equal(got.level, e.level, `${id}: level`);
+    if (e.stale) assert.deepEqual(got.stale, e.stale, `${id}: stale project-level skill`);
+    else assert.equal(got.stale, null, `${id}: no stale skill`);
     if (e.offers) assert.deepEqual(got.offers, e.offers, `${id}: add-on offers`);
     if (e.skipped) assert.deepEqual(got.skipped, e.skipped, `${id}: skipped`);
     if (e.blocked) assert.deepEqual(got.blocked, e.blocked, `${id}: blocked`);
@@ -137,6 +139,22 @@ test('TC-3, TC-4: SKILL.md has the next row and the Priority marker; settings.md
   const settings = read(path.join(SRC, 'ops/settings.md'));
   assert.match(settings, /^\| `next\.level` \| `auto`, `explain`, `short` \| `auto` \|/m);
   assert.match(settings, /unknown `next\.level` means `auto`/);
+});
+
+test('stale project-level skill: next.md and setup.md name the one sentence, the exact removal commands in their own bash blocks, and never run them', () => {
+  const setup = read(path.join(SRC, 'setup/setup.md'));
+  for (const text of [NEXT_MD, setup]) {
+    assert.match(text, /plugin (already )?supplies the skill itself/);
+    assert.match(text, /\.claude\/skills\/laneconductor/);
+    assert.match(text, /Never run it|never run it/);
+    assert.match(text, /needs a commit/);
+  }
+  const fences = [...NEXT_MD.matchAll(/```bash\n([^\n]+)\n```/g)].map((m) => m[1]);
+  assert.ok(fences.includes('rm .claude/skills/laneconductor'), 'the link command is in its own bash block');
+  for (const f of Object.values(FIXTURES).filter((x) => x.expect.stale)) {
+    const rest = f.expect.stale.remove;
+    assert.ok(NEXT_MD.includes(rest.replace(/^(git rm|rm)( -r)? /, '')) && /^(rm|git rm)/.test(rest));
+  }
 });
 
 test('TC-5: setup and new-project end by pointing at next, and still carry the generated recommendation marker and the starter-set hook', () => {

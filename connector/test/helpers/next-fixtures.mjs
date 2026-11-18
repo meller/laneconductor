@@ -59,6 +59,13 @@ export function buildFixture(desc, { now = Date.now() } = {}) {
       write(dir, 'conductor/tracks/.gitkeep', '');
     }
   }
+  const staleSkill = () => {
+    const at = path.join(dir, '.claude/skills/laneconductor');
+    fs.mkdirSync(path.dirname(at), { recursive: true });
+    if (desc.staleSkill === 'link') fs.symlinkSync('/nonexistent-home/.claude/skills/laneconductor', at);
+    else write(dir, '.claude/skills/laneconductor/SKILL.md', '# old copy\n');
+  };
+  if (desc.staleSkill && desc.staleTracked) staleSkill();
   if (desc.settings !== undefined) write(dir, '.laneconductor.json', desc.settings);
   const wantsCommit = desc.commits !== 0 && (Object.keys(desc.files ?? {}).length || conductor !== 'none' || desc.commits);
   if (wantsCommit) commit('fixture: initial', 100);
@@ -72,6 +79,7 @@ export function buildFixture(desc, { now = Date.now() } = {}) {
     if (t.comment) write(dir, `${f}/conversation.md`, t.comment === 'human' ? '> **human**: please decide\n' : '> **human**: please decide\n\n> **system**: done\n');
     commit(`chore(track-${t.n}): add the track`, t.ageHours ?? 1);
   }
+  if (desc.staleSkill && !desc.staleTracked) staleSkill();
   for (const t of desc.tracks ?? []) {
     if (t.branch === 'merged') G(dir, {}, 'branch', `track-${t.n}`);
     if (t.branch === 'unmerged') {
@@ -128,6 +136,9 @@ export const FIXTURES = {
   },
   F26: { desc: { tracks: [T(10001, 'plan', 'queue')] }, installed: ['laneconductor-parallel'], expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), offers: [] } },
   F27: { desc: { files: REPO_FILES, commits: 40, conductor: 'none' }, installed: ['laneconductor-parallel'], expect: { state: 'S02', command: '/laneconductor:setup', offers: ['laneconductor-board'] } },
+  F29: { desc: { conductor: 'full', staleSkill: 'link' }, expect: { state: 'S04', command: '/laneconductor:new <title>', stale: { kind: 'link', tracked: false, remove: 'rm .claude/skills/laneconductor' } } },
+  F30: { desc: { staleSkill: 'link', staleTracked: true, tracks: [T(10001, 'plan', 'queue')] }, expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), stale: { kind: 'link', tracked: true, remove: 'git rm .claude/skills/laneconductor' } } },
+  F31: { desc: { staleSkill: 'folder', files: REPO_FILES, commits: 3, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:setup', stale: { kind: 'folder', tracked: false, remove: 'rm -r .claude/skills/laneconductor' } } },
   F28: { desc: { tracks: [T(10001, 'done', 'queue', { branch: 'subject' })] }, expect: { state: 'S12', track: 10001, command: '/laneconductor:move 10001 done:success' } },
 };
 

@@ -115,10 +115,12 @@ test('the generated setup procedure, read the way a session would, names no prog
   const ALLOWED = new Set(['node', 'git', 'gh', 'claude', 'npm', 'npx']);
   const SHELLISH = /^(node|git|gh|claude|npm|npx|make|lc|which|command|sudo|brew|apt|pip|docker|psql|curl|wget|sh|bash|rm|cp|ln) /;
   const bad = [];
+  // Shown, never run: the removal of a stale project-level skill (a plain delete of that one path).
+  const STALE_SKILL_REMOVAL = /^(git )?rm( -r)?( \.claude\/skills\/laneconductor)?$/;
   for (const [name, text] of Object.entries(texts)) {
     assert.deepEqual(noLcHits(text), [], `${name} names no lc command`);
     assert.ok(!/\.laneconductor\.json/.test(text), `${name} never names the settings file`);
-    for (const m of text.matchAll(/`([^`\n]+)`/g)) if (SHELLISH.test(m[1]) && !ALLOWED.has(m[1].split(' ')[0])) bad.push(`${name}: ${m[1]}`);
+    for (const m of text.matchAll(/`([^`\n]+)`/g)) if (SHELLISH.test(m[1]) && !ALLOWED.has(m[1].split(' ')[0]) && !STALE_SKILL_REMOVAL.test(m[1])) bad.push(`${name}: ${m[1]}`);
   }
   assert.deepEqual(bad, []);
   assert.match(texts.command, /look for no program other than `git`/);
