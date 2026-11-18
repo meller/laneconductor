@@ -1,6 +1,6 @@
 // Track AM-10144: `next`, the state-aware front door. The behaviour is Markdown an agent follows (ops/next.md), so these tests pin its contract:
-// the state table (ids and commands) against a reference classifier run over fixture projects, the ranking rule, the catalog entry, the
-// generated texts and the text rules of the base. The classifier is the oracle; no shipped code uses it.
+// the state table (ids and commands) against the shipped classifier (src/next.mjs) run over fixture projects, the ranking rule, the catalog entry, the
+// generated texts and the text rules of the base. The same classifier gives the board its What's next card (board-next.test.mjs).
 // HUMAN, not covered here: an agent following ops/next.md in a real session (the walk-through of test.md, TC-31 to TC-42).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { REPO, RELS, NAMES, buildPlugin, diffAgainstDisk, setupRecommendBlock, R
 import { COMMANDS, GROUPS, helpText, helpLines, fillProcedure } from '../src/commands.mjs';
 import { buildInstructions } from '../src/instructions.mjs';
 import { buildFixture, FIXTURES, RANKING } from './helpers/next-fixtures.mjs';
-import { classify, resolveLevel, SHAPES, STATE_IDS } from './helpers/next-reference.mjs';
+import { classifyRepo as classify, resolveLevel, SHAPES, STATE_IDS } from '../src/next.mjs';
 import { noLcHits } from './helpers/no-lc.mjs';
 
 const built = [];
@@ -26,10 +26,10 @@ const next = COMMANDS.find((c) => c.name === 'next');
 
 // ---- Phase 6: the state table, through the reference classifier over fixture projects ----
 
-test('TC-24: every fixture gives the expected state, track and command', () => {
+test('TC-24: every fixture gives the expected state, track and command', async () => {
   for (const [id, f] of Object.entries(FIXTURES)) {
     const dir = fixture(f.desc);
-    const got = classify(dir, { installed: f.installed ?? [] });
+    const got = await classify(dir, { installed: f.installed ?? [] });
     const e = f.expect;
     assert.equal(got.state, e.state, `${id}: state`);
     if (e.track !== undefined) assert.equal(got.track, e.track, `${id}: track`);
@@ -51,49 +51,49 @@ test('TC-24: every state S01 to S21 is produced by at least one fixture, so a st
   assert.deepEqual(STATE_IDS.filter((s) => !produced.has(s)), [], 'a state with no fixture');
 });
 
-test('TC-25: the ranking of REQ-19, one removal at a time (human reply, failure, priority, latest lane, lower number)', () => {
-  const order = (without, noPriority) => classify(fixture({ ...RANKING(without, noPriority) })).ranked.map((r) => r.track);
-  assert.deepEqual(order([], false), [10007, 10006, 10005, 10004, 10003, 10002, 10001]);
-  assert.equal(order([10007], false)[0], 10006);
-  assert.equal(order([10007, 10006], false)[0], 10005);
-  assert.equal(order([10007, 10006], true)[0], 10004);
-  assert.equal(order([10007, 10006, 10004], true)[0], 10003);
+test('TC-25: the ranking of REQ-19, one removal at a time (human reply, failure, priority, latest lane, lower number)', async () => {
+  const order = async (without, noPriority) => (await classify(fixture({ ...RANKING(without, noPriority) }))).ranked.map((r) => r.track);
+  assert.deepEqual(await order([], false), [10007, 10006, 10005, 10004, 10003, 10002, 10001]);
+  assert.equal((await order([10007], false))[0], 10006);
+  assert.equal((await order([10007, 10006], false))[0], 10005);
+  assert.equal((await order([10007, 10006], true))[0], 10004);
+  assert.equal((await order([10007, 10006, 10004], true))[0], 10003);
   const dir = fixture(RANKING());
-  assert.deepEqual(classify(dir).blocked, [10008], 'the track that waits on an unshipped one is blocked, not ranked');
+  assert.deepEqual((await classify(dir)).blocked, [10008], 'the track that waits on an unshipped one is blocked, not ranked');
   // Two tracks in the same state and lane: the lower number first.
   const tie = fixture({ tracks: [{ n: 10009, lane: 'plan', status: 'queue' }, { n: 10003, lane: 'plan', status: 'queue' }] });
-  assert.deepEqual(classify(tie).ranked.map((r) => r.track), [10003, 10009]);
+  assert.deepEqual((await classify(tie)).ranked.map((r) => r.track), [10003, 10009]);
 });
 
-test('TC-26: a done:queue track is gated, not shipped: a dependent stays blocked until done:success', () => {
-  const blocked = classify(fixture(FIXTURES.F10.desc));
+test('TC-26: a done:queue track is gated, not shipped: a dependent stays blocked until done:success', async () => {
+  const blocked = await classify(fixture(FIXTURES.F10.desc));
   assert.deepEqual(blocked.blocked, [10002]);
-  assert.equal(classify(fixture(FIXTURES.F09.desc)).state, 'S09');
+  assert.equal((await classify(fixture(FIXTURES.F09.desc))).state, 'S09');
 });
 
-test('TC-17, TC-18, TC-19: levels. auto is explain for a young project and short for a mature one; a bad or missing file means auto; arguments win', () => {
+test('TC-17, TC-18, TC-19: levels. auto is explain for a young project and short for a mature one; a bad or missing file means auto; arguments win', async () => {
   const young = fixture(FIXTURES.F18.desc);
-  assert.equal(classify(young).level, 'explain');
-  assert.equal(classify(young, { arg: 'short' }).level, 'short');
+  assert.equal((await classify(young)).level, 'explain');
+  assert.equal((await classify(young, { arg: 'short' })).level, 'short');
   const mature = fixture(FIXTURES.F25.desc);
-  assert.equal(classify(mature).level, 'short');
-  assert.equal(classify(mature, { arg: 'explain' }).level, 'explain');
-  assert.equal(classify(fixture(FIXTURES.F24.desc), { arg: 'explain' }).level, 'explain', 'next explain beats the saved setting');
+  assert.equal((await classify(mature)).level, 'short');
+  assert.equal((await classify(mature, { arg: 'explain' })).level, 'explain');
+  assert.equal((await classify(fixture(FIXTURES.F24.desc), { arg: 'explain' })).level, 'explain', 'next explain beats the saved setting');
   for (const bad of ['', '{', '{"next":{"level":"loud"}}', '{"next":"short"}', '[]', '{"other":1}']) {
     const dir = fixture({ ...FIXTURES.F18.desc, settings: bad });
-    assert.equal(classify(dir).level, 'explain', `settings ${JSON.stringify(bad)} means auto (young project: explain)`);
+    assert.equal((await classify(dir)).level, 'explain', `settings ${JSON.stringify(bad)} means auto (young project: explain)`);
   }
-  assert.equal(resolveLevel(young, { state: 'S04', tracks: [] }), 'explain');
+  assert.equal(resolveLevel({ saved: 'auto', state: 'S04', tracks: [] }), 'explain');
 });
 
-test('TC-21: running next in every fixture changes no tracked or untracked file', () => {
+test('TC-21: running next in every fixture changes no tracked or untracked file', async () => {
   for (const [id, f] of Object.entries(FIXTURES)) {
     const dir = fixture(f.desc);
     if (f.desc.git === false) continue;
     const status = () => execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
     const before = status();
     const files = fs.readdirSync(dir).sort().join();
-    classify(dir, { installed: f.installed ?? [] });
+    await classify(dir, { installed: f.installed ?? [] });
     assert.equal(status(), before, `${id}: git status changed`);
     assert.equal(fs.readdirSync(dir).sort().join(), files, `${id}: files changed`);
   }

@@ -272,6 +272,37 @@ export class LocalGitStore {
     return same.code === 0;
   }
 
+  /**
+   * Read-only git facts for `next` (src/next.mjs). The ref the state lives on: the state branch when it exists, else HEAD.
+   */
+  async _stateRef() {
+    return (await this._git(['rev-parse', '--verify', '-q', `refs/heads/${this.stateBranch}`])).code === 0 ? `refs/heads/${this.stateBranch}` : 'HEAD';
+  }
+
+  /** Is `rel` tracked by git (`git ls-files`)? False outside a repository. */
+  async isTracked(rel) {
+    const norm = this._normalize(rel);
+    const r = await this._git(['ls-files', '--', norm]);
+    return r.code === 0 && r.stdout.trim() !== '';
+  }
+
+  /** Unix seconds of the newest commit that touched `rel` (HEAD) or, with `ref`, of the tip of that ref; null when there is none. */
+  async lastCommitTime({ rel, ref } = {}) {
+    const args = ['log', '-1', '--format=%ct'];
+    if (ref) { if (!/^[A-Za-z0-9._\/-]+$/.test(ref) || ref.startsWith('-')) return null; args.push(ref); }
+    args.push('--');
+    if (rel) args.push(this._normalize(rel));
+    const r = await this._git(args);
+    const t = r.code === 0 ? Number(r.stdout.trim()) : NaN;
+    return Number.isFinite(t) && t > 0 ? t : null;
+  }
+
+  /** Subjects of the commits on the state branch (or HEAD) whose message holds `text` as a fixed string. */
+  async commitSubjects(text) {
+    const r = await this._git(['log', await this._stateRef(), '--fixed-strings', `--grep=${text}`, '--format=%s']);
+    return r.code === 0 ? r.stdout.split('\n').filter(Boolean) : [];
+  }
+
   // ---- path safety -------------------------------------------------------------------------
 
   _normalize(rel, { writing = false } = {}) {
