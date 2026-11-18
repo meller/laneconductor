@@ -152,25 +152,32 @@ export class LocalGitStore {
   }
 
   /**
-   * Names of the directories under `dir` on every other local branch and remote-tracking ref (Track AM-10143), so a number taken
-   * on a branch that is not this checkout's is not handed out again. Refs that point at the same commit are read once; the number
-   * of commits read is capped so a repository with hundreds of branches does not slow every create.
+   * Folders under `dir` on other local branches and remote-tracking refs (Track AM-10143), so a number taken on a branch that is not
+   * this checkout's is not handed out again. Refs at the same commit are read once (named by the first, local before remote), the
+   * newest `max` distinct tips are read, and `merged` says the tip is already reachable from the state branch (its folders are history,
+   * not work in flight). Returns `{ entries: [{ name, ref, merged }], capped }`; `capped` is true when older tips were left unread.
    */
   async refDirs(dir, { max = 100 } = {}) {
-    const r = await this._git(['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes']);
-    if (r.code !== 0) return [];
+    const r = await this._git(['for-each-ref', '--sort=-committerdate', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes']);
+    if (r.code !== 0) return { entries: [], capped: false };
+    const stateRef = (await this._git(['rev-parse', '--verify', '-q', `refs/heads/${this.stateBranch}`])).code === 0 ? `refs/heads/${this.stateBranch}` : 'HEAD';
     const seen = new Set();
-    const names = new Set();
+    const entries = [];
+    let capped = false;
     for (const line of r.stdout.split('\n').filter(Boolean)) {
       const [sha, ref] = line.split(' ');
       if (!sha || !ref || ref.endsWith('/HEAD') || seen.has(sha)) continue;
+      if (seen.size >= max) { capped = true; break; }
       seen.add(sha);
-      if (seen.size > max) break;
       const t = await this._git(['ls-tree', '-d', '--name-only', sha, dir.replace(/\/?$/, '/')]);
       if (t.code !== 0) continue;
-      for (const p of t.stdout.split('\n').filter(Boolean)) names.add(path.posix.basename(p));
+      const names = t.stdout.split('\n').filter(Boolean).map((p) => path.posix.basename(p));
+      if (!names.length) continue;
+      const merged = (await this._git(['merge-base', '--is-ancestor', sha, stateRef])).code === 0;
+      const short = ref.replace(/^refs\/heads\//, '').replace(/^refs\/remotes\//, '');
+      for (const name of names) entries.push({ name, ref: short, merged });
     }
-    return [...names];
+    return { entries, capped };
   }
 
   // ---- push policy (D4) -----------------------------------------------------------------------

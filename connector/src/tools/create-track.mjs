@@ -6,6 +6,35 @@ import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
 import { nearestLane } from '../vocabulary.mjs';
 
+const REF_TIP_CAP = 100;
+
+/** The softer note: a number of this branch that an unmerged branch names differently. One line, at most 200 characters, final period kept. */
+function elsewhereNote(here, entries) {
+  const byNumber = new Map();
+  for (const n of here) {
+    const v = trackNumberOfFolder(n);
+    if (v !== null) byNumber.set(v, (byNumber.get(v) ?? new Set()).add(n));
+  }
+  const seen = new Set();
+  const found = [];
+  for (const e of entries) {
+    if (e.merged) continue;
+    const v = trackNumberOfFolder(e.name);
+    const names = v === null ? null : byNumber.get(v);
+    if (!names || names.has(e.name) || seen.has(`${v}/${e.ref}`)) continue;
+    seen.add(`${v}/${e.ref}`);
+    found.push(`${v} also named differently on branch ${e.ref.length > 50 ? `${e.ref.slice(0, 49)}…` : e.ref}`);
+  }
+  if (!found.length) return null;
+  const tail = ' (not merged yet). Merge or delete that branch, or ask which one keeps it.';
+  let text = '';
+  for (let shown = Math.min(found.length, 3); shown >= 1; shown--) {
+    text = `Track number ${found.slice(0, shown).join('; ')}${found.length > shown ? `; +${found.length - shown} more` : ''}${tail}`;
+    if (text.length <= 200) break;
+  }
+  return text;
+}
+
 const input = z.object({
   project: projectField,
   title: z.string().min(1).max(120).describe('Short single-line title.'),
@@ -35,9 +64,15 @@ export const createTrack = {
         const similar = similarTracks((await readEntries(tx)).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
         const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
         // Track AM-10143: numbers taken on other branches (local or remote-tracking) count too, so two worktrees do not hand out the same one.
-        const upstream = [...(await tx.upstreamDirs?.(TRACKS_DIR) ?? []), ...(await tx.refDirs?.(TRACKS_DIR) ?? [])];
+        const upstreamNames = await tx.upstreamDirs?.(TRACKS_DIR) ?? [];
+        const others = (await tx.refDirs?.(TRACKS_DIR)) ?? { entries: [], capped: false };
+        const upstream = [...upstreamNames, ...others.entries.map((e) => e.name)];
         const number = nextNumber(dirs, upstream);
-        const duplicates = duplicateNumbers(dirs, upstream).slice(0, 5);
+        // A number is DUPLICATED when two different folder names carry it on the state branch (this checkout) or its upstream. A folder
+        // that only an unmerged branch carries is a softer note, and goes away when that branch is merged or deleted.
+        const duplicates = duplicateNumbers(dirs, upstreamNames).slice(0, 5);
+        const elsewhere = elsewhereNote([...dirs, ...upstreamNames], others.entries);
+        const capped = others.capped;
         // Track AM-10136: a dependency on a track that does not exist can never be met, so it is refused instead of parked forever.
         const known = new Set([...dirs, ...upstream].map(trackNumberOfFolder).filter((n) => n !== null).map(String));
         const unknown = dependsOn.filter((d) => !known.has(String(Number(d))));
@@ -52,7 +87,7 @@ export const createTrack = {
         if (sum) changes.push(sum);
         const msg = `chore(track-${number}): create_track ${changes.map((c) => c.path.split('/').pop()).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
         const r = await tx.commitFiles({ preconditions, changes, message: msg });
-        return { r, t, number, msg, lane: initialLane, similar, duplicates };
+        return { r, t, number, msg, lane: initialLane, similar, duplicates, elsewhere, capped };
       });
       if (!res.r.ok) {
         lastConflict = res.r.conflict;
@@ -63,6 +98,8 @@ export const createTrack = {
       if (res.r.commitError) warnings.push(`Files were written but not committed: ${res.r.commitError}`);
       else if (res.r.ignored?.length) warnings.push(`Not committed (gitignored, decision D5): ${res.r.ignored.map((p) => p.split('/').pop()).join(', ')}.`);
       if (res.duplicates.length) warnings.push(`Duplicate track numbers: ${res.duplicates.map((d) => `${d.number} (${d.folders.length} folders)`).join(', ')}. Ask the person, then run the repair-duplicates command; it renames the newer folder.`);
+      if (res.elsewhere) warnings.push(res.elsewhere);
+      if (res.capped) warnings.push(`Track numbers: checked the ${REF_TIP_CAP} newest branch tips only; a number used on an older branch may be handed out again.`);
       const { similar, strong } = res.similar;
       if (strong) warnings.push(`Similar track${similar.length > 1 ? 's' : ''} already exist${similar.length > 1 ? '' : 's'}: ${similar.map((x) => `${x.id} (${x.lane})`).join(', ')}. If this duplicates one, ask the person "Update track N? [default: yes]" and move the content there.`);
       return {
