@@ -1,6 +1,6 @@
-# board: show or update the project's board
+# board: open or refresh the project's board
 
-For "board", "show the board", "update the board", "refresh the board" or `/laneconductor board`.
+For `/laneconductor:board` (no argument opens the board; `refresh` rebuilds and republishes it), "board", "show the board", "update the board" or "refresh the board".
 The board is a private Claude artifact: a static page that reads a snapshot (`board.json`) of this
 project's tracks. Only Claude can create or update an artifact (a script or the connector cannot),
 so this is your job; the code does the deterministic part. Never call the board live: it is as
@@ -64,7 +64,7 @@ Read `board.artifact_url` in `.laneconductor.json`, the optional personal settin
 
 Artifact tool, action `open`, with the URL; give the human the link. Say: it is private, it is a
 snapshot, and when it was generated (`generated_at`). Name the project(s) included (this board
-covers this repo's project only).
+covers this repo's project only). If `generated_at` is more than an hour old, suggest `/laneconductor:board refresh`.
 
 ## Rules
 
@@ -80,7 +80,7 @@ covers this repo's project only).
 - Say so plainly: the documents and the project definition files are on the board, so sharing the board shares them. The page footer
   says the same. Do not turn `board.include_conversation` on yourself; it is the human's choice.
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
-- Never claim the board is live or updates by itself; to refresh it, run this procedure again.
+- Never claim the board is live or updates by itself; to refresh it, run this procedure again (`/laneconductor:board refresh`). The page shows how old it is, and in the Claude desktop app with the local connector it can check whether the repository has moved on (a read only check); its Refresh board button only copies that command, because only Claude can rebuild and republish a board.
 - If a step fails, report which step and the error; do not publish a partial board.
 
 ## If the board script is missing

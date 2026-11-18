@@ -28,7 +28,7 @@ const sampleArgs = (cmd) => Object.fromEntries(cmd.args.map((a) => [a.name, samp
 test('catalog: every command has the fields, unique names, a known group and exactly the commands of the spec', () => {
   assert.equal(new Set(COMMAND_NAMES).size, COMMAND_NAMES.length);
   const want = ['plan', 'brainstorm', 'implement', 'review', 'quality-gate', 'merge', 'run', 'new', 'bug', 'feature', 'status', 'move', 'comment',
-    'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board', 'new-project', 'next', 'repair-duplicates'];
+    'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'new-project', 'next', 'repair-duplicates'];
   assert.deepEqual([...COMMAND_NAMES].sort(), [...want].sort());
   for (const c of COMMANDS) {
     assert.ok(GROUPS.includes(c.group), `${c.name}: group`);
@@ -92,7 +92,7 @@ test('the help prompt and the help tool list every command exactly once, with an
     assert.ok(tool.env.data.commands.find((x) => x.name === c.name).example === c.example);
   }
   for (const g of GROUPS) assert.ok(prompt.includes(`${g[0].toUpperCase()}${g.slice(1)}\n`), `group ${g}`);
-  assert.match(prompt, /Needs the board add-on's script: board \(only to refresh\), refresh-board\./);
+  assert.match(prompt, /Needs the board add-on's script: board \(only to refresh\)./);
   assert.match(tool.text, /Example: "what can LaneConductor do"/);
 });
 
@@ -139,7 +139,7 @@ test('KC-8: the context estimate stays within 15 percent of the 0.3.0 figure, an
 
 test('argumentHint reads like a usage line', () => {
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'plan')), '<track number or title>');
-  assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'board')), '[show | update]');
+  assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'board')), '[refresh]');
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'move')), '<track number> <lane[:status]>');
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'help')), '');
 });

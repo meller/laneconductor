@@ -56,7 +56,7 @@ in `scripts/plugin-texts.mjs`, and tested in `connector/test/interop.test.mjs`:
 | connector server key | `lc` (`.mcp.json` of the parallel add-on) | tool names |
 | connector tool prefix | `mcp__plugin_laneconductor-parallel_lc__<tool>` (Claude Code derives it from plugin name + server key) | the base's commands, Habits and agents name it only `if present` |
 | sub-agent | `laneconductor-parallel:track-runner` | the base's `run`, `implement`, `review` recommend it only when it is listed |
-| board script | `server/bin/lc-board.mjs` in the board add-on, found by Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed versions only, not the marketplaces/ clone) | the base's `board`, `refresh-board`, `ops/board.md` |
+| board script | `server/bin/lc-board.mjs` in the board add-on, found by Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed versions only, not the marketplaces/ clone) | the base's `board`, `ops/board.md` |
 | scaffold script | `server/bin/lc-scaffold.mjs` in the parallel add-on, found by Glob `**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` | `ops/new-project.md` (by hand when absent) |
 | versions | all three share one version (1.0.0 at launch, 1.1.0 with plugin-only setup) and follow `connector/package.json` | `plugin.json` |
 

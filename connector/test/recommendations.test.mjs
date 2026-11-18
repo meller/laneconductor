@@ -96,7 +96,7 @@ test('an entry that installs code says so plainly, everywhere the install comman
   }
   // The board commands' fallback and ops/board.md name the board entry's note.
   const boardNote = installsNote(NAMES.board);
-  for (const rel of ['commands/board.md', 'commands/refresh-board.md', 'skills/laneconductor/ops/board.md']) assert.ok(fs.readFileSync(path.join(BASE, rel), 'utf8').includes(boardNote), rel);
+  for (const rel of ['commands/board.md', 'skills/laneconductor/ops/board.md']) assert.ok(fs.readFileSync(path.join(BASE, rel), 'utf8').includes(boardNote), rel);
   assert.ok(fs.readFileSync(path.join(BASE, 'commands/run.md'), 'utf8').includes(installsNote(NAMES.parallel)), 'run, when it mentions the parallel add-on, says it installs a local program');
   assert.ok(fs.readFileSync(path.join(BASE, 'README.md'), 'utf8').includes('It is Markdown only'), 'the base says it installs no program');
   assert.match(fs.readFileSync(path.join(BASE, '.claude-plugin/plugin.json'), 'utf8'), /Markdown only/);

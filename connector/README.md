@@ -88,7 +88,7 @@ dirty files are never swept in.
 The connector also offers every LaneConductor command as an MCP prompt, from one catalog
 (`src/commands.mjs`): `next`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`,
 `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `workflow`, `help`, `new-project`, `board`,
-`show-board`, `refresh-board`, `setup`, `deploy`. `prompts/get` returns one user message: the procedure with the
+`setup`, `deploy`. `prompts/get` returns one user message: the procedure with the
 arguments filled in (a missing required argument is an error that names it). The `help` prompt, and the
 read-only `help` tool for clients that do not surface prompts, list the commands grouped, one example phrase each,
 and say which commands need the board add-on's script.

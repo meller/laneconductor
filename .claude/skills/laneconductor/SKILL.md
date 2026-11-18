@@ -48,7 +48,7 @@ wrap or bundle them.
 | `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (search first: the default is update, not create; with the parallel add-on use its `create_track` and `update_track`; otherwise edit the files as that file says) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) (lanes, statuses and transitions: [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md)) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
-| `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |
+| `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; `board` opens it, `board refresh` rebuilds and republishes it; building the page needs the optional laneconductor-board add-on) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
 | `setup` | [setup/setup.md](setup/setup.md) (add LaneConductor to this project; it follows [ops/new-project.md](ops/new-project.md)) | only when named |
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (straight to the files, no interview) (templates in [setup/templates.md](setup/templates.md)) | only when named |
@@ -59,7 +59,7 @@ wrap or bundle them.
 **Not sure what to do.** "I am not sure what to do", "what now" and "what's next" all mean `next`: it reads where the project
 stands and names the one next step, with the command and the reason ([ops/next.md](ops/next.md)).
 
-**The board.** `board` (or "show the board", "update the board") gives the project one private page that
+**The board.** `board` (or "show the board", "update the board"; `board refresh` rebuilds and republishes it) gives the project one private page that
 shows every track by lane, with a needs-attention list. The board script of the optional
 `laneconductor-board` add-on writes the page and its data (and the documents of the tracks that are not done,
 shown when a track is opened); Claude then publishes them as an artifact and keeps its URL in the optional

@@ -205,7 +205,7 @@ const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too. ${TAR
 const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
 const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`. ${BOARD_MISSING_TEXT}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
-const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';
+const OPEN_NOTE = 'To open it, use the Artifact tool, action `open`, with the stored URL, and give me the link. Opening never calls `publish` or regenerates anything; only `refresh` does.';
 
 // Track AM-10143 (owner rule): search first, the default is update, not create. The base lists tracks by reading the files, so it
 // works with no add-on.
@@ -278,9 +278,7 @@ export const BASE_EXTRAS = {
   'review-plan': [`Dispatch the \`${NAMES.base}:plan-reviewer\` subagent (read only) with that prompt.`],
   next: [`In Claude Code, type it as \`/${NAMES.base}:next\`; the commands in the card are written in that form.`],
   help: [`In Claude Code, type a command as \`/${NAMES.base}:<name>\`, for example \`/${NAMES.base}:plan 10106\`; typing \`/${NAMES.base}:\` lists them all.`],
-  'show-board': [OPEN_NOTE],
-  'refresh-board': [PUBLISH_NOTE, BOARD_SCRIPT_NOTE],
-  board: [PUBLISH_NOTE, OPEN_NOTE, BOARD_SCRIPT_NOTE],
+  board: [`In Claude Code, type the refresh as \`/${NAMES.base}:board refresh\`.`, PUBLISH_NOTE, OPEN_NOTE, BOARD_SCRIPT_NOTE],
 };
 
 /** The one line that names the add-on's tools for a command whose catalog procedure uses them; generated, never hand-written. */
@@ -291,7 +289,7 @@ export function connectorLine(cmd) {
   return `If the ${NAMES.parallel} add-on's tools are present (${tools.map((t) => `\`${toolRef(t)}\``).join(', ')}), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass \`update_track\` the \`base\` from \`get_track\` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.`;
 }
 
-export const BASE_HELP_FOOTER = `Works on its own: every command edits the track files directly. Needs the ${NAMES.board} add-on: board (only to refresh) and refresh-board; without it they say so and show how to get it. With the ${NAMES.parallel} add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.`;
+export const BASE_HELP_FOOTER = `Works on its own: every command edits the track files directly. Needs the ${NAMES.board} add-on: board (only to refresh); without it it says so and shows how to get it. With the ${NAMES.parallel} add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.`;
 
 /**
  * The journey in four lines (install, type next, follow the step, what appears at the start), generated from the catalog so the README and

@@ -119,7 +119,7 @@ test('coverage.json is honest: reasons present, no stale names, nothing listed t
 
 test('commands: the spec list exists, each has a description and an argument-hint, and a short body', () => {
   const want = ['plan', 'brainstorm', 'implement', 'review', 'quality-gate', 'merge', 'run', 'new', 'bug', 'feature', 'status',
-    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board', 'repair-duplicates'];
+    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'repair-duplicates'];
   assert.deepEqual(want.filter((c) => !COMMANDS.includes(c)), []);
   for (const c of COMMANDS) {
     const { fm, body } = parse(read(`commands/${c}.md`));
@@ -224,21 +224,28 @@ test('commands that use the connector name its tools only for when they are pres
     for (const tool of toolsUsedBy(cat.procedure)) assert.ok(t.includes(`${MCP_PREFIX}${tool}`), `${c}: names ${MCP_PREFIX}${tool}`);
   }
   // The explicit board commands (REQ-8, TC-9).
-  const show = read('commands/show-board.md');
-  assert.match(show, /never regenerate/i);
-  assert.match(show, /Never call `publish`/);
-  assert.match(show, /Artifact tool, action `open`/);
-  const refresh = read('commands/refresh-board.md');
-  assert.match(refresh, /republish them to the stored URL/);
-  assert.match(refresh, /ask me "Create a private board for this project\?" and create nothing without my yes/);
-  assert.match(read('commands/board.md'), /ask me which one I want/);
+  // Track AM-10115: `board` is the only board command. No argument opens the board, `refresh` rebuilds and republishes it.
+  assert.deepEqual(COMMANDS.filter((c) => /board/.test(c)), ['board'], 'no show-board or refresh-board command');
+  for (const gone of ['commands/show-board.md', 'commands/refresh-board.md']) assert.ok(!fs.existsSync(path.join(PLUGIN, gone)), `${gone} is gone`);
+  const board = read('commands/board.md');
+  assert.equal(argumentHint(CATALOG.find((x) => x.name === 'board')), '[refresh]', 'the argument hint is [refresh]');
+  assert.match(board, /nothing given means open the existing board/);
+  assert.match(board, /never regenerate or republish it/i);
+  assert.match(board, /Opening never calls `publish`/);
+  assert.match(board, /Artifact tool, action `open`/);
+  assert.match(board, /more than an hour old, say so and suggest refreshing it/);
+  assert.match(board, /In Claude Code, type the refresh as `\/laneconductor:board refresh`/);
+  assert.match(board, /republish them to the stored URL/);
+  assert.match(board, /ask me "Create a private board for this project\?"; create nothing without my yes/);
+  assert.match(board, /Only Claude can publish an artifact/);
+  assert.match(board, /If the argument is anything else, ask me which one I mean/);
   // help lists every command exactly once, grouped, and says which commands need an add-on.
   const help = read('commands/help.md');
   assert.ok(help.includes(helpLines('LaneConductor commands. Say one in your own words, or use it as a slash command.').join('\n')), 'help.md holds the catalog help lines');
   for (const c of CATALOG) assert.equal(help.split('\n').filter((l) => new RegExp(`^- ${c.name}( |:)`).test(l)).length, 1, `${c.name} listed once in help`);
-  assert.match(help, /Works on its own: every command edits the track files directly\. Needs the laneconductor-board add-on: board \(only to refresh\) and refresh-board/);
-  // board, refresh-board: find the board script by Glob, and say so + show the install commands when neither exists.
-  for (const c of ['board', 'refresh-board']) {
+  assert.match(help, /Works on its own: every command edits the track files directly\. Needs the laneconductor-board add-on: board \(only to refresh\); without it it says so/);
+  // board: finds the board script by Glob, and says so + shows the install commands when it does not exist.
+  for (const c of ['board']) {
     const t = read(`commands/${c}.md`);
     assert.ok(t.includes('**/laneconductor-board/**/bin/lc-board.mjs'), `${c}: finds the script with a Glob under ~/.claude/plugins`);
     assert.ok(!t.includes('is on PATH'), `${c}: names no program on PATH as an alternative`);

@@ -47,6 +47,20 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 
 .proj { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
 .stamp { min-width: 0; text-align: right; color: var(--muted); font-size: 12.5px; }
 .stamp b { color: var(--ink); font-weight: 500; }
+.fresh { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 8px; margin-top: 4px; }
+.fchip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); background: var(--surface); overflow-wrap: anywhere; }
+.fchip.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.fchip.late { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+.fbtn { font: inherit; font-size: 12px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+.fbtn:hover:not(:disabled) { border-color: var(--accent); }
+.fbtn:disabled { color: var(--muted); cursor: default; }
+.fbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fnote { font-size: 12px; color: var(--ok); overflow-wrap: anywhere; }
+.frefresh { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 12px; }
+.frefresh .frow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.frefresh code { font-family: var(--font-mono); font-size: 12px; background: var(--accent-soft); color: var(--accent); padding: 2px 7px; border-radius: 4px; overflow-wrap: anywhere; }
+.fsm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .refresh { font-family: var(--font-mono); font-size: 12px; background: var(--accent-soft); color: var(--accent); padding: 2px 7px; border-radius: 4px; }
 
 .summary { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: baseline; padding-block: 12px; border-block: 1px solid var(--line); }
@@ -291,7 +305,9 @@ td .act { border-top: 0; padding-top: 0; }
   </section>
   </div>
 
-  <footer>A snapshot read from the track files, not a live view. To refresh it, ask Claude: <span class="refresh">update the board</span>. Opening a track shows its documents (overview, plan, spec and tests) as published with this board, and the Project button shows the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories) the same way. Sharing the board shares these documents, including the project definition files.</footer>
+  <footer>
+    <div class="frefresh" id="foot-refresh"></div>
+    A snapshot read from the track files, not a live view. To refresh it, press Refresh board and paste the command into your Claude session. Opening a track shows its documents (overview, plan, spec and tests) as published with this board, and the Project button shows the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories) the same way. Sharing the board shares these documents, including the project definition files.</footer>
 </div>
 
 <div class="detail" id="detail" hidden>
@@ -519,7 +535,7 @@ td .act { border-top: 0; padding-top: 0; }
     s.textContent = ''; s.className = 'status error'; s.setAttribute('role', 'alert');
     var big = document.createElement('div'); big.className = 'big'; big.textContent = 'Could not load board.json';
     var sub = document.createElement('div'); sub.className = 'sub';
-    sub.textContent = 'The snapshot file next to this page is missing or unreadable (' + why + '). Ask Claude: update the board.';
+    sub.textContent = 'The snapshot file next to this page is missing or unreadable (' + why + '). Ask Claude: /laneconductor:board refresh';
     s.appendChild(big); s.appendChild(sub);
   }
   function load() {
@@ -554,7 +570,8 @@ td .act { border-top: 0; padding-top: 0; }
   function inert(node) { node.addEventListener('click', function (e) { e.stopPropagation(); }); node.addEventListener('keydown', stopKeys); return node; }
 
   // Copy inside the click handler (a clipboard write needs the gesture). A refusal falls back to selecting the text.
-  function copyText(text, codeNode, note) {
+  function copyText(text, codeNode, note, okText) {
+    var done = okText || 'Copied';
     function selectIt() {
       try { var r = document.createRange(); r.selectNodeContents(codeNode); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch (e) { /* no selection API */ }
       note.textContent = 'Selected; press Ctrl+C to copy';
@@ -563,8 +580,8 @@ td .act { border-top: 0; padding-top: 0; }
       var cb = typeof navigator !== 'undefined' ? navigator.clipboard : null;
       if (cb && typeof cb.writeText === 'function') {
         var p = cb.writeText(text);
-        if (p && typeof p.then === 'function') { p.then(function () { note.textContent = 'Copied'; }, selectIt); return; }
-        note.textContent = 'Copied'; return;
+        if (p && typeof p.then === 'function') { p.then(function () { note.textContent = done; }, selectIt); return; }
+        note.textContent = done; return;
       }
     } catch (e) { /* refused: fall through */ }
     selectIt();
@@ -603,17 +620,21 @@ td .act { border-top: 0; padding-top: 0; }
     return MOVE.ns;
   }
   // First click on any Move: is the local connector reachable? A host server is omitted from listTools outside the desktop app.
-  function probe() {
-    if (!MOVE.probe) {
-      MOVE.probe = mcpNs().then(function (m) {
+  // One listing of the connector's tools, made once and only when something needs it (a Move click, or the freshness check); both read it.
+  function listing() {
+    if (!MOVE.list) {
+      MOVE.list = mcpNs().then(function (m) {
         if (!m || typeof m.listTools !== 'function' || typeof m.callTool !== 'function') return null;
         return Promise.resolve(m.listTools(MOVE.server)).then(function (r) {
           var sv = r && Array.isArray(r.servers) ? r.servers.filter(function (x) { return x && x.server === MOVE.server; })[0] : null;
-          var names = sv && Array.isArray(sv.tools) ? sv.tools.map(function (x) { return x && x.name; }) : [];
-          return names.indexOf('get_track') >= 0 && names.indexOf('update_track') >= 0 ? m : null;
+          return { m: m, names: sv && Array.isArray(sv.tools) ? sv.tools.map(function (x) { return x && x.name; }) : [] };
         });
       }).catch(function () { return null; });
     }
+    return MOVE.list;
+  }
+  function probe() {
+    if (!MOVE.probe) MOVE.probe = listing().then(function (l) { return l && l.names.indexOf('get_track') >= 0 && l.names.indexOf('update_track') >= 0 ? l.m : null; });
     return MOVE.probe;
   }
   function envOf(r) { var e = r && (r.payload || r.structuredContent); return e && typeof e === 'object' ? e : (r && typeof r === 'object' ? r : null); }
@@ -758,7 +779,73 @@ td .act { border-top: 0; padding-top: 0; }
   var st = document.getElementById('stamp');
   var when = new Date(D.generated_at);
   st.appendChild(el('div', null, 'Read ' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })));
-  st.appendChild(el('div', null, ago(D.generated_at)));
+
+  // ---- Freshness and refresh (track AM-10115). The age is always known from generated_at: in words, and "may be out of date" once it is
+  // over an hour old (never a claim of exactness). Where the page can reach the local connector (the Claude desktop app, same rules as the
+  // Move menu: resolved at load, probed lazily, silent when absent) it can also compare board.json's commit with the repository's: a
+  // "Check now" button and one automatic check on the first interaction, both a read of list_tracks with limit 1, never a write. The page
+  // cannot rebuild or republish a board; only Claude can, so "Refresh board" copies the command to paste into a Claude session.
+  var REFRESH_CMD = '/laneconductor:board refresh';
+  var ONLY_CLAUDE = 'Only Claude can rebuild and republish a board; this page cannot. Paste the command into your Claude session.';
+  var FRESH = { state: 'age', cap: false, dead: false, busy: false, note: '', touched: false, auto: false };
+  var boardCommit = typeof D.commit === 'string' && /^[0-9a-f]{7,64}$/i.test(D.commit) ? D.commit.toLowerCase() : null;
+  var freshEl = el('div', 'fresh'), chipEl = el('span', 'fchip'), checkBtn = el('button', 'fbtn', 'Check now');
+  chipEl.setAttribute('role', 'status'); chipEl.setAttribute('aria-live', 'polite');
+  checkBtn.type = 'button'; checkBtn.hidden = true;
+  checkBtn.setAttribute('aria-label', 'Check now: is this board up to date with the repository (read only)');
+  checkBtn.addEventListener('click', function () { checkFresh(true); });
+  function ageChipText() {
+    var m = (Date.now() - new Date(D.generated_at).getTime()) / 60000, a = ago(D.generated_at);
+    if (isNaN(m) || !a) return 'Read time unknown; may be out of date';
+    return 'Read ' + a + (m > 60 ? ', may be out of date' : '');
+  }
+  function drawFresh() {
+    chipEl.className = 'fchip' + (FRESH.state === 'ok' ? ' ok' : FRESH.state === 'late' ? ' late' : '');
+    chipEl.textContent = FRESH.state === 'ok' ? 'Up to date' : FRESH.state === 'late' ? 'Out of date: the repository has moved on. Press Refresh board.' : ageChipText();
+    if (FRESH.note) chipEl.textContent = chipEl.textContent + ' (' + FRESH.note + ')';
+    checkBtn.hidden = !(FRESH.cap && !FRESH.dead && boardCommit);
+    checkBtn.disabled = FRESH.busy;
+    checkBtn.textContent = FRESH.busy ? 'Checking' : 'Check now';
+  }
+  function sameCommit(a, b) {
+    var s = a.length <= b.length ? a : b, l = a.length <= b.length ? b : a;
+    return s.length >= 7 && l.indexOf(s) === 0;
+  }
+  // The read: list_tracks with limit 1. Its provenance names the commit the connector reads now. A failure of any kind keeps what the chip showed.
+  function checkFresh(manual) {
+    if (FRESH.busy || FRESH.dead || !boardCommit) return Promise.resolve();
+    FRESH.busy = true; FRESH.note = ''; drawFresh();
+    return listing().then(function (l) {
+      if (!l || l.names.indexOf('list_tracks') < 0) { FRESH.dead = true; return null; }
+      return Promise.resolve(l.m.callTool(MOVE.server, 'list_tracks', { limit: 1 })).then(function (r) {
+        var env = envOf(r), pv = env && env.ok !== false && env.provenance && typeof env.provenance === 'object' ? env.provenance : null;
+        var c = pv && typeof pv.commit === 'string' && /^[0-9a-f]{7,64}$/i.test(pv.commit) ? pv.commit.toLowerCase() : null;
+        // A checkout that is not on the state branch reads another head than the board was built from: not comparable.
+        if (!c || (pv.checkout_branch && pv.branch && pv.checkout_branch !== pv.branch)) { if (manual) FRESH.note = 'could not compare just now'; return; }
+        FRESH.state = sameCommit(c, boardCommit) ? 'ok' : 'late';
+      });
+    }).catch(function () { if (manual) FRESH.note = 'could not check just now'; }).then(function () { FRESH.busy = false; drawFresh(); });
+  }
+  function firstTouch() { FRESH.touched = true; maybeAuto(); }
+  function maybeAuto() { if (FRESH.touched && !FRESH.auto && FRESH.cap && boardCommit) { FRESH.auto = true; checkFresh(false); } }
+  document.addEventListener('pointerdown', firstTouch, { once: true });
+  function refreshBlock(foot) {
+    var box = el('div', foot ? 'frow' : 'fsm'), note = el('span', 'fnote');
+    var code = el('code', foot ? null : 'vh', REFRESH_CMD); if (!foot) code.setAttribute('aria-hidden', 'true');
+    var b = el('button', 'fbtn', 'Refresh board'); b.type = 'button';
+    b.setAttribute('aria-label', 'Refresh board: copy the command ' + REFRESH_CMD + ' to paste into your Claude session');
+    b.title = ONLY_CLAUDE;
+    b.addEventListener('click', function (e) { e.stopPropagation(); copyText(REFRESH_CMD, code, note, 'Copied; paste it into your Claude session'); });
+    note.setAttribute('role', 'status');
+    box.appendChild(b); box.appendChild(code); box.appendChild(note);
+    return box;
+  }
+  freshEl.appendChild(chipEl); freshEl.appendChild(checkBtn); freshEl.appendChild(refreshBlock(false));
+  st.appendChild(freshEl);
+  var foot = document.getElementById('foot-refresh');
+  foot.appendChild(refreshBlock(true));
+  foot.appendChild(el('div', null, ONLY_CLAUDE));
+  drawFresh();
 
   var sm = document.getElementById('summary');
   [['flight', inflight, 'in progress'], ['', planned, 'being planned'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
@@ -934,6 +1021,7 @@ td .act { border-top: 0; padding-top: 0; }
     return list.concat(bodyLinks);
   }
   document.addEventListener('keydown', function (e) {
+    firstTouch();
     if (!cur) return;
     if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); closeDetail(); return; }
     if (e.key !== 'Tab') return;
@@ -1028,7 +1116,7 @@ td .act { border-top: 0; padding-top: 0; }
     $('d-id').textContent = 'PROJECT';
     $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
     $('d-title').textContent = D.project || 'Project definition';
-    $('d-note').textContent = 'A snapshot of the project definition files, read at the same time as this board (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. To refresh it, ask Claude: update the board.';
+    $('d-note').textContent = 'A snapshot of the project definition files, read at the same time as this board (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. To refresh it, press Refresh board at the bottom of the page.';
     $('d-note').hidden = false;
     drawHeadAction();
     $('detail').hidden = false;
@@ -1239,7 +1327,7 @@ td .act { border-top: 0; padding-top: 0; }
   document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; state.backlogAll = false; render(); });
   render();
   // Resolves quickly (null at once with no `claude`, within seconds in an unserved frame). It only decides whether a Move menu is drawn.
-  mcpNs().then(function (m) { if (m) { MOVE.cap = true; render(); if (cur) drawHeadAction(); } });
+  mcpNs().then(function (m) { if (m) { MOVE.cap = true; FRESH.cap = true; drawFresh(); maybeAuto(); render(); if (cur) drawHeadAction(); } });
   document.getElementById('status').hidden = true;
   document.getElementById('board').hidden = false;
   }

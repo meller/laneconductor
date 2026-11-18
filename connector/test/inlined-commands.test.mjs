@@ -73,7 +73,7 @@ test('no command that carries its text tells the model to read or search a plugi
     for (const m of t.matchAll(/`((?:ops|lanes|setup|deploy)\/[A-Za-z0-9._-]+)`/g)) assert.ok(fs.existsSync(path.join(BASE, 'skills/laneconductor', m[1])), `${n} names ${m[1]}, which does not ship`);
   }
   assert.match(cmd('setup'), /Do not Glob or Read the plugin's install folder/);
-  assert.ok(NO_READ.length === 20, `${NO_READ.length} commands carry their text`);
+  assert.ok(NO_READ.length === 19, `${NO_READ.length} commands carry their text`);
 });
 
 test('the inlined bodies are built from the shipped skill: change the source and the command changes (no hand-written copy)', () => {

@@ -361,7 +361,7 @@ test('base commands: the same set as the catalog, written for file editing; the 
 
 test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops/board.md, the board commands and the README; people run them, Claude never does', () => {
   assert.deepEqual(installCommands('board'), ['claude plugin marketplace add meller/laneconductor', 'claude plugin install laneconductor-board@laneconductor']);
-  const blocks = { board: ['skills/laneconductor/ADD-ONS.md', 'skills/laneconductor/ops/board.md', 'commands/board.md', 'commands/refresh-board.md', 'README.md'], parallel: ['skills/laneconductor/ADD-ONS.md', 'README.md'] };
+  const blocks = { board: ['skills/laneconductor/ADD-ONS.md', 'skills/laneconductor/ops/board.md', 'commands/board.md', 'README.md'], parallel: ['skills/laneconductor/ADD-ONS.md', 'README.md'] };
   for (const [profile, rels] of Object.entries(blocks)) {
     for (const rel of rels) assert.ok(read(rel).includes(installBlock(profile)), `${rel} holds the ${profile} install block exactly`);
   }
@@ -379,13 +379,13 @@ test('TC-4: the install commands, each alone in a bash fence, in ADD-ONS.md, ops
     // Advice, not an instruction to run: nothing tells Claude to run an install.
     assert.ok(!/\b(now|then|please|you should|go ahead and)\s+run\s+`?claude plugin/i.test(text), `${rel} tells Claude to run an install command`);
   }
-  for (const rel of ['commands/board.md', 'commands/refresh-board.md']) {
+  for (const rel of ['commands/board.md']) {
     const text = read(rel);
     assert.match(text, /never run an install command yourself/i, rel);
     assert.match(text, /do nothing else/i, rel);
     assert.ok(text.includes('**/laneconductor-board/**/bin/lc-board.mjs'), `${rel}: finds the script by Glob`);
   }
-  assert.ok(!/claude plugin install/.test(read('commands/show-board.md')), 'show-board needs no add-on');
+  for (const gone of ['commands/show-board.md', 'commands/refresh-board.md']) assert.ok(!fs.existsSync(path.join(BASE, gone)), `${gone}: board is the only board command`);
   const addons = read('skills/laneconductor/ADD-ONS.md');
   for (const must of ['conflict-checked writes', 'automatic commits', 'summary', 'secret\nand personal-data scan'.replace('\n', ' '), 'advice log', 'health report', 'scaffold script', 'track-runner', 'NEVER run an install command yourself', 'board', 'Installed when', '/reload-plugins', 'restart it']) {
     assert.ok(addons.replace(/\s+/g, ' ').includes(must), `ADD-ONS.md must mention ${must}`);

@@ -100,10 +100,10 @@ test('TC-6 a new project with no remote on main and no settings file: the state 
 test('TC-12 helpText and helpData carry no lc command-line wording; the JSON field is needs_board_script', () => {
   assert.deepEqual(noLcHits(helpText()), []);
   assert.doesNotMatch(helpText(), /command-line tool/);
-  assert.match(helpText(), /Needs the board add-on's script: board \(only to refresh\), refresh-board\./);
+  assert.match(helpText(), /Needs the board add-on's script: board \(only to refresh\)./);
   const cmds = helpData().commands;
   assert.ok(cmds.every((c) => 'needs_board_script' in c && !('needs_lc' in c)));
-  assert.deepEqual(cmds.filter((c) => c.needs_board_script).map((c) => c.name), ['board', 'refresh-board']);
+  assert.deepEqual(cmds.filter((c) => c.needs_board_script).map((c) => c.name), ['board']);
 });
 
 test('TC-13 the board script prints board: (not lc board:) on stderr, and --check says how to rebuild with node', () => {
@@ -115,10 +115,10 @@ test('TC-13 the board script prints board: (not lc board:) on stderr, and --chec
   assert.ok(!/lc board/.test(chk.stdout + chk.stderr + bad.stderr));
 });
 
-test('TC-14 show-board still reads board.artifact_url and handles the missing file or key', () => {
-  const show = COMMANDS.find((c) => c.name === 'show-board');
+test('TC-14 board (no argument) still reads board.artifact_url and handles the missing file or key', () => {
+  const show = COMMANDS.find((c) => c.name === 'board');
   assert.match(show.procedure, /board\.artifact_url/);
-  assert.match(show.procedure, /If no board URL is stored, say so/);
+  assert.match(show.procedure, /If no board URL is stored, say so and ask me "Create a private board for this project\?"; create nothing without my yes/);
   const board = fs.readFileSync(path.join(REPO, RELS.base, 'skills/laneconductor/ops/board.md'), 'utf8');
   assert.match(board, /may be missing or have no `board` key; then there is no stored URL/);
   assert.match(board, /listed in `\.gitignore`/);

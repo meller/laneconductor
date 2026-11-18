@@ -31,15 +31,13 @@ Create and manage
 - workflow [lane key value]: Show the lane workflow, or change one lane setting. Example: "show the workflow"
 
 Board
-- board [show | update]: Show or refresh the project board (asks which when unclear). Example: "show the board"
-- show-board: Open the existing board and give its link (never regenerates it). Example: "open the board"
-- refresh-board: Rebuild the board from the track files and republish it to its stored URL. Example: "refresh the board"
+- board [refresh]: Open the project board, or refresh it with the argument refresh. Example: "open the board"
 
 Setup and deploy
 - new-project [name or idea]: Start a project: a short interview, the conductor scaffold and the first tracks (runs only because you named it). Example: "start a new project: a habit tracker"
 - setup [scaffold]: Add LaneConductor to this project: read what is there, confirm the stack and commands, write the conductor/ files (runs only because you named it). Example: "add LaneConductor to this project"
 - deploy [setup]: Set up or run deployment for this project (runs only because you named it). Example: "deploy this project"
 
-Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh) and refresh-board; without it they say so and show how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.
+Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh); without it it says so and shows how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.
 
 In Claude Code, type a command as `/laneconductor:<name>`, for example `/laneconductor:plan 10106`; typing `/laneconductor:` lists them all.

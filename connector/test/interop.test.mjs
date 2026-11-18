@@ -104,8 +104,7 @@ for (const [label, profiles] of SETS) {
   test(`matrix (${label}): the base's board command finds the script by its Glob when the board add-on is installed, and shows the install commands when it is not (TC-4, TC-6)`, () => {
     const { home, dirs } = install(profiles);
     const board = fs.readFileSync(path.join(dirs.base, 'commands/board.md'), 'utf8');
-    const refresh = fs.readFileSync(path.join(dirs.base, 'commands/refresh-board.md'), 'utf8');
-    for (const text of [board, refresh]) {
+    for (const text of [board]) {
       assert.ok(text.includes(BOARD_SCRIPT_GLOB), 'the command names the Glob');
       assert.ok(text.includes(installBlock('board')), 'the command holds the install commands for when the script is missing');
     }
@@ -113,7 +112,7 @@ for (const [label, profiles] of SETS) {
     const clone = path.join(home, 'marketplaces/laneconductor', RELS.board, BOARD_SCRIPT_REL);
     fs.mkdirSync(path.dirname(clone), { recursive: true });
     fs.copyFileSync(path.join(REPO, RELS.board, BOARD_SCRIPT_REL), clone);
-    for (const text of [board, refresh]) assert.ok(text.includes(`under \`${PLUGINS_CACHE}\``), 'the command searches the installed-plugins cache only');
+    for (const text of [board]) assert.ok(text.includes(`under \`${PLUGINS_CACHE}\``), 'the command searches the installed-plugins cache only');
     const found = globUnder(path.join(home, 'cache'), BOARD_SCRIPT_GLOB);
     if (profiles.includes('board')) {
       assert.equal(found.length, 1, found.join('\n'));

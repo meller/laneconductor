@@ -49,13 +49,11 @@ export const REFERENCES = {
     T('ops/tracks.md', '## workflow, workflow set `[lane] [key] [value]`'), T('ops/lanes-and-statuses.md', STATUSES, TRANSITIONS, '## Lane names')] },
   'repair-duplicates': { why: 'the command names the folder and id formats of ops/tracks.md; the section and the track lookup are copied in', refs: [T('ops/tracks.md', NEWTRACK), T('SKILL.md', '## Finding a track')] },
   board: { why: 'the command follows ops/board.md and the settings key it reads; both are copied in (the board script itself belongs to the board add-on and is still found by a Glob: the one read outside the project that remains)', refs: [W('ops/board.md'), SETTINGS] },
-  'refresh-board': { why: 'the command follows ops/board.md and the settings key it reads; both are copied in (the board script of the add-on is still found by a Glob)', refs: [W('ops/board.md'), SETTINGS] },
-  'show-board': { why: 'the command names step 2 of ops/board.md and the settings file; both are copied in', refs: [T('ops/board.md', '## 2. Find the URL', '## 4. Show', '## Rules'), SETTINGS] },
   deploy: { why: 'the command follows deploy/deploy.md, or deploy/setup-deploy.md for `setup`; both are copied in', refs: [W('deploy/deploy.md'), W('deploy/setup-deploy.md')] },
 };
 export const REFERENCE_COMMANDS = Object.keys(REFERENCES);
 /** The commands that keep one read outside the project on purpose: the board script is a file of another plugin (the board add-on). */
-export const BOARD_SCRIPT_COMMANDS = ['board', 'refresh-board'];
+export const BOARD_SCRIPT_COMMANDS = ['board'];
 
 export const REF_NOTICE = 'This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin\'s install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.';
 

@@ -41,7 +41,7 @@
       "setup_fit": "a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane",
       "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`",
       "triggers": [
-        "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`)"
+        "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`)"
       ]
     }
   ]

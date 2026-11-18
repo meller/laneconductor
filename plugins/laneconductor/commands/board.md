@@ -1,28 +1,30 @@
 ---
-description: Show or refresh the project board (asks which when unclear)
-argument-hint: "[show | update]"
+description: Open the project board, or refresh it with the argument refresh
+argument-hint: "[refresh]"
 ---
-Board: `$ARGUMENTS`. `show` means the existing board, `update` means refresh it. If that is empty or unclear, ask me which one I want before doing anything: showing the existing board (never regenerates) or refreshing it (rebuild and republish).
+Board: `$ARGUMENTS` (nothing given means open the existing board). This one command covers the board: no argument opens the existing board, `refresh` rebuilds and republishes it. If the argument is anything else, ask me which one I mean before doing anything.
 
 This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.
 
-To show:
-Show the existing board. Read only: never regenerate or republish it.
+If it is empty, open:
+Open the existing board. Read only: never regenerate or republish it.
 
 1. Find the stored board URL (`board.artifact_url` in the optional settings file `.laneconductor.json`, see the skill file `ops/settings.md`; step 2 of `ops/board.md`).
-2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done.
-3. If no board URL is stored, say so and suggest `refresh-board`; do not create one.
+2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done. If it is more than an hour old, say so and suggest refreshing it (this command with the argument `refresh`; the page also has a Refresh board button that copies it).
+3. If no board URL is stored, say so and ask me "Create a private board for this project?"; create nothing without my yes, and then follow the refresh procedure below, which builds and publishes it (step 3b of `ops/board.md`).
 
-To update:
+If it is `refresh`, refresh:
 Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.
 
 1. Generate the page and data (step 1) with the board script, found as step 1 of `ops/board.md` says. If it does not exist, say so and stop; do not build the page by hand.
 2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, ask me "Create a private board for this project?" and create nothing without my yes (step 3b).
 3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name.
 
+In Claude Code, type the refresh as `/laneconductor:board refresh`.
+
 Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.
 
-Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.
+To open it, use the Artifact tool, action `open`, with the stored URL, and give me the link. Opening never calls `publish` or regenerates anything; only `refresh` does.
 
 Generating the board needs the board script of the optional laneconductor-board add-on: find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` and run `node <that path> --repo . --site "$site" --json`. If neither exists, the laneconductor-board add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 
@@ -44,7 +46,7 @@ From the skill files this command names, copied here: whole files, or only the s
 
 ### `ops/board.md`
 
-For "board", "show the board", "update the board", "refresh the board" or `/laneconductor board`.
+For `/laneconductor:board` (no argument opens the board; `refresh` rebuilds and republishes it), "board", "show the board", "update the board" or "refresh the board".
 The board is a private Claude artifact: a static page that reads a snapshot (`board.json`) of this
 project's tracks. Only Claude can create or update an artifact (a script or the connector cannot),
 so this is your job; the code does the deterministic part. Never call the board live: it is as
@@ -108,7 +110,7 @@ Read `board.artifact_url` in `.laneconductor.json`, the optional personal settin
 
 Artifact tool, action `open`, with the URL; give the human the link. Say: it is private, it is a
 snapshot, and when it was generated (`generated_at`). Name the project(s) included (this board
-covers this repo's project only).
+covers this repo's project only). If `generated_at` is more than an hour old, suggest `/laneconductor:board refresh`.
 
 #### Rules
 
@@ -124,7 +126,7 @@ covers this repo's project only).
 - Say so plainly: the documents and the project definition files are on the board, so sharing the board shares them. The page footer
   says the same. Do not turn `board.include_conversation` on yourself; it is the human's choice.
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
-- Never claim the board is live or updates by itself; to refresh it, run this procedure again.
+- Never claim the board is live or updates by itself; to refresh it, run this procedure again (`/laneconductor:board refresh`). The page shows how old it is, and in the Claude desktop app with the local connector it can check whether the repository has moved on (a read only check); its Refresh board button only copies that command, because only Claude can rebuild and republish a board.
 - If a step fails, report which step and the error; do not publish a partial board.
 
 #### If the board script is missing

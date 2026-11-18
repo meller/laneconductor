@@ -177,6 +177,8 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  * only (archived copies are left out). Short keys keep the file small. Only titles, lanes, status,
  * progress, phase and check reasons: the same privacy surface as the board itself. The documents are
  * separate files (`docs/<n>.json`); this only says which tracks have one.
+ *   commit (only when it could be read): the head of the state branch the board was built from, as `commit` (full sha) and `commit_short` (7 characters);
+ *           the page compares it with the connector's provenance commit to say whether the board is still current. A hash, never text of a file
  *   lanes:  the project's workflow lanes in flow order (the page draws every lane but backlog and done as a column)
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
@@ -193,15 +195,16 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           Titles and commands only, never document text; it stays when `board.include_docs` is false
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
- * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
+ * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null, commit?: string | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null } = {}) {
+export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null, commit = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
   return {
     project: board.project,
     generated_at: board.generated_at,
+    ...(typeof commit === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(commit) ? { commit: commit.toLowerCase(), commit_short: commit.slice(0, 7).toLowerCase() } : {}),
     lanes: lanes?.length ? [...lanes] : [...DEFAULT_PAGE_LANES],
     tracks: live.map((t) => ({
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
