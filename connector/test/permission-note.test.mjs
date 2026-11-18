@@ -18,7 +18,7 @@ test('the README, setup, new-project and the setup command carry the one-line no
     assert.match(t, /keep allowing/, rel);
     assert.match(t, /permanent setting/, rel);
   }
-  assert.match(read('commands/setup.md'), /Never ask me to change my permission settings/);
+  assert.match(read('commands/setup.md'), /Never ask anyone to change their permission settings/);
   assert.match(read('skills/laneconductor/setup/setup.md'), /Never ask anyone to change their permission settings/);
 });
 

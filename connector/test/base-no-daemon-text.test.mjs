@@ -50,9 +50,9 @@ test('the daemon-era setup text lives only under legacy/, which the plugin does 
 test('the generated /laneconductor:setup command follows new-project; `scaffold` goes straight to scaffold.md; the hook point for the starter set is in both procedures', () => {
   const cmd = fs.readFileSync(path.join(BASE, 'commands/setup.md'), 'utf8');
   assert.match(cmd, /ops\/new-project\.md/);
-  assert.match(cmd, /`scaffold`, go straight to `setup\/scaffold\.md`/);
+  assert.match(cmd, /`\/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow\n`setup\/scaffold\.md`/);
   assert.match(cmd, /runs only because I named it/);
-  assert.ok(!/setup\/setup\.md/.test(cmd), 'the command no longer points at the old install text');
+  assert.ok(!/make install|laneconductorrc/.test(cmd), 'the command carries no daemon-era install text');
   const skill = path.join(BASE, 'skills/laneconductor');
   for (const rel of ['setup/setup.md', 'ops/new-project.md']) assert.match(fs.readFileSync(path.join(skill, rel), 'utf8'), /<!-- Starter set: reserved for the skill advisor \(track 10124\) -->/, rel);
 });

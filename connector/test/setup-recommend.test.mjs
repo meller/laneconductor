@@ -68,5 +68,5 @@ test('TC-21 the block is built from the catalog: a fake skillpack entry gets its
 test('ADD-ONS.md prints each entry\'s setup_fit, and the setup command points at the step', () => {
   const addons = read('ADD-ONS.md');
   for (const e of RECOMMENDED) assert.ok(addons.includes(`**Offered at setup when**: ${e.setup_fit}.`), e.name);
-  assert.match(fs.readFileSync(path.join(REPO, RELS.base, 'commands/setup.md'), 'utf8'), /say which optional plugins fit it and show their install commands/);
+  assert.match(fs.readFileSync(path.join(REPO, RELS.base, 'commands/setup.md'), 'utf8'), /say which optional plugins would help this project/);
 });

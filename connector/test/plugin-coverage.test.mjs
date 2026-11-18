@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_NAME, CONNECTOR_TOOL_PREFIX, toolsUsedBy } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_NAME, CONNECTOR_TOOL_PREFIX, INLINED_COMMANDS, toolsUsedBy } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { COMMANDS as CATALOG, COMMAND_NAMES, argumentHint, helpLines } from '../src/commands.mjs';
 import { connect } from './helpers/mcp.mjs';
@@ -126,7 +126,10 @@ test('commands: the spec list exists, each has a description and an argument-hin
     assert.ok((fm.get('description') ?? '').length > 10, `${c}: frontmatter needs a description`);
     if (CATALOG.find((x) => x.name === c).args.length) assert.ok(fm.has('argument-hint'), `${c}: frontmatter needs an argument-hint`);
     for (const k of fm.keys()) assert.ok(['description', 'argument-hint', 'allowed-tools', 'model'].includes(k), `${c}: undocumented frontmatter field ${k}`);
-    assert.ok(body.trim().split('\n').length < (c === 'help' ? 45 : 40), `${c}: body must stay under 40 lines (the skill is the single source)`);
+    // Track AM-10132: setup, next and new-project carry their whole procedure (generated from the skill, which stays the single source), because
+    // a command that makes the model read a file in the plugin's install folder prompts interactively and is denied headless. They are exempt
+    // from the line limit and only from it; inlined-commands.test.mjs holds what they must contain.
+    if (!INLINED_COMMANDS.includes(c)) assert.ok(body.trim().split('\n').length < (c === 'help' ? 45 : 40), `${c}: body must stay under 40 lines (the skill is the single source)`);
     if (CATALOG.find((x) => x.name === c).args.length) assert.ok(body.includes('$ARGUMENTS'), `${c}: must use $ARGUMENTS`);
   }
 });

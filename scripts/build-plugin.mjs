@@ -49,6 +49,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, argumentHint, helpLines } from '../connector/src/commands.mjs';
+import { INLINED_COMMANDS, inlineBody } from './plugin-inline.mjs';
 import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
   DISPLAY, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
@@ -191,13 +192,20 @@ function yamlValue(v) {
   return /^[\[{*&!|>'"%@`#-]|: | #/.test(v) ? JSON.stringify(v) : v;
 }
 
-/** The base's command file for one catalog entry. Deterministic. */
-export function renderBaseCommand(cmd) {
+export { INLINED_COMMANDS };
+
+/**
+ * The base's command file for one catalog entry. Deterministic. `readSkill` (the shipped text of a skill file, by path inside the skill)
+ * makes the front-door commands (INLINED_COMMANDS, track AM-10132) carry their whole procedure instead of pointing at a skill file.
+ */
+export function renderBaseCommand(cmd, readSkill = null) {
   const hint = argumentHint(cmd);
   const front = ['---', `description: ${yamlValue(cmd.description)}`, ...(hint ? [`argument-hint: ${yamlValue(hint)}`] : []), '---'];
   const procedure = BASE_PROCEDURES[cmd.name] ?? cmd.procedure;
   let body;
-  if (cmd.render === 'help') {
+  if (readSkill && INLINED_COMMANDS.includes(cmd.name)) {
+    body = inlineBody(cmd.name, readSkill);
+  } else if (cmd.render === 'help') {
     body = `Show me this list as it is; run nothing else.\n\n${helpLines('LaneConductor commands. Say one in your own words, or use it as a slash command.').join('\n')}\n${BASE_HELP_FOOTER}`;
   } else if (cmd.args.length <= 1) {
     body = procedure.replace(/\{\{\w+\}\}/g, '`$ARGUMENTS`');
@@ -206,7 +214,8 @@ export function renderBaseCommand(cmd) {
     const names = cmd.args.map((a) => a.hint ?? a.name).join(', then ');
     body = `Arguments: \`$ARGUMENTS\` (${names}).\n\n${procedure.replace(/\{\{(\w+)\}\}/g, '<$1>')}`;
   }
-  const parts = [body, ...(BASE_EXTRAS[cmd.name] ?? []), ...(connectorLine(cmd) ? [connectorLine(cmd)] : [])];
+  const line = connectorLine(readSkill && INLINED_COMMANDS.includes(cmd.name) ? { ...cmd, procedure: `${cmd.procedure ?? ''}\n${[...body.matchAll(new RegExp(`${CONNECTOR_TOOL_PREFIX}(\\w+)`, 'g'))].map((m) => `\`${m[1]}\``).join(' ')}` } : cmd);
+  const parts = [body, ...(BASE_EXTRAS[cmd.name] ?? []), ...(line ? [line] : [])];
   return `${front.join('\n')}\n${parts.join('\n\n')}\n`;
 }
 
@@ -281,7 +290,8 @@ function buildBase(repo) {
     f.content = Buffer.from(text);
   }
   c.add('skills/laneconductor/ADD-ONS.md', ADD_ONS_MD);
-  for (const cmd of COMMANDS) c.add(`commands/${cmd.name}.md`, renderBaseCommand(cmd));
+  const readSkill = (r) => c.files.get(`skills/laneconductor/${r}`).content.toString('utf8');
+  for (const cmd of COMMANDS) c.add(`commands/${cmd.name}.md`, renderBaseCommand(cmd, readSkill));
   addExtras(c, repo, AGENTS.base, baseAgent);
   commonFiles(c, repo, 'base', pkg);
   return c;
