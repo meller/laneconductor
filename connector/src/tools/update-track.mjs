@@ -3,7 +3,7 @@ import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
 import { STATUSES, markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
 import { resolveTrack } from '../tracks.mjs';
-import { suggestFor } from '../vocabulary.mjs';
+import { nearestLane, suggestFor } from '../vocabulary.mjs';
 import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, readWorkflow, resolveOutcome, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
 
 const MAX_FILE_CHARS = 200_000;
@@ -45,6 +45,12 @@ export const updateTrack = {
       if ('Summary' in markerEdits) throw fail('VALIDATION_FAILED', 'Give the summary either as `summary` or as markers.Summary, not both');
       markerEdits['Summary'] = args.summary;
     }
+    if ('Verdict' in markerEdits && markerEdits['Verdict'] !== null) {
+      // Track AM-10137: the daemon only ever read `pass` or `fail`; anything else is an unroutable verdict, so it is refused on write.
+      const v = String(markerEdits['Verdict']).trim().toLowerCase();
+      if (v !== 'pass' && v !== 'fail') throw fail('VALIDATION_FAILED', `Verdict must be pass or fail (got ${JSON.stringify(markerEdits['Verdict'])})`, { hint: 'Set Verdict to pass or fail, or to null to clear it. Put findings in conversation.md.' });
+      markerEdits['Verdict'] = v;
+    }
     if (files.conversation !== undefined) throw fail('VALIDATION_FAILED', 'conversation.md cannot be replaced', { hint: 'Use append_conversation; it is append-only and formats the entry for you.' });
     const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined);
     let markerNames = Object.keys(markerEdits);
@@ -78,6 +84,7 @@ export const updateTrack = {
       // refusal (the caller's picture of the lane is wrong, so "no move from here" may not even be true).
       let transition = null;
       let refusal = null;
+      const derived = new Set(); // markers the outcome adds or clears by itself: not the caller's picture, so not a conflict
       if (args.outcome !== undefined) {
         if (!curOf('index')) throw fail('TRACK_NOT_FOUND', `${folder} has no index.md to move`);
         const wf = await readWorkflow(tx);
@@ -90,11 +97,24 @@ export const updateTrack = {
         } else {
           transition = { outcome: args.outcome, from: r.lane, to: `${r.next.lane}:${r.next.status}` };
           markerEdits = { ...markerEdits, Lane: r.next.lane, 'Lane Status': r.next.status };
+          // Track AM-10137: the review and quality-gate lanes produce a verdict, and the outcome IS that verdict (an explicit Verdict wins).
+          if (nearestLane(r.lane, ['review', 'quality-gate']) && !('Verdict' in markerEdits)) {
+            markerEdits['Verdict'] = args.outcome === 'success' ? 'pass' : 'fail';
+            transition.verdict = markerEdits['Verdict'];
+            derived.add('Verdict');
+          }
+          // Resuming a parked track: the parking markers only mean something while Lane Status is waiting.
+          if (r.next.status !== 'waiting') {
+            const parked = ['Waiting Reason', 'Waiting On Tracks'].filter((n) => n in curMarkers && !(n in markerEdits));
+            for (const n of parked) { markerEdits[n] = null; derived.add(n); }
+            if (parked.length) transition.cleared = parked;
+          }
           markerNames = Object.keys(markerEdits);
         }
         if (refusal) markerNames = [...new Set([...markerNames, 'Lane', 'Lane Status'])];
       }
       for (const name of markerNames) {
+        if (derived.has(name)) continue;
         const b = base.markers[name];
         const c = curMarkers[name];
         if (b !== c) conflicts.push({ marker: name, base: b ?? null, current: c ?? null });

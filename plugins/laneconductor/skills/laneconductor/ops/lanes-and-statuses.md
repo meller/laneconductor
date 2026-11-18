@@ -40,10 +40,12 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | `lane` alone, naming a **different** lane (`review`) | that lane with status `queue` |
 | `lane` alone, naming the **same** lane the action ran in | `success` for `on_success`, `failure` for `on_failure` |
 | a bare `done` from another lane | `done:queue`, never `done:success` |
-| `null` or missing | no automatic move: the lane's own action or a human decides |
+| `null` | no automatic move: the lane's own action or a human decides |
+| missing from the lane | the file's top-level `defaults.on_success` / `defaults.on_failure`, read the same way; no automatic move when the file has none (an explicit `null` never falls back) |
+| `stay` or `stop` | no automatic move. Older files carry these words; they are read, never written, so do not put them in a file |
 
 An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. These fields are leftovers of the older format and
-are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `defaults`, `primary_model`, `hooks`.
+are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `primary_model`, `hooks`.
 
 Worked examples. This project's own file (current format):
 

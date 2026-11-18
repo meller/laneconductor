@@ -199,3 +199,70 @@ test('update_track input schema: outcome is an optional enum success | failure; 
   const r = await s.call('update_track', { track: number, base, outcome: 'maybe' });
   assert.equal(r.isError, true);
 });
+
+// ---- Track AM-10137: Verdict, parking markers, defaults ----
+
+const markersOf = async (s, number) => (await s.call('get_track', { track: number })).env.data.track.markers;
+
+test('AM-10137 TC-4: outcome in review and quality-gate writes Verdict (pass on success, fail on failure); other lanes leave it alone', async () => {
+  const { s } = await open();
+  const r = await trackIn(s, 'review');
+  const pass = await s.call('update_track', { track: r.number, base: r.base, outcome: 'success' });
+  assert.equal(pass.isError, false, pass.text);
+  assert.equal(pass.env.data.transition.verdict, 'pass');
+  let m = await markersOf(s, r.number);
+  assert.equal(m['Verdict'], 'pass');
+  assert.equal(m['Lane'], 'quality-gate');
+  const q = await trackIn(s, 'quality-gate');
+  const fail = await s.call('update_track', { track: q.number, base: q.base, outcome: 'failure' });
+  assert.equal(fail.isError, false, fail.text);
+  m = await markersOf(s, q.number);
+  assert.equal(m['Verdict'], 'fail');
+  const w = await trackIn(s, 'in-progress');
+  const done = await s.call('update_track', { track: w.number, base: w.base, outcome: 'success' });
+  assert.equal(done.isError, false, done.text);
+  assert.ok(!('Verdict' in (await markersOf(s, w.number))), 'implement produces no verdict');
+});
+
+test('AM-10137 TC-4: an explicit Verdict with an outcome wins over the derived one', async () => {
+  const { s } = await open();
+  const r = await trackIn(s, 'review');
+  const res = await s.call('update_track', { track: r.number, base: r.base, outcome: 'success', markers: { Verdict: 'FAIL' } });
+  assert.equal(res.isError, false, res.text);
+  assert.equal((await markersOf(s, r.number))['Verdict'], 'fail', 'normalised to lower case');
+});
+
+test('AM-10137 TC-5: Verdict other than pass or fail is refused; null clears it', async () => {
+  const { s } = await open();
+  const r = await trackIn(s, 'review');
+  const bad = await s.call('update_track', { track: r.number, base: r.base, markers: { Verdict: 'maybe' } });
+  assert.equal(bad.isError, true);
+  assert.equal(bad.env.error.code, 'VALIDATION_FAILED');
+  assert.match(bad.env.error.message, /pass or fail/);
+  const set = await s.call('update_track', { track: r.number, base: r.base, markers: { Verdict: 'pass' } });
+  assert.equal(set.isError, false, set.text);
+  const clear = await s.call('update_track', { track: r.number, base: set.env.data.base, markers: { Verdict: null } });
+  assert.equal(clear.isError, false, clear.text);
+  assert.ok(!('Verdict' in (await markersOf(s, r.number))));
+});
+
+test('AM-10137 TC-6: outcome clears Waiting Reason and Waiting On Tracks; a base that never saw them is not a conflict', async () => {
+  const { s } = await open();
+  const r = await trackIn(s, 'in-progress', 'waiting');
+  const parked = await s.call('update_track', { track: r.number, base: r.base, markers: { 'Waiting Reason': 'AM-1 not merged', 'Waiting On Tracks': '1' } });
+  assert.equal(parked.isError, false, parked.text);
+  const res = await s.call('update_track', { track: r.number, base: r.base, outcome: 'success' });
+  assert.equal(res.isError, false, res.text);
+  assert.deepEqual(res.env.data.transition.cleared.sort(), ['Waiting On Tracks', 'Waiting Reason']);
+  const m = await markersOf(s, r.number);
+  assert.ok(!('Waiting Reason' in m) && !('Waiting On Tracks' in m));
+  assert.equal(m['Lane'], 'review');
+});
+
+test('AM-10137 TC-7: the bundled review and quality-gate guides carry the clear-at-claim line and say the outcome writes Verdict', () => {
+  for (const g of ['review', 'quality-gate']) {
+    const text = fs.readFileSync(path.join(HERE, '..', 'guides', `${g}.md`), 'utf8');
+    assert.match(text, /clear any `Verdict` marker/, `${g}: clear at claim`);
+    assert.match(text, /outcome also writes `Verdict`/, `${g}: the outcome writes it`);
+  }
+});

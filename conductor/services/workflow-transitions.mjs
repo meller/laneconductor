@@ -8,7 +8,11 @@
 //   `lane`         bare. A bare target naming a DIFFERENT lane defaults to status `queue`; a bare target naming the SAME lane
 //                  defaults to `success` (on_success) or `failure` (on_failure). A bare `done` from another lane is therefore
 //                  `done:queue` (passed the gate, not shipped), never `done:success`;
-//   null / absent  no automatic move (the lane's own action or a human decides).
+//   null           no automatic move (the lane's own action or a human decides);
+//   absent         the lane leaves the field out: the workflow's top-level `defaults.on_success` / `defaults.on_failure` apply when it has
+//                  them (track AM-10137), otherwise no automatic move. An explicit `null` is a decision and never falls back.
+// `stay` and `stop` are words of old workflow.json files for "no target". They are read, never written or documented: they resolve to
+// no automatic move, and nothing in the plugin offers them (track AM-10137).
 // An unknown current lane is an explicit error, never a guess. Names are compared ignoring case and surrounding spaces.
 //
 // A project's own lane names (otralingo: planning, in-progress) resolve through the caller's `mapLane(name) -> project lane | null`
@@ -17,6 +21,9 @@
 export const OUTCOMES = ['success', 'failure'];
 
 const norm = (s) => String(s ?? '').trim().toLowerCase();
+
+/** Old workflow files say `stay` or `stop` for "no target"; read only, see the grammar above. */
+const LEGACY_NO_TARGET = new Set(['stay', 'stop']);
 
 function checkOutcome(outcome) {
   if (!OUTCOMES.includes(outcome)) throw new TypeError(`outcome must be one of ${OUTCOMES.join(', ')} (got ${JSON.stringify(outcome)})`);
@@ -28,7 +35,7 @@ function checkOutcome(outcome) {
  */
 export function resolveTarget(value, currentLane, outcome) {
   checkOutcome(outcome);
-  if (typeof value !== 'string' || value.trim() === '') return null;
+  if (typeof value !== 'string' || value.trim() === '' || LEGACY_NO_TARGET.has(norm(value))) return null;
   const at = value.indexOf(':');
   const lane = (at === -1 ? value : value.slice(0, at)).trim() || String(currentLane ?? '').trim();
   const status = at === -1 ? '' : value.slice(at + 1).trim();
@@ -43,7 +50,7 @@ export function resolveTarget(value, currentLane, outcome) {
  * @param {string} currentLane the track's **Lane** (the project's own name, or a guide name when `mapLane` is given)
  * @param {'success'|'failure'} outcome
  * @param {{ mapLane?: (name: string) => string | null }} [opts]
- * @returns {{ ok: true, lane: string, outcome: string, value: string|null, next: { lane: string, status: string } | null, reason: string | null }
+ * @returns {{ ok: true, lane: string, outcome: string, value: string|null, source: 'lane'|'defaults'|null, next: { lane: string, status: string } | null, reason: string | null }
  *   | { ok: false, code: 'UNKNOWN_LANE', message: string, lanes: string[] }}
  */
 export function resolveNext(workflow, currentLane, outcome, opts = {}) {
@@ -67,10 +74,15 @@ export function resolveNext(workflow, currentLane, outcome, opts = {}) {
     };
   }
   const field = outcome === 'success' ? 'on_success' : 'on_failure';
-  const raw = lanes[key]?.[field];
+  const laneRaw = lanes[key]?.[field];
+  // A lane that leaves the field out inherits the workflow's `defaults`; an explicit null (or empty text) does not.
+  const inherits = laneRaw === undefined;
+  const defaultRaw = inherits && workflow.defaults && typeof workflow.defaults === 'object' ? workflow.defaults[field] : undefined;
+  const raw = inherits ? defaultRaw : laneRaw;
   const value = typeof raw === 'string' && raw.trim() !== '' ? raw : null;
   const next = resolveTarget(value, key, outcome);
-  return { ok: true, lane: key, outcome, value, next, reason: next ? null : `${key} has no ${field}: there is no automatic move` };
+  const source = value === null ? null : inherits ? 'defaults' : 'lane';
+  return { ok: true, lane: key, outcome, value, source, next, reason: next ? null : `${key} has no ${field}: there is no automatic move` };
 }
 
 /**

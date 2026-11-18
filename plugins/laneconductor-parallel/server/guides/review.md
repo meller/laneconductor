@@ -3,9 +3,10 @@
 Goal of the lane: judge the implementation against spec.md and test.md. Evaluate; do not fix.
 
 What has worked:
+0. When you claim the track, clear any `Verdict` marker first (update_track with `markers: {Verdict: null}`, together with `Lane Status: running`), so a run that is cut short never leaves a stale pass or fail behind.
 1. Re-run the commands in test.md yourself and read the real output; do not trust a ticked box.
 2. Check each requirement and acceptance criterion against the code and the diff, and look for what the plan did not mention (error paths, data loss, leaked processes).
-3. Record the verdict (`Verdict`: pass or fail) with update_track, together with `outcome: "success"` or `"failure"` so the workflow moves the track (get_track shows the target as `valid.next`), and the findings, each with a file and a reason, in conversation.md via append_conversation.
+3. Pass `outcome: "success"` or `"failure"` to update_track so the workflow moves the track (get_track shows the target as `valid.next`); the outcome also writes `Verdict` (`pass` or `fail`; only those two are accepted). Put the findings, each with a file and a reason, in conversation.md via append_conversation.
 4. On fail, the findings should be specific enough that the implement lane can act on them without asking.
 
 Why: a review that fixes things hides what was wrong; one that only restates the diff adds nothing.
