@@ -188,11 +188,14 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   project_docs (only when there is a project definition to read): the Project drawer's tabs, [k key, t title, f 'ctx/<key>.json'];
  *           the files are separate, like the track documents; `board.include_docs: false` leaves this out
  *   wf (only with project_docs and a workflow.json with lanes): { lanes: [{ name, success, failure, note }] } for the Workflow tab, see `workflowFlow`
+ *   next (only when the next step could be worked out): the What's next panel, { s state id, head, cmd (the exact command, or null when there is nothing to run),
+ *           what, why, n track number or null, others [{ n, cmd, w }] (at most 5, ranked), primer [six bullets] }; see src/next.mjs `nextCard`.
+ *           Titles and commands only, never document text; it stays when `board.include_docs` is false
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
  * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null } = {}) {
+export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
@@ -212,6 +215,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
     ...(board.epics?.length ? { epics: board.epics.map((e) => ({ n: e.number, p: prefixOf(e.folder), t: e.title ?? '', d: e.done, c: e.children.map((c) => ({ i: c.id, t: c.title ?? '', l: c.lane, s: c.lane_status, g: c.progress || 0 })) })) } : {}),
     ...(projectDocs.length ? { project_docs: projectDocs.map(({ k, t, f }) => ({ k, t, f })) } : {}),
     ...(projectDocs.length && wf ? { wf } : {}),
+    ...(next ? { next } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
 }

@@ -4,7 +4,9 @@
 // Default: JSON on STDOUT and nothing is written into the repo (a board is a snapshot, not a
 // committed file). --out writes the file. --check <file> exits 1 when the file's data differs from
 // a fresh build (generated_at is ignored). Reads only conductor/workflow.json, the optional .laneconductor.json
-// (project.name, board.include_docs, board.include_conversation) and each track's index.md; with --site also the project definition
+// (project.name, board.include_docs, board.include_conversation) and each track's index.md; with --site also, for the What's next panel only,
+// plan.md, test.md and conversation.md of the tracks still to do (reduced to yes or no: stub plan, stub test, last comment is the human's;
+// no text of them is copied) and read-only git (branches and commit times); and the project definition
 // files of conductor/ (product.md, tech-stack.md, workflow.md, quality-gate.md, kpis.md, the guidelines, user-stories.md,
 // deployment-stack.md). It never publishes .laneconductor.json.
 // --site <dir> writes the two files a board artifact is published from: board.html (the static page,
@@ -23,6 +25,7 @@ import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES
 import { blobSha } from '../src/blob.mjs';
 import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
+import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
 
@@ -107,7 +110,14 @@ if (siteDir) {
     const base = remote.status === 0 ? githubBase(remote.stdout) : null;
     if (base) { const branch = resolveStateBranch(repo).branch; ghUrl = (folder) => githubFolderUrl(base, branch, folder); }
   }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow }))}\n`, 'utf8');
+  // The What's next panel: the same ranking as the `next` command (src/next.mjs), computed now, at the board's read time. Read only. It holds
+  // titles and commands, never document text, so it stays when include_docs is false. A failure leaves the panel out; it never stops the board.
+  let next = null;
+  try {
+    const facts = await gatherFacts(repo, { now: Date.parse(now) });
+    next = nextCard(classifyFacts(facts), facts);
+  } catch (e) { process.stderr.write(`board: the next step could not be worked out (${String(e?.message ?? e).split('\n')[0].slice(0, 120)}); the panel is left out\n`); }
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next }))}\n`, 'utf8');
   process.stdout.write(argv.includes('--json') ? `${JSON.stringify({ page, root: dir, files })}\n` : `${page}\n${data}\n`);
 } else if (checkFile) {
   const text = await readText(path.resolve(checkFile));
