@@ -20,3 +20,4 @@ Rules for the page: every claim about another product is sourced and dated; no n
 
 Where it lives: a docs page (`docs/why-laneconductor.md`) linked from the README, and a short section on the landing page (coordinate with tracks 10114 and 10112). Depends on 10114 (docs rewrite) so the claims match.
 **Summary**: People will ask why they would use LaneConductor when their tracker already has a Claude connector or plugin. We need one honest, sourced "why use it and when not to" page (docs and landing) that comp
+**Priority**: high
