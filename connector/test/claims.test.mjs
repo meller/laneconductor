@@ -33,6 +33,9 @@ test('claimStamps: stamps on a claim, none on a re-claim, removes on release, re
   assert.deepEqual(claimStamps({ ...queued, 'Lane Status': 'running', 'Run Started': 'x', 'Run By': 'y' }, { 'Lane Status': 'queue' }, o), { 'Run Started': null, 'Run By': null });
   assert.equal(claimStamps(queued, { 'Lane Status': 'success' }, o), null, 'nothing to remove');
   assert.equal(claimStamps(queued, { Progress: '1%' }, o), null);
+  assert.ok(claimStamps({ ...queued, 'Lane Status': 'running', 'Run Started': 'x', 'Run By': 'y' }, { Lane: 'review' }, o), 'a Lane-only move while running is a new claim');
+  assert.equal(claimStamps({ ...queued, 'Lane Status': 'running' }, { Lane: 'plan' }, o), null, 'the same lane is not a move');
+  assert.equal(claimStamps(queued, { Lane: 'review' }, o), null, 'a Lane-only move while not running stamps nothing');
   assert.deepEqual(claimStamps(queued, { 'Lane Status': 'running', 'Run By': 'me' }, o), { 'Run Started': '2026-01-02T03:04:05.000Z' });
 });
 
@@ -105,4 +108,49 @@ test('a human comment that arrived after the caller read conversation.md warns w
   const progress = await s.call('update_track', { track: '4', base: old, markers: { Progress: '9%' } });
   assert.equal(progress.env.warnings?.some((x) => x.startsWith('human_comment_mid_run')) ?? false, false);
   assert.match(readFile(dir, T(4, 'conversation.md')), /stop, change of plan/);
+});
+
+test('a 44-character client name is capped in Run By, and the stale warning still fits 200 characters with its final period', async () => {
+  const dir = makeRepo();
+  cleanup.push(dir);
+  writeFile(dir, T(5), INDEX(5, 'Five', { lane: 'implement', status: 'queue' }));
+  commitAll(dir, 'fixture');
+  const s = await connect(dir, { clientName: 'a-very-long-client-name-of-forty-four-charss' });
+  sessions.push(s);
+  assert.equal('a-very-long-client-name-of-forty-four-charss'.length, 44);
+  const g = (await s.call('get_track', { track: '5' })).env.data.base;
+  const claim = await s.call('update_track', { track: '5', base: g, markers: { 'Lane Status': 'running' } });
+  assert.equal(claim.isError, false, claim.text);
+  const by = readFile(dir, T(5)).match(/^\*\*Run By\*\*: (.+)$/m)[1];
+  assert.match(by, /^.{23}… c_[0-9a-f]+$/, by);
+  // age the claim far past the limit (5 digits of hours), keep the stamped Run By
+  writeFile(dir, T(5), readFile(dir, T(5)).replace(/^\*\*Run Started\*\*: .+$/m, '**Run Started**: 1990-01-01T00:00:00.000Z'));
+  commitAll(dir, 'aged');
+  const w = (await s.call('get_track', { track: '5' })).env.warnings.find((x) => x.startsWith('stale_running'));
+  assert.ok(w.length <= 200 && w.endsWith('.'), `${w.length}: ${w}`);
+  assert.match(w, /by a-very-long-client-name… c_/);
+  // a hand-written, much longer Run By is bounded in the warning too
+  writeFile(dir, T(5), readFile(dir, T(5)).replace(/^\*\*Run By\*\*: .+$/m, `**Run By**: ${'x'.repeat(300)}`));
+  commitAll(dir, 'long by');
+  const w2 = (await s.call('get_track', { track: '5' })).env.warnings.find((x) => x.startsWith('stale_running'));
+  assert.ok(w2.length <= 200 && w2.endsWith('.'), `${w2.length}: ${w2}`);
+});
+
+test('a Lane-only move while running re-stamps the claim; replacing index.md with a non-running status drops the stamps', async () => {
+  const { dir, s } = await open((d) => writeFile(d, T(6), INDEX(6, 'Six', { lane: 'implement', status: 'running', extra: '**Run Started**: 2020-01-01T00:00:00.000Z\n**Run By**: ghost c_0\n' })));
+  const g = await s.call('get_track', { track: '6' });
+  const mv = await s.call('update_track', { track: '6', base: g.env.data.base, markers: { Lane: 'review' } });
+  assert.equal(mv.isError, false, mv.text);
+  const idx = readFile(dir, T(6));
+  assert.doesNotMatch(idx, /2020-01-01/, 'the old claim time is replaced');
+  assert.match(idx, /^\*\*Run By\*\*: connector-test c_/m);
+  assert.equal(mv.env.warnings.some((x) => x.startsWith('stale_running')), false);
+  // whole-file replacement that leaves the claim behind a non-running status
+  const g2 = await s.call('get_track', { track: '6' });
+  const text = readFile(dir, T(6)).replace('**Lane Status**: running', '**Lane Status**: queue');
+  assert.match(text, /Run Started/);
+  const rep = await s.call('update_track', { track: '6', base: g2.env.data.base, files: { index: text } });
+  assert.equal(rep.isError, false, rep.text);
+  assert.doesNotMatch(readFile(dir, T(6)), /Run Started|Run By/);
+  assert.equal('Run Started' in rep.env.data.base.markers, false);
 });

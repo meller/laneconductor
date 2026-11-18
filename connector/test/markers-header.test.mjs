@@ -30,8 +30,21 @@ test('a repeated header does not fold into the marker above it; the first one wi
   assert.equal(p.values['Progress'], '40%', 'the swallowed value is gone: Progress is just 40%');
   assert.deepEqual(damagedHeaders(DUP), [{ name: 'Lane', line: 6 }, { name: 'Lane Status', line: 7 }]);
   assert.deepEqual(validateIndex(DUP, LANES), [], 'a track with a repeated header is valid and editable');
-  assert.match(headerDamagedWarning(DUP), /^header_damaged: .*\*\*Lane\*\* \(line 6\).*repair_index/);
+  assert.match(headerDamagedWarning(DUP), /^header_damaged: repeats Lane \(l\.6\).*repair_index/);
   assert.equal(headerDamagedWarning(SAMPLE_OK), null);
+});
+
+test('the header_damaged warning fits the 200 character bound with its final period for up to 4 repeats and long names', () => {
+  for (const names of [['Lane', 'Lane Status'], ['Waiting On Tracks', 'Waiting Reason', 'Lane Status', 'Run Started'], ['Waiting On Tracks', 'Waiting Reason', 'Lane Status', 'Run Started', 'Progress', 'Phase']]) {
+    const lines = ['# T', '', ...names.map((n) => `**${n}**: a`), ...names.map((n, i) => `**${n}**: b${i}`), ''];
+    const w = headerDamagedWarning(lines.join('\n'));
+    assert.ok(w.length <= 200, `${w.length}: ${w}`);
+    assert.ok(w.endsWith('.'), w);
+    assert.ok(w.includes(names[0]), w);
+  }
+  const forty = 'A'.repeat(40);
+  const w = headerDamagedWarning(`**${forty}**: 1\n**${forty}**: 2\n`);
+  assert.ok(w.length <= 200 && w.endsWith('.'), w);
 });
 
 const SAMPLE_OK = '# Track AM-1: t\n\n**Lane**: plan\n**Lane Status**: queue\n';
