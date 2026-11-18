@@ -119,7 +119,7 @@ test('coverage.json is honest: reasons present, no stale names, nothing listed t
 
 test('commands: the spec list exists, each has a description and an argument-hint, and a short body', () => {
   const want = ['plan', 'brainstorm', 'implement', 'review', 'quality-gate', 'merge', 'run', 'new', 'bug', 'feature', 'status',
-    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board'];
+    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board', 'repair-duplicates'];
   assert.deepEqual(want.filter((c) => !COMMANDS.includes(c)), []);
   for (const c of COMMANDS) {
     const { fm, body } = parse(read(`commands/${c}.md`));

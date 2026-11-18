@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
-import { STATUSES, markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
+import { STATUSES, headerDamagedWarning, markerFingerprint, parseMarkers, removeMarker, repairIndex, setMarker, validateIndex } from '../markers.mjs';
+import { claimStamps, humanCommentSince } from '../claims.mjs';
+import { parseEntries } from '../conversation.mjs';
 import { resolveTrack } from '../tracks.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
 import { rowOf } from '../summary.mjs';
@@ -25,9 +27,11 @@ const input = z.object({
     index: z.string().optional(), spec: z.string().optional(), plan: z.string().optional(), test: z.string().optional(),
     conversation: z.string().optional().describe('Not writable here; use append_conversation.'),
   }).optional().describe('Whole-file replacements (index, spec, plan, test).'),
-  markers: z.record(z.string(), z.string().nullable()).optional().describe('Set (string) or remove (null) individual **Name**: value lines in index.md, e.g. {"Lane Status": "success", "Progress": "40%"}. Cannot be combined with files.index.'),
+  markers: z.record(z.string(), z.string().nullable()).optional().describe('Set (string) or remove (null) individual **Name**: value lines in index.md, e.g. {"Lane Status": "success", "Progress": "40%"}.'),
   summary: z.string().optional().describe('Shorthand for setting the **Summary** marker.'),
   outcome: z.enum(['success', 'failure']).optional().describe('Finished lane action: apply the workflow move (valid.next).'),
+  repair_index: z.boolean().optional(),
+  reopen: z.boolean().optional(),
 });
 
 /** Track AM-10136: advice about parking and claiming, as warnings (never a refusal: a person may have a reason). */
@@ -76,11 +80,14 @@ export const updateTrack = {
       markerEdits['Verdict'] = v;
     }
     if (files.conversation !== undefined) throw fail('VALIDATION_FAILED', 'conversation.md cannot be replaced', { hint: 'Use append_conversation; it is append-only and formats the entry for you.' });
-    const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined);
+    // repair_index (Track AM-10139) rewrites index.md whole, so it is checked like a files.index replacement.
+    const repair = args.repair_index === true;
+    if (repair && (files.index !== undefined || Object.keys(markerEdits).length || args.outcome !== undefined)) throw fail('VALIDATION_FAILED', 'repair_index stands alone: it cannot be combined with files.index, markers, summary or outcome', { hint: 'Repair first, then make the edit with the base this call returns.' });
+    const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined || (repair && n === 'index'));
     let markerNames = Object.keys(markerEdits);
     if (fileNames.length === 0 && markerNames.length === 0 && args.outcome === undefined) throw fail('VALIDATION_FAILED', 'Nothing to update', { hint: 'Pass files and/or markers.' });
     if (files.index !== undefined && markerNames.length) throw fail('VALIDATION_FAILED', 'files.index and markers cannot be combined', { hint: 'Either replace index.md whole, or set individual markers.' });
-    for (const n of fileNames) if (files[n].length > MAX_FILE_CHARS) throw fail('VALIDATION_FAILED', `${n}.md is ${files[n].length} characters; the limit is ${MAX_FILE_CHARS}`);
+    for (const n of fileNames) if (files[n] !== undefined && files[n].length > MAX_FILE_CHARS) throw fail('VALIDATION_FAILED', `${n}.md is ${files[n].length} characters; the limit is ${MAX_FILE_CHARS}`);
 
     const advisories = [];
     const res = await store.transaction(async (tx) => {
@@ -144,7 +151,9 @@ export const updateTrack = {
           markerNames = Object.keys(markerEdits);
         }
       }
-      for (const name of markerNames) {
+      // Track AM-10140: Lane Status only means something on the lane the caller saw, so Lane is compared whenever Lane Status is set.
+      const compared = markerNames.includes('Lane Status') && !markerNames.includes('Lane') ? [...markerNames, 'Lane'] : markerNames;
+      for (const name of compared) {
         if (derived.has(name)) continue;
         const b = base.markers[name];
         const c = curMarkers[name];
@@ -153,13 +162,23 @@ export const updateTrack = {
       if (conflicts.length) {
         throw fail('CONFLICT', `${conflicts.length} item${conflicts.length === 1 ? '' : 's'} changed since your base: ${conflicts.map((c) => c.file ?? `marker ${c.marker}`).join(', ')}`, {
           details: conflicts,
-          hint: 'Someone else edited first. Re-read with get_track, merge their change with yours, and retry with the new base. The earlier edit is untouched.',
+          hint: 'Someone else edited first. Re-read with get_track, merge their change with yours, and retry with the new base. The earlier edit is untouched. `base` here is the current head and markers (no files): retrying with the same old base fails again.',
+          base: { commit: (await tx.head()).commit, files: {}, markers: curMarkers },
         });
       }
       if (refusal) throw refusal;
+      // Track AM-10141: the claim stamp (Run Started, Run By) rides along with a Lane Status change; it is not part of the caller's base.
+      if (files.index === undefined && !repair && markerNames.includes('Lane Status')) {
+        const stamps = claimStamps(parseMarkers(indexNow).values, markerEdits, { now: ctx.now(), who: `${ctx.surface()} ${ctx.session}` });
+        if (stamps) { markerEdits = { ...markerEdits, ...stamps }; markerNames = Object.keys(markerEdits); }
+      }
+      // A human comment that arrived after the caller read conversation.md, while the lane or its status changes.
+      const convNow = curOf('conversation');
+      const humanMidRun = (markerNames.includes('Lane') || markerNames.includes('Lane Status')) && 'conversation' in base.files
+        && humanCommentSince(base.files.conversation, convNow ? convNow.sha : null, convNow ? parseEntries(convNow.content) : []);
       // compose
       const next = {};
-      for (const n of fileNames) next[n] = files[n];
+      for (const n of fileNames) next[n] = repair && n === 'index' ? repairIndex(indexNow) : files[n];
       if (markerNames.length) {
         if (!curOf('index')) throw fail('TRACK_NOT_FOUND', `${folder} has no index.md to set markers in`);
         let idx = indexNow;
@@ -167,6 +186,12 @@ export const updateTrack = {
         next.index = idx;
       }
       if (next.index !== undefined) {
+        // Track AM-10140: a track in done stays there unless the caller says `reopen`; a valid base alone is not enough.
+        const laneBefore = parseMarkers(indexNow).values['Lane'];
+        const laneAfter = parseMarkers(next.index).values['Lane'];
+        if (laneBefore === 'done' && laneAfter !== 'done' && args.reopen !== true) {
+          throw fail('VALIDATION_FAILED', `Track ${trackIdentity(folder, indexNow).id} is done; moving it to ${laneAfter ?? 'no lane'} needs reopen`, { details: { lane: 'done', to: laneAfter ?? null }, hint: 'Ask the human: reopening a done track is their call. On their yes, repeat the call with `reopen: true`.' });
+        }
         const lanes = await workflowLanes(tx);
         const problems = validateIndex(next.index, lanes);
         if (problems.length) {
@@ -182,7 +207,7 @@ export const updateTrack = {
       if (next.index !== undefined) advisories.push(...(await parkingAdvice(tx, folder, indexNow, next.index, 'Lane Status' in markerEdits)));
       const changed = Object.keys(next).filter((n) => next[n] !== (curOf(n)?.content ?? null));
       const number = trackIdentity(folder, indexNow).number;
-      if (changed.length === 0) return { folder, changed, number, noop: true, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
+      if (changed.length === 0) return { folder, changed, number, noop: true, humanMidRun, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
       const changes = changed.map((n) => ({ path: trackPath(folder, n), content: next[n] }));
       const sum = await summaryChange(tx, ctx.now(), new Map(changed.includes('index') ? [[folder, next.index]] : []));
       if (sum) changes.push(sum);
@@ -199,7 +224,7 @@ export const updateTrack = {
           hint: 'Re-read with get_track and retry.',
         });
       }
-      return { folder, changed, number, r, message, next, curOf, transition, summaryWritten: Boolean(sum), indexShaBefore: curOf('index')?.sha ?? null };
+      return { folder, changed, number, r, message, humanMidRun, next, curOf, transition, summaryWritten: Boolean(sum), indexShaBefore: curOf('index')?.sha ?? null };
     });
 
     const head = await store.head();
@@ -224,7 +249,11 @@ export const updateTrack = {
       }
     }
     const warnings = [...advisories];
-    if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
+    if (res.noop && repair) warnings.push('index.md has nothing to repair: no marker is repeated and the names are spelled as written by the tools.');
+    else if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
+    if (res.humanMidRun) warnings.push('human_comment_mid_run: a human comment arrived after you read conversation.md. Read it now; if it changes the plan, move the track back.');
+    const damaged = res.next.index !== undefined ? headerDamagedWarning(res.next.index) : null;
+    if (damaged) warnings.push(damaged);
     if (res.r?.commitError) warnings.push(`Written to disk but NOT committed: ${res.r.commitError}`);
     return {
       data: {

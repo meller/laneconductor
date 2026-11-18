@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
+import { STALE_RUNNING_HOURS, staleRunning } from '../claims.mjs';
+import { damagedHeaders } from '../markers.mjs';
 import { dependencyState, readyToResume } from '../dependencies.mjs';
 import { epicsOf } from '../epics.mjs';
 import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
@@ -14,23 +16,32 @@ const input = z.object({
   limit: z.number().int().min(1).max(200).optional().describe('Maximum tracks returned (default 50, max 200).'),
 });
 
+const shortId = (folder) => folder.match(/^(?:[A-Za-z]+-)?\d+/)?.[0] ?? folder;
+
 export const listTracks = {
   name: 'list_tracks',
   title: 'List tracks',
   description: 'List tracks (newest first) with lane, status, progress and a short summary. Use it to find a track or see what is in flight; done:success tracks are hidden unless include_done.\nExample: "is there a track about CSV" -> list_tracks {query: "csv"}',
   annotations: readOnly,
   input,
-  async run({ store, args }) {
+  async run({ store, ctx, args }) {
     const limit = args.limit ?? 50;
     const entries = await readEntries(store);
     const warnings = [];
     const rows = entries.map((e) => ({ ...rowOf(e.folder, e.index), ...(e.tracked === false ? { untracked: true } : {}) }));
     const drafts = rows.filter((r) => r.untracked).map((r) => r.folder);
     if (drafts.length) warnings.push(`Not committed (not in git yet; left out of conductor/tracks-summary.md): ${drafts.join(', ')}`);
+    const damagedFolders = [];
+    const staleFolders = [];
     for (const r of rows) {
       if (r.source === null) warnings.push(`${r.folder}: no index.md`);
       else if (r.lane === null) warnings.push(`${r.folder}: index.md has no **Lane** marker`);
+      const idx = entries.find((x) => x.folder === r.folder)?.index;
+      if (idx && damagedHeaders(idx.content).length) damagedFolders.push(r.folder);
+      if (idx && staleRunning(idx.content, new Date(ctx.now()).getTime())) staleFolders.push(r.folder);
     }
+    if (damagedFolders.length) warnings.push(`header_damaged in ${damagedFolders.length} track${damagedFolders.length === 1 ? '' : 's'} (a marker is repeated; the first is used): ${damagedFolders.slice(0, 4).map(shortId).join(', ')}${damagedFolders.length > 4 ? ', ...' : ''}. get_track names the lines.`);
+    if (staleFolders.length) warnings.push(`stale_running: ${staleFolders.slice(0, 4).map(shortId).join(', ')}${staleFolders.length > 4 ? ', ...' : ''} running over ${STALE_RUNNING_HOURS}h (Run Started). get_track says how to release.`);
     const byNumber = new Map();
     for (const r of rows) byNumber.set(r.number, [...(byNumber.get(r.number) ?? []), r.folder]);
     for (const [n, folders] of byNumber) if (folders.length > 1) warnings.push(`Duplicate track number ${n}: ${folders.sort().join(', ')}`);

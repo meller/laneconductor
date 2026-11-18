@@ -97,9 +97,9 @@ test('odd and missing markers never throw', () => {
   const by = Object.fromEntries(b.tracks.map((t) => [t.folder, t]));
   assert.equal(by['AM-2-b'].progress, null);
   assert.deepEqual(by['AM-2-b'].depends_on, []);
-  assert.equal(by['AM-3-c'].lane, 'plan', 'a repeated marker folds into the first one (cut at its first line), which the lint flags');
+  assert.equal(by['AM-3-c'].lane, 'plan', 'a repeated marker: the first one wins (Track AM-10139), it does not fold into the value above');
   assert.ok(!/\n/.test(by['AM-3-c'].lane));
-  assert.ok(b.needs_attention.some((n) => n.folder === 'AM-3-c'));
+  assert.ok(!b.needs_attention.some((n) => n.folder === 'AM-3-c'), 'the repeat is not a lint problem; get_track and list_tracks warn header_damaged');
   assert.ok(b.needs_attention.find((n) => n.folder === 'AM-4-d').reasons.some((x) => x.includes('no index.md')));
   assert.ok(b.needs_attention.find((n) => n.folder === 'AM-4-e').reasons.some((x) => x.includes('used by 2 folders')));
 });
@@ -128,14 +128,13 @@ test('privacy: no conversation, spec or plan text, and no Problem or Summary tex
   assert.deepEqual([...keys].sort(), ['archived', 'auto_run', 'depends_on', 'folder', 'lane', 'lane_status', 'merge_mode', 'needs_attention', 'number', 'phase', 'progress', 'source_hash', 'title']);
 });
 
-test('privacy: a marker value that runs into the body (legacy index.md) is cut at its first line, also in the lint reasons', () => {
+test('privacy: a marker value never runs into the body (legacy index.md): Lane Status is one line, a title line ends a value', () => {
   const body = `# Track AM-5: Legacy\n\n**Lane**: done\n**Lane Status**: success\n\n# Notes\n${SENTINEL} body\n`;
   const b = buildBoard([{ folder: 'AM-5-legacy', index: { content: body } }], { lanes: LANES, generatedAt: NOW });
   assert.ok(!JSON.stringify(b).includes(SENTINEL), JSON.stringify(b));
   assert.equal(b.tracks[0].lane_status, 'success');
   assert.equal(b.tracks[0].phase, null);
-  assert.equal(b.counts.needs_attention, 1);
-  assert.match(b.needs_attention[0].reasons[0], /^\*\*Lane Status\*\* "success" is not one of:/);
+  assert.equal(b.counts.needs_attention, 0, 'the value is "success", not "success" plus the body (Track AM-10139)');
 });
 
 test('--check passes on a fresh file, fails on a stale or missing one (generated_at is ignored)', () => {

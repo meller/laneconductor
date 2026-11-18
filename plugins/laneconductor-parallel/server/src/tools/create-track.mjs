@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
 import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
-import { buildTrackFiles, defaultInitials, nextNumber, similarTracks, trackNumberOfFolder } from '../tracks.mjs';
+import { buildTrackFiles, defaultInitials, duplicateNumbers, nextNumber, similarTracks, trackNumberOfFolder } from '../tracks.mjs';
 import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
 import { nearestLane } from '../vocabulary.mjs';
@@ -12,7 +12,7 @@ const input = z.object({
   problem: z.string().min(1).describe('The problem or request in plain markdown (no "## " headings and no "**Name**:" lines).'),
   type: z.enum(['dev', 'marketing', 'sales', 'support', 'other']).optional().describe('Track type (default dev).'),
   track_kind: z.enum(['bug', 'feature']).optional().describe('Writes the bug or feature form into spec.md.'),
-  author_initials: z.string().regex(/^[A-Za-z]{1,6}$/).optional().describe('Folder prefix, e.g. AM. Defaults to the most common prefix in this project.'),
+  author_initials: z.string().regex(/^[A-Za-z]{1,6}$/).optional().describe('Folder prefix, e.g. AM (default: the most common here).'),
   auto_run: z.enum(['yes', 'no']).optional().describe('Default no.'),
   merge_mode: z.enum(['direct', 'pr']).optional().describe('Default direct.'),
   depends_on: z.array(z.union([z.string(), z.number()]).transform(String)).optional().describe('Track numbers that must be done first.'),
@@ -34,8 +34,10 @@ export const createTrack = {
         // A project that names its planning lane otherwise (otralingo: `planning`) gets that name, not `plan`.
         const similar = similarTracks((await readEntries(tx)).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
         const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
-        const upstream = await tx.upstreamDirs?.(TRACKS_DIR) ?? [];
+        // Track AM-10143: numbers taken on other branches (local or remote-tracking) count too, so two worktrees do not hand out the same one.
+        const upstream = [...(await tx.upstreamDirs?.(TRACKS_DIR) ?? []), ...(await tx.refDirs?.(TRACKS_DIR) ?? [])];
         const number = nextNumber(dirs, upstream);
+        const duplicates = duplicateNumbers(dirs, upstream).slice(0, 5);
         // Track AM-10136: a dependency on a track that does not exist can never be met, so it is refused instead of parked forever.
         const known = new Set([...dirs, ...upstream].map(trackNumberOfFolder).filter((n) => n !== null).map(String));
         const unknown = dependsOn.filter((d) => !known.has(String(Number(d))));
@@ -50,7 +52,7 @@ export const createTrack = {
         if (sum) changes.push(sum);
         const msg = `chore(track-${number}): create_track ${changes.map((c) => c.path.split('/').pop()).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
         const r = await tx.commitFiles({ preconditions, changes, message: msg });
-        return { r, t, number, msg, lane: initialLane, similar };
+        return { r, t, number, msg, lane: initialLane, similar, duplicates };
       });
       if (!res.r.ok) {
         lastConflict = res.r.conflict;
@@ -60,6 +62,7 @@ export const createTrack = {
       const warnings = [];
       if (res.r.commitError) warnings.push(`Files were written but not committed: ${res.r.commitError}`);
       else if (res.r.ignored?.length) warnings.push(`Not committed (gitignored, decision D5): ${res.r.ignored.map((p) => p.split('/').pop()).join(', ')}.`);
+      if (res.duplicates.length) warnings.push(`Duplicate track numbers: ${res.duplicates.map((d) => `${d.number} (${d.folders.length} folders)`).join(', ')}. Ask the person, then run the repair-duplicates command; it renames the newer folder.`);
       const { similar, strong } = res.similar;
       if (strong) warnings.push(`Similar track${similar.length > 1 ? 's' : ''} already exist${similar.length > 1 ? '' : 's'}: ${similar.map((x) => `${x.id} (${x.lane})`).join(', ')}. If this duplicates one, ask the person "Update track N? [default: yes]" and move the content there.`);
       return {

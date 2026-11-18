@@ -5,6 +5,7 @@
 // Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp.
 import { parseMarkers } from './markers.mjs';
 import { epicsOf } from './epics.mjs';
+import { staleRunning } from './claims.mjs';
 import { lintTracks, rowOf } from './summary.mjs';
 import { trackNumberOfFolder } from './tracks.mjs';
 
@@ -76,8 +77,10 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
   // Lint only the live folders: archived copies share their track's number and would read as clashes.
   const lint = lintTracks(active, act.map((a) => a.row), laneList);
   const reasonsByFolder = new Map(lint.map((l) => [l.folder, l.problems.map(safeReason)]));
-  act.forEach(({ row }) => {
+  act.forEach(({ row }, i) => {
     const reasons = reasonsByFolder.get(row.folder) ?? [];
+    const stale = active[i].index ? staleRunning(active[i].index.content, Date.parse(generatedAt)) : null;
+    if (stale) reasons.push(`running for ${stale.hours}h with no sign of life`);
     if (row.waiting_for_reply) reasons.push('waiting for a human reply');
     if (row.lane_status === 'failure' && row.lane !== 'done') reasons.push('lane status is failure');
     // Track AM-10135: in the done lane only `success` means shipped; the other statuses are work somebody still has to finish.

@@ -1,9 +1,9 @@
 # Track AM-10139: Marker parser: first match wins, CRLF, case, and a repair_index write
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Implemented and merged to local main 2026-11-18 (461 connector tests, strict validate x4). First match wins, CRLF, case, repair_index. On this repo's real indexes 36 repeated-header tracks now read and repair; 12 stay flagged (Lane genuinely missing or unknown). Next: release as 1.2.0.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct

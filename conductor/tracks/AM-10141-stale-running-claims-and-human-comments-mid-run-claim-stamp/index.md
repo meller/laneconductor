@@ -1,9 +1,9 @@
 # Track AM-10141: Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 90%
+**Phase**: Implemented and merged to local main 2026-11-18 (461 connector tests): Run Started and Run By stamps on claim, stale_running after 6 hours, human_comment_mid_run warning. Left open: the resting-state lint from workflow.json (needs a decision on which non-terminal successes count as resting), a no-commit-on-branch check. Next: release as 1.2.0.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

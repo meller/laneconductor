@@ -13,7 +13,7 @@ const CONTENT_BUDGET = 30_000;
 const input = z.object({
   project: projectField,
   files: z.array(z.string()).optional().describe('Context files to return in full, by name from the manifest, e.g. "tech-stack.md".'),
-  lane: z.enum(['plan', 'implement', 'review', 'quality-gate', 'merge', 'brainstorm']).optional().describe('Return the guide for this lane, framed as advice.'),
+  lane: z.enum(['plan', 'implement', 'review', 'quality-gate', 'merge', 'brainstorm']).optional().describe('Lane whose guide to return.'),
 });
 
 function describeFile(name, content, sha) {

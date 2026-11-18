@@ -52,6 +52,18 @@ export function nextNumber(localDirs, upstreamDirs = []) {
   return max + 1;
 }
 
+/** Track numbers used by more than one folder name across the given folder lists: `[{ number, folders: [...] }]`, by number. */
+export function duplicateNumbers(...lists) {
+  const by = new Map();
+  for (const name of lists.flat()) {
+    const n = trackNumberOfFolder(name);
+    if (n === null) continue;
+    if (!by.has(n)) by.set(n, new Set());
+    by.get(n).add(name);
+  }
+  return [...by].filter(([, f]) => f.size > 1).map(([number, f]) => ({ number, folders: [...f].sort() })).sort((a, b) => a.number - b.number);
+}
+
 // Track AM-10143 (owner rule: search first, the default is update, not create). Pure word overlap between a new request and the existing
 // tracks; it only informs the caller, it never blocks a create.
 const STOP = new Set('the and for with from that this into when then than not are was were has have had its but can does did out all any one new add use using make made via per also over under only about after before more less should would could will let get got our your their they them you who why how what which where while each every some such just like'.split(' '));

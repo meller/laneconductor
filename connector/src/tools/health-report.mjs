@@ -9,8 +9,8 @@ const DAY = 86_400_000;
 
 const input = z.object({
   project: projectField,
-  since: z.string().optional().describe('ISO date to report from. Default: beta start from conductor/advice-log/beta.json, else 30 days ago.'),
-  format: z.enum(['summary', 'json']).optional().describe('summary (default) adds a readable report; json returns the data only.'),
+  since: z.string().optional().describe('ISO date to report from (default: beta start, else 30 days ago).'),
+  format: z.enum(['summary', 'json']).optional().describe('summary (default) adds a report; json is data only.'),
 });
 
 export const healthReport = {

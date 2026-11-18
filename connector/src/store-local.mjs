@@ -151,6 +151,28 @@ export class LocalGitStore {
     return r.stdout.split('\n').filter(Boolean).map((p) => path.posix.basename(p));
   }
 
+  /**
+   * Names of the directories under `dir` on every other local branch and remote-tracking ref (Track AM-10143), so a number taken
+   * on a branch that is not this checkout's is not handed out again. Refs that point at the same commit are read once; the number
+   * of commits read is capped so a repository with hundreds of branches does not slow every create.
+   */
+  async refDirs(dir, { max = 100 } = {}) {
+    const r = await this._git(['for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes']);
+    if (r.code !== 0) return [];
+    const seen = new Set();
+    const names = new Set();
+    for (const line of r.stdout.split('\n').filter(Boolean)) {
+      const [sha, ref] = line.split(' ');
+      if (!sha || !ref || ref.endsWith('/HEAD') || seen.has(sha)) continue;
+      seen.add(sha);
+      if (seen.size > max) break;
+      const t = await this._git(['ls-tree', '-d', '--name-only', sha, dir.replace(/\/?$/, '/')]);
+      if (t.code !== 0) continue;
+      for (const p of t.stdout.split('\n').filter(Boolean)) names.add(path.posix.basename(p));
+    }
+    return [...names];
+  }
+
   // ---- push policy (D4) -----------------------------------------------------------------------
 
   pushStatus() {
@@ -368,6 +390,7 @@ export class LocalGitStore {
           readFiles: (p) => this.readFiles(p),
           trackedFiles: (p) => this.trackedFiles(p),
           upstreamDirs: (p) => this.upstreamDirs(p),
+          refDirs: (p) => this.refDirs(p),
           head: () => this.head(),
           isAncestor: (c) => this.isAncestor(c),
           commitFiles: (req) => this._commitFiles(req),

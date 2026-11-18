@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
-import { parseMarkers } from '../markers.mjs';
+import { staleRunning, staleRunningWarning } from '../claims.mjs';
+import { headerDamagedWarning, parseMarkers } from '../markers.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
 import { epicTable } from '../epics.mjs';
 import { rowOf } from '../summary.mjs';
@@ -19,7 +20,7 @@ export const getTrack = {
   description: 'Read one track: its markers, files and the latest conversation entries, plus the `base` you must pass back to update_track. Large content is truncated (conversation first) with explicit flags; a truncated file cannot be overwritten.\nExample: "show track 10106" -> get_track {track: 10106}',
   annotations: readOnly,
   input,
-  async run({ store, args }) {
+  async run({ store, ctx, args }) {
     const wanted = args.files ?? FILE_NAMES;
     const tail = args.conversation_tail ?? 20;
     const folder = await resolveTrackFolder(store, args.track);
@@ -40,6 +41,10 @@ export const getTrack = {
     }
     // Files that were not requested were never seen: they cannot be a base for a write (REQ-6).
     for (const name of FILE_NAMES) if (!wanted.includes(name) && name !== 'conversation') delete baseFiles[name];
+    const stale = staleRunning(indexContent, new Date(ctx.now()).getTime());
+    if (stale) warnings.push(staleRunningWarning(stale));
+    const damaged = headerDamagedWarning(indexContent);
+    if (damaged) warnings.push(damaged);
     const conv = wanted.includes('conversation') ? conversationSummary(got.get('conversation')?.content ?? '', tail) : null;
     if (conv) {
       const f = got.get('conversation');
