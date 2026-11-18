@@ -58,7 +58,7 @@ export const listTracks = {
     const deps = dependencyState(rows);
     // A very large epic lists its first EPIC_CHILD_CAP children and says how many more there are, so one epic cannot fill the response.
     const epics = new Map(epicsOf(rows, { max: EPIC_CHILD_CAP }).map((e) => [e.row.number, e.table]));
-    const present = (list) => list.map(({ source, waiting_on, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
+    const present = (list) => list.map(({ source, waiting_on, waiting_reason, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
     const q = args.query?.toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))
