@@ -3,7 +3,7 @@
 
 Generated: 2026-11-18T13:18:01Z
 
-245 tracks. Source is the first 12 characters of the git blob sha of each track's index.md; a reader that finds a different value regenerates this file.
+246 tracks. Source is the first 12 characters of the git blob sha of each track's index.md; a reader that finds a different value regenerates this file.
 
 ## Needs attention
 
@@ -300,3 +300,4 @@ Generated: 2026-11-18T13:18:01Z
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | plan | queue | 0% | New | - | 3ee113844b8a |
 | AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | plan | queue | 0% | New | - | a9ad48cfdb14 |
 | AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | plan | queue | 0% | New | - | a31abc42cf38 |
+| AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | plan | queue | 0% | New | - | fbf09dd6bb42 |
