@@ -237,6 +237,7 @@ export function writeScaffold(dir, answers, { dryRun = false, gitInit = true, fi
     put(`${base}/plan.md`, t.files.plan);
     put(`${base}/test.md`, t.files.test);
     put(`${base}/conversation.md`, t.files.conversation);
+    put(`${base}/history.md`, t.files.history); // tracked run log (never in GITIGNORE_LINES)
   }
   const giPath = path.join(root, '.gitignore');
   const gi = mergeGitignore(fs.existsSync(giPath) ? fs.readFileSync(giPath, 'utf8') : null);

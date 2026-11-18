@@ -14,6 +14,9 @@ import { describeNext, resolveNext } from '../../../conductor/services/workflow-
 export const TRACKS_DIR = 'conductor/tracks';
 export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
 export const WRITABLE_FILES = ['index', 'spec', 'plan', 'test'];
+// Track AM-10146: history.md (the tracked run log) is created with every track and written by append_conversation; it is not in
+// FILE_NAMES because that list is the get_track `files` enum (tool schema text, which is at its size budget).
+export const CREATED_FILES = [...FILE_NAMES, 'history'];
 export const trackPath = (folder, name) => `${TRACKS_DIR}/${folder}/${name}.md`;
 
 export const projectField = z.string().optional().describe('Repo path; default: the server\'s repo.');

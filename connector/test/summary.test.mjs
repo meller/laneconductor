@@ -85,7 +85,7 @@ test('create_track commits the summary in the SAME commit as the track files', a
   assert.equal(r.isError, false, r.text);
   assert.equal(Number(git(dir, 'rev-list', '--count', 'HEAD')), before + 1, 'exactly one commit');
   const folder = r.env.data.track.folder;
-  assert.deepEqual(filesOf(dir), [SUMMARY_PATH, ...['conversation', 'index', 'plan', 'spec', 'test'].map((n) => `conductor/tracks/${folder}/${n}.md`)].sort());
+  assert.deepEqual(filesOf(dir), [SUMMARY_PATH, ...['conversation', 'history', 'index', 'plan', 'spec', 'test'].map((n) => `conductor/tracks/${folder}/${n}.md`)].sort());
   const sum = readFile(dir, SUMMARY_PATH);
   assert.match(sum, new RegExp(`\\| ${r.env.data.track.id} \\| Alpha feature \\| plan \\| queue \\| 0% \\|`));
   assert.ok(sum.includes(blobSha(readFile(dir, `conductor/tracks/${folder}/index.md`)).slice(0, 12)));

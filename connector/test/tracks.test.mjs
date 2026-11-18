@@ -53,13 +53,13 @@ test('defaultInitials: argument, else the most common prefix, else XX', () => {
   assert.equal(defaultInitials(['999-x']), 'XX');
 });
 
-test('buildTrackFiles makes five files whose index.md satisfies the format rules', () => {
+test('buildTrackFiles makes six files whose index.md satisfies the format rules', () => {
   const t = buildTrackFiles({
     number: 7, initials: 'XX', title: 'Add CSV export', problem: 'Users want CSV.\n\nThey also want it fast.',
     type: 'dev', trackKind: 'feature', autoRun: 'no', mergeMode: 'direct', dependsOn: [3, 4],
   });
   assert.equal(t.folder, 'XX-7-add-csv-export');
-  assert.deepEqual(Object.keys(t.files).sort(), ['conversation', 'index', 'plan', 'spec', 'test']);
+  assert.deepEqual(Object.keys(t.files).sort(), ['conversation', 'history', 'index', 'plan', 'spec', 'test']);
   const m = parseMarkers(t.files.index).values;
   assert.equal(m['Lane'], 'plan');
   assert.equal(m['Lane Status'], 'queue');

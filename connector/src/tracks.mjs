@@ -174,6 +174,7 @@ export function buildTrackFiles({ number, initials, title, problem, type = 'dev'
     plan: `# Track ${number}: ${title.trim()}\n\n(Plan to be written in the plan lane.)\n`,
     test: testText(number, title.trim(), trackKind),
     conversation: `# Conversation: Track ${id}\n\n`,
+    history: `# History: Track ${id}\n\n`,
   };
   return { id, folder, files };
 }

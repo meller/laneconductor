@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
-import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
+import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, CREATED_FILES, trackIdentity, workflowLanes } from './common.mjs';
 import { buildTrackFiles, defaultInitials, duplicateNumbers, nextNumber, similarTracks, trackNumberOfFolder } from '../tracks.mjs';
 import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
@@ -81,7 +81,7 @@ export const createTrack = {
           number, initials: defaultInitials(dirs, args.author_initials), title: args.title, problem: args.problem,
           type: args.type ?? 'dev', trackKind: args.track_kind, lane: initialLane, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,
         });
-        const changes = FILE_NAMES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
+        const changes = CREATED_FILES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
         const preconditions = changes.map((c) => ({ path: c.path, sha: null }));
         const sum = await summaryChange(tx, ctx.now(), new Map([[t.folder, t.files.index]]));
         if (sum) changes.push(sum);
@@ -106,7 +106,7 @@ export const createTrack = {
         data: {
           track: trackIdentity(res.t.folder, res.t.files.index),
           similar_tracks: similar,
-          files_created: FILE_NAMES.map((n) => trackPath(res.t.folder, n)),
+          files_created: CREATED_FILES.map((n) => trackPath(res.t.folder, n)),
           commit: res.r.commit ? { sha: res.r.commit, message: res.msg.split('\n')[0] } : null,
           ...(res.r.commitError ? { commit_error: res.r.commitError } : {}),
           base: {
