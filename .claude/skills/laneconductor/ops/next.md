@@ -26,6 +26,9 @@ way of gathering differs.
    With the parallel add-on, call `list_tracks` instead (filters `lane`, `lane_status`; `lane: done` with `lane_status: queue` shows
    the gated tracks), then `get_track` for the track you name, for `valid.next` and the freshness line. If the freshness line says
    stale or possibly stale, say so in one line before the card. The add-on is never required.
+   The add-on also reports, on a track that has dependencies, `blocked_by` (the numbers not yet `done:success`) and `ready_to_resume`
+   (listed by `list_tracks` and `get_context`): use them for S09 and S10 instead of working them out. Without the add-on, work them
+   out from `Waiting On Tracks` and `Depends On` as the table says.
 4. **Read these markers**, header block only, the first one wins when a marker is repeated (and the track is damaged, S21):
    `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Merge Mode`,
    `PR URL`. Match lane names by meaning (a project may still say `planning` and `in-progress`: use `conductor/workflow.json`, or
