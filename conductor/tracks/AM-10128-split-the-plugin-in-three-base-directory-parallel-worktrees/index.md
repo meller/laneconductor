@@ -1,0 +1,28 @@
+# Track AM-10128: Split the plugin in three: base (directory), parallel (worktrees, safe writes), board
+
+**Lane**: plan
+**Lane Status**: queue
+**Progress**: 0%
+**Phase**: New
+**Track Kind**: feature
+**Type**: dev
+**Merge Mode**: direct
+**Auto Run**: no
+**Author**: AM
+**Depends On**: 10127
+**Problem**: Decision (human, 2026-11-18): the directory portal blocks the all-in-one plugin for an organization that is not Verified (local MCP server, package.json and lockfile, scripts, the agent key `isolation`). So the product becomes three plugins from one generator, installed from the owner's marketplace `meller/laneconductor`; only the first is submitted to Anthropic's directory (for discoverability).
+
+1. `laneconductor` (base, public, in the directory): Markdown only. The skill with its lane guides and skill suggestions, all commands, the read-only `plan-reviewer` agent, README, LICENSE, icon, plugin.json with only fields the portal knows plus `privacyPolicyUrl`. It does the whole plan-first process by editing the track files directly. It carries no connector tool calls, no scripts, no `isolation` key.
+2. `laneconductor-parallel` (add-on, our marketplace only): parallel work in git worktrees. The local connector (conflict-checked writes so several sessions and sub-agents can write track state at once, automatic commits, freshness warnings, generated track summary, secret and personal-data scan, advice log and health report, MCP prompts), the scaffold script, and the `track-runner` agent WITH `isolation: worktree` (one sub-agent per track, each in its own worktree). Its MCP tools become `mcp__plugin_laneconductor-parallel_lc__*`.
+3. `laneconductor-board` (add-on, our marketplace only): the board script and its page, published by Claude as a private artifact. It works without the connector.
+
+Rules of the split: no hard dependency between the plugins (the base comes from the directory, the add-ons from our marketplace, and cross-marketplace dependencies are unverified); each works alone and they work best together. DETECTION: Claude sees which tools and commands exist; when the connector tools or the board script are present the base uses them and recommends nothing; when they are missing the base mentions the add-on once per session, only when relevant (the person asks for a board, mentions several sessions, people or sub-agents writing the same tracks, worktrees, or wants automatic commits, a privacy scan or health report), shows the install commands (`claude plugin marketplace add meller/laneconductor`, then `claude plugin install laneconductor-parallel@laneconductor` or `laneconductor-board@laneconductor`, then `/reload-plugins`), and NEVER runs an install itself. The directory policy bans listings that exist mainly as advertising, so the base must be useful alone and the pointers short. The base's board commands find the board script by Glob and, when absent, show the install commands. The base's commands use the connector tools only when they are present; the generator maps the plain tool names to the add-on's prefix.
+
+Layout: `plugins/laneconductor` becomes the base (the directory plugin path stays `plugins/laneconductor`); the connector and agents move to `plugins/laneconductor-parallel`; the board script to `plugins/laneconductor-board`; `.claude-plugin/marketplace.json` lists all three. Track 10127 (the Markdown-only build and Lite naming) is the first step: reuse its profile and fold it into this layout; its funnel text and privacy page stay.
+
+MIGRATION: people on the all-in-one `laneconductor@laneconductor` (0.x) would lose the connector if they update to the new base. Bump to a new major version (1.0.0) for the base, write a short migration note in the README and the plugin READMEs (uninstall the all-in-one, install the base and the add-ons you want), and tell existing users once. The files in git are unchanged, so nothing is lost.
+
+Verify: tests for the three outputs (portal-blocking emulation on the base only; add-ons validated with `claude plugin validate --strict`), `node scripts/build-plugin.mjs --check` covers all three plus the marketplace file, a smoke test that the base alone works (a command runs by editing files), the add-on connector answers over stdio with the new tool prefix, and the portal's Validate on the base (a check only; the owner submits).
+
+Related finding to include (2026-11-18, from a failing otralingo session): (a) the connector rejects `update_track` when a project's workflow.json uses other lane names than the skill's (otralingo has planning, in-progress; the skill says plan, implement; its statuses are queue, running, success, failure, waiting, and `in_progress` was rejected). The error is correct but unhelpful: add a suggestion of the nearest valid lane or status (for example implement to in-progress) and put the valid lanes and statuses in `get_track` and `get_context` so the first write succeeds. (b) A user saw "Connection closed" and could not get the connector's tools back; not reproduced (the installed 0.3.0 and 0.5.0 servers answer list_tracks and get_track for that project, and its log is healthy through 11:33), but the server cannot leave a trace of why it exits: add handlers for uncaught exceptions and unhandled rejections that log the reason to stderr and keep serving, and a short exit-reason line. (c) Running connector processes keep the plugin version they started with; say in the update note that sessions must be restarted after a plugin update.
+**Summary**: Decision (human, 2026-11-18): the directory portal blocks the all-in-one plugin for an organization that is not Verified (local MCP server, package.json and lockfile, scripts, the agent key `isolation
