@@ -181,6 +181,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    **Source Config**: <item_id=NNN or URL>
    **Threshold**: <number>
    **Window**: <e.g. 48h or 7d>
+   **Kill rule**: <optional: when to stop, e.g. under 20 sign-ups at the end of the window>
    **Maps To**: <metric name from conductor/kpis.md>   (optional)
    ```
 5. **Draft (non-dev tracks).** Once planned, write a `## Draft` section in `spec.md` next to KPI and
@@ -356,11 +357,18 @@ commits go.
      `~/.claude/skills/` (an older name counts: `social-content`, `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one
      installed, say "you have `<skill>` installed, use it before writing the content". Offer the missing ones as "Offer a missing skill" says.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
-     `### Publish Instructions` to the user.
-   - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
-     completion comment is needed. The human's "done" reply moves the track on to the quality
-     gate.
+     `### Publish Instructions` to the user. Nothing is posted, sent or spent for the owner: they do it.
+   - Write `**Owner Action**` (one line, up to 200 characters: exactly what the owner must do) and
+     `**Owner Action Due**` (`YYYY-MM-DD`) to `index.md`, taking the day from the plan; when the plan has
+     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes`. That marker is
+     itself the Inbox signal, so no completion comment is needed.
    - Stop. Do not transition the lane yourself.
+   - **The owner's reply** ("posted", "done", or a move): nothing moves the track by itself, so you do it.
+     Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `**KPI Check After**` to now plus
+     the KPI `Window` (a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`); park the track in the quality-gate lane as
+     `waiting`, with a `**Waiting Reason**` naming that date. With the connector, one `update_track` makes
+     this change and checks for conflicts; lane and status names are the ones in `conductor/workflow.json`.
+     With no KPI block there is no window: ask the owner where the track goes next.
 4b. **Fundamentals conflict (dev tracks).** If what you must build conflicts with, or implies a
    change to, `product-guidelines.md`, `design-language.md`, `tech-stack.md` or `workflow.md`,
    do not write code that contradicts them and do not rewrite them silently. Append to
@@ -532,6 +540,12 @@ code is on `main`.
      Then transition to `on_failure` (step 5, without a verdict) and skip the code checks.
    - **KPI passed:** append `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true.`
      with no leading emoji (it is not the terminal outcome; step 4's comment is) and continue.
+   - **Non-dev result:** after the readout write `**Result**` to `index.md` (one line, up to 200 characters:
+     what you read and what it taught) and one dated `history.md` line with the same. Never invent a number.
+     A miss with the run window used up (`KPI Check After` is today or earlier, or the `**Kill rule**` of the KPI
+     block says stop) closes the track instead of the `on_failure` move: `done:success` with `killed:` and the reason in `Result`
+     (`done:failure` means the merge failed; no merge is needed here). A miss with window left follows the
+     KPI MISS replanning above.
 2. **Execute the checks.** Read `conductor/quality-gate.md` and the track's `test.md`, and run
    every command in their "Automated Checks" / "Test Commands" sections with the shell.
    - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Older copies

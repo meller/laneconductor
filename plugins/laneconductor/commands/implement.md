@@ -70,11 +70,18 @@ commits go.
      `~/.claude/skills/` (an older name counts: `social-content`, `launch-strategy`, `analytics-tracking`, `ab-test-setup`). For each one
      installed, say "you have `<skill>` installed, use it before writing the content". Offer the missing ones as "Offer a missing skill" says.
    - Read `## Draft` from `spec.md`; output the publish-ready content and the
-     `### Publish Instructions` to the user.
-   - Set `**Waiting for reply**: yes` in `index.md`. That marker is itself the Inbox signal, so no
-     completion comment is needed. The human's "done" reply moves the track on to the quality
-     gate.
+     `### Publish Instructions` to the user. Nothing is posted, sent or spent for the owner: they do it.
+   - Write `**Owner Action**` (one line, up to 200 characters: exactly what the owner must do) and
+     `**Owner Action Due**` (`YYYY-MM-DD`) to `index.md`, taking the day from the plan; when the plan has
+     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes`. That marker is
+     itself the Inbox signal, so no completion comment is needed.
    - Stop. Do not transition the lane yourself.
+   - **The owner's reply** ("posted", "done", or a move): nothing moves the track by itself, so you do it.
+     Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `**KPI Check After**` to now plus
+     the KPI `Window` (a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`); park the track in the quality-gate lane as
+     `waiting`, with a `**Waiting Reason**` naming that date. With the connector, one `update_track` makes
+     this change and checks for conflicts; lane and status names are the ones in `conductor/workflow.json`.
+     With no KPI block there is no window: ask the owner where the track goes next.
 4b. **Fundamentals conflict (dev tracks).** If what you must build conflicts with, or implies a
    change to, `product-guidelines.md`, `design-language.md`, `tech-stack.md` or `workflow.md`,
    do not write code that contradicts them and do not rewrite them silently. Append to

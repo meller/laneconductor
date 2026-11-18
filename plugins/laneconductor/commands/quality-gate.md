@@ -45,6 +45,12 @@ code is on `main`.
      Then transition to `on_failure` (step 5, without a verdict) and skip the code checks.
    - **KPI passed:** append `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true.`
      with no leading emoji (it is not the terminal outcome; step 4's comment is) and continue.
+   - **Non-dev result:** after the readout write `**Result**` to `index.md` (one line, up to 200 characters:
+     what you read and what it taught) and one dated `history.md` line with the same. Never invent a number.
+     A miss with the run window used up (`KPI Check After` is today or earlier, or the `**Kill rule**` of the KPI
+     block says stop) closes the track instead of the `on_failure` move: `done:success` with `killed:` and the reason in `Result`
+     (`done:failure` means the merge failed; no merge is needed here). A miss with window left follows the
+     KPI MISS replanning above.
 2. **Execute the checks.** Read `conductor/quality-gate.md` and the track's `test.md`, and run
    every command in their "Automated Checks" / "Test Commands" sections with the shell.
    - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Older copies

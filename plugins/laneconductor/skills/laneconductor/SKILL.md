@@ -181,7 +181,7 @@ skill-only session, so re-read the file yourself.
 | `**Depends On**: NNN, NNN` | Tracks that must be `done:success` before this one is claimed; the connector lists the unmet ones as `blocked_by` and warns when a track claims anyway. |
 | `**Waiting On Tracks**: NNN, NNN` | See parking above. |
 | `**Waiting Reason**` | One line: why the track is `waiting` and what unblocks it. Required while waiting; removed on resume. |
-| `**Owner Action**`, `**Owner Action Due**: YYYY-MM-DD`, `**Result**` | Optional. A waiting track names the step only the person can do (one line, up to 200 characters) and its UTC due day; `Owner Action` also counts as the Waiting Reason. `Result` is the one-line outcome that closes the track. `next` shows the action and a window that ended (`KPI Check After`). |
+| `**Owner Action**`, `**Owner Action Due**: YYYY-MM-DD`, `**Result**` | Optional. A waiting track names the step only the person can do (one line, up to 200 characters) and its UTC due day; `Owner Action` also counts as the Waiting Reason. `Result` is the one-line outcome that closes the track. `next` shows the action and a window that ended (`KPI Check After`). The owner's reply and the closing `Result` are in the implement and quality-gate guides. The lint, the overdue and ready-to-measure flags and the board need the connector or the board add-on; without them you read and write these markers by hand and compare their dates with today's date. |
 
 Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): ...`,
 `docs(track-NNN): ...`; `refactor:` for changes across several tracks.

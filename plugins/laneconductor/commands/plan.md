@@ -87,6 +87,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    **Source Config**: <item_id=NNN or URL>
    **Threshold**: <number>
    **Window**: <e.g. 48h or 7d>
+   **Kill rule**: <optional: when to stop, e.g. under 20 sign-ups at the end of the window>
    **Maps To**: <metric name from conductor/kpis.md>   (optional)
    ```
 5. **Draft (non-dev tracks).** Once planned, write a `## Draft` section in `spec.md` next to KPI and

@@ -63,7 +63,8 @@ test('size: a lane command carries one short rule (at most 12 lines) and one lin
   assert.equal(run.split(SHORT_RULE).length - 1, 1, 'run: the short rule once');
   assert.ok(run.includes('**Offer rule**: as in the first lane guide above.'));
   for (const lane of ['plan', 'implement', 'review', 'quality-gate', 'merge']) assert.ok(run.includes(`Candidates for the \`${lane}\` lane`), `run: the ${lane} candidates`);
-  assert.ok(Buffer.byteLength(run) < 66 * 1024 && run.split('\n').length < 850, `run is ${Buffer.byteLength(run)} bytes, ${run.split('\n').length} lines`);
+  // track AM-10147 Phase 5 added the owner-step text to the implement and quality-gate guides (+14 lines in run); the lines bound moved from 850 to 875, the bytes bound stays
+  assert.ok(Buffer.byteLength(run) < 66 * 1024 && run.split('\n').length < 875, `run is ${Buffer.byteLength(run)} bytes, ${run.split('\n').length} lines`);
   // new-project is no lane: it carries no skill offer of the brainstorm guide or of newTrack
   const np = read('commands/new-project.md');
   assert.ok(!np.includes('## Offer a missing skill') && !np.includes('Candidates for the `brainstorm` lane') && !np.includes('Candidates for these Types'));
