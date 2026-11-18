@@ -1,9 +1,9 @@
 # Track AM-10127: LaneConductor Lite: a Markdown-only plugin for the Anthropic directory, with pointers to the full plugin
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Merged and pushed 2026-11-18 (main 7e896965). The Markdown-only build is the first step of the three-plugin split (track 10128, which renames it to the base `laneconductor` and adds the two add-ons). The portal's Validate on plugins/laneconductor-lite PASSED: 0 blocking, 1 expected warning (privacyPolicyUrl), 2 reviewer holds (a credential-read heuristic on plugin.json that looks like a false positive, and the publisher name resembling another). 278 tests pass.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 15%
-**Phase**: Phase 1 (research gate) done 2026-11-18; the smallest worthwhile build is decided (see plan). 10123, its seed, is merged. Ready for the owner to confirm the scope, then implement Phases 2 to 5.
+**Phase**: Experience simplified 2026-11-18 (owner): plain text offers at the moment of intent, a starter set at setup, and the add-ons (parallel, board) are ordinary catalog entries, not special. The base is the discovery module (planning, implementation, setup); everything else is something it can offer.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
