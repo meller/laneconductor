@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 15%
-**Phase**: Phase 1 (research gate) done 2026-11-18; the smallest worthwhile build is decided (see plan). 10123, its seed, is merged. Ready for the owner to confirm the scope, then implement Phases 2 to 5.
+**Phase**: Scope refined 2026-11-18 after a registry survey: LaneConductor does NOT build a skill registry (several exist); it keeps a SMALL vetted catalog, recommends by lane AND by the project's stack (conductor/tech-stack.md), and points to a generic finder for anything else. Ready for the owner to confirm, then implement Phases 2 to 5.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
