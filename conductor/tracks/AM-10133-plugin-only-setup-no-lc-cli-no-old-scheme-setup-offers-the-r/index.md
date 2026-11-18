@@ -3,7 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 85%
-**Phase**: Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict validate x4). Open: README Remote-tier sentence, Phase 7 landing and wiki edits, Phase 8 real use (fiti-plug with the old lc on PATH, /usr/local/bin/lc and ~/.laneconductorrc decision).
+**Phase**: Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict validate x4). Owner ruled: no Remote-tier sentence in the README (backlog items stay out of public text). Open: Phase 7 landing and wiki edits (relabel the legacy tier, with the owner's go), Phase 8 real use (fiti-plug with the old lc on PATH, /usr/local/bin/lc and ~/.laneconductorrc decision).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
