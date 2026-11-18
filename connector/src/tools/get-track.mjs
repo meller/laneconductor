@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
-import { parseMarkers } from '../markers.mjs';
+import { headerDamagedWarning, parseMarkers } from '../markers.mjs';
 import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
 const input = z.object({
@@ -37,6 +37,8 @@ export const getTrack = {
     }
     // Files that were not requested were never seen: they cannot be a base for a write (REQ-6).
     for (const name of FILE_NAMES) if (!wanted.includes(name) && name !== 'conversation') delete baseFiles[name];
+    const damaged = headerDamagedWarning(indexContent);
+    if (damaged) warnings.push(damaged);
     const conv = wanted.includes('conversation') ? conversationSummary(got.get('conversation')?.content ?? '', tail) : null;
     if (conv) {
       const f = got.get('conversation');

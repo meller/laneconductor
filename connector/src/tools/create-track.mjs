@@ -12,7 +12,7 @@ const input = z.object({
   problem: z.string().min(1).describe('The problem or request in plain markdown (no "## " headings and no "**Name**:" lines).'),
   type: z.enum(['dev', 'marketing', 'sales', 'support', 'other']).optional().describe('Track type (default dev).'),
   track_kind: z.enum(['bug', 'feature']).optional().describe('Writes the bug or feature form into spec.md.'),
-  author_initials: z.string().regex(/^[A-Za-z]{1,6}$/).optional().describe('Folder prefix, e.g. AM. Defaults to the most common prefix in this project.'),
+  author_initials: z.string().regex(/^[A-Za-z]{1,6}$/).optional().describe('Folder prefix, e.g. AM (default: the most common here).'),
   auto_run: z.enum(['yes', 'no']).optional().describe('Default no.'),
   merge_mode: z.enum(['direct', 'pr']).optional().describe('Default direct.'),
   depends_on: z.array(z.union([z.string(), z.number()]).transform(String)).optional().describe('Track numbers that must be done first.'),

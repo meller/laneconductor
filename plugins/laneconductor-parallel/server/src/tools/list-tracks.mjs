@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
+import { damagedHeaders } from '../markers.mjs';
 import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
 import { projectField, publishable, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
 
@@ -25,10 +26,14 @@ export const listTracks = {
     const rows = entries.map((e) => ({ ...rowOf(e.folder, e.index), ...(e.tracked === false ? { untracked: true } : {}) }));
     const drafts = rows.filter((r) => r.untracked).map((r) => r.folder);
     if (drafts.length) warnings.push(`Not committed (not in git yet; left out of conductor/tracks-summary.md): ${drafts.join(', ')}`);
+    const damagedFolders = [];
     for (const r of rows) {
       if (r.source === null) warnings.push(`${r.folder}: no index.md`);
       else if (r.lane === null) warnings.push(`${r.folder}: index.md has no **Lane** marker`);
+      const idx = entries.find((x) => x.folder === r.folder)?.index;
+      if (idx && damagedHeaders(idx.content).length) damagedFolders.push(r.folder);
     }
+    if (damagedFolders.length) warnings.push(`header_damaged in ${damagedFolders.length} track${damagedFolders.length === 1 ? '' : 's'} (a marker is repeated; the first is used): ${damagedFolders.slice(0, 5).join(', ')}${damagedFolders.length > 5 ? ', ...' : ''}. get_track names the lines.`);
     const byNumber = new Map();
     for (const r of rows) byNumber.set(r.number, [...(byNumber.get(r.number) ?? []), r.folder]);
     for (const [n, folders] of byNumber) if (folders.length > 1) warnings.push(`Duplicate track number ${n}: ${folders.sort().join(', ')}`);

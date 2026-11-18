@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
-import { STATUSES, markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
+import { STATUSES, headerDamagedWarning, markerFingerprint, parseMarkers, removeMarker, repairIndex, setMarker, validateIndex } from '../markers.mjs';
 import { resolveTrack } from '../tracks.mjs';
 import { suggestFor } from '../vocabulary.mjs';
 import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, readWorkflow, resolveOutcome, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
@@ -22,9 +22,10 @@ const input = z.object({
     index: z.string().optional(), spec: z.string().optional(), plan: z.string().optional(), test: z.string().optional(),
     conversation: z.string().optional().describe('Not writable here; use append_conversation.'),
   }).optional().describe('Whole-file replacements (index, spec, plan, test).'),
-  markers: z.record(z.string(), z.string().nullable()).optional().describe('Set (string) or remove (null) individual **Name**: value lines in index.md, e.g. {"Lane Status": "success", "Progress": "40%"}. Cannot be combined with files.index.'),
+  markers: z.record(z.string(), z.string().nullable()).optional().describe('Set (string) or remove (null) individual **Name**: value lines in index.md, e.g. {"Lane Status": "success", "Progress": "40%"}.'),
   summary: z.string().optional().describe('Shorthand for setting the **Summary** marker.'),
   outcome: z.enum(['success', 'failure']).optional().describe('Finished lane action: apply the workflow move (valid.next).'),
+  repair_index: z.boolean().optional(),
 });
 
 export const updateTrack = {
@@ -46,11 +47,14 @@ export const updateTrack = {
       markerEdits['Summary'] = args.summary;
     }
     if (files.conversation !== undefined) throw fail('VALIDATION_FAILED', 'conversation.md cannot be replaced', { hint: 'Use append_conversation; it is append-only and formats the entry for you.' });
-    const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined);
+    // repair_index (Track AM-10139) rewrites index.md whole, so it is checked like a files.index replacement.
+    const repair = args.repair_index === true;
+    if (repair && (files.index !== undefined || Object.keys(markerEdits).length || args.outcome !== undefined)) throw fail('VALIDATION_FAILED', 'repair_index stands alone: it cannot be combined with files.index, markers, summary or outcome', { hint: 'Repair first, then make the edit with the base this call returns.' });
+    const fileNames = WRITABLE_FILES.filter((n) => files[n] !== undefined || (repair && n === 'index'));
     let markerNames = Object.keys(markerEdits);
     if (fileNames.length === 0 && markerNames.length === 0 && args.outcome === undefined) throw fail('VALIDATION_FAILED', 'Nothing to update', { hint: 'Pass files and/or markers.' });
     if (files.index !== undefined && markerNames.length) throw fail('VALIDATION_FAILED', 'files.index and markers cannot be combined', { hint: 'Either replace index.md whole, or set individual markers.' });
-    for (const n of fileNames) if (files[n].length > MAX_FILE_CHARS) throw fail('VALIDATION_FAILED', `${n}.md is ${files[n].length} characters; the limit is ${MAX_FILE_CHARS}`);
+    for (const n of fileNames) if (files[n] !== undefined && files[n].length > MAX_FILE_CHARS) throw fail('VALIDATION_FAILED', `${n}.md is ${files[n].length} characters; the limit is ${MAX_FILE_CHARS}`);
 
     const res = await store.transaction(async (tx) => {
       const dirs = (await tx.listDir(TRACKS_DIR)).filter((e) => e.type === 'dir').map((e) => e.name);
@@ -108,7 +112,7 @@ export const updateTrack = {
       if (refusal) throw refusal;
       // compose
       const next = {};
-      for (const n of fileNames) next[n] = files[n];
+      for (const n of fileNames) next[n] = repair && n === 'index' ? repairIndex(indexNow) : files[n];
       if (markerNames.length) {
         if (!curOf('index')) throw fail('TRACK_NOT_FOUND', `${folder} has no index.md to set markers in`);
         let idx = indexNow;
@@ -172,7 +176,10 @@ export const updateTrack = {
       }
     }
     const warnings = [];
-    if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
+    if (res.noop && repair) warnings.push('index.md has nothing to repair: no marker is repeated and the names are spelled as written by the tools.');
+    else if (res.noop) warnings.push('Nothing changed: the new content equals the current content, so no commit was made.');
+    const damaged = res.next.index !== undefined ? headerDamagedWarning(res.next.index) : null;
+    if (damaged) warnings.push(damaged);
     if (res.r?.commitError) warnings.push(`Written to disk but NOT committed: ${res.r.commitError}`);
     return {
       data: {
