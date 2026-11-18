@@ -1,9 +1,9 @@
 # Track AM-10146: Track file roles: plan, spec, test, a tracked history.md for the run log, and a lint for a plan that holds a log
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Owner said go 2026-11-18 (history.md tracked). Runner building phases 1-5 (contract text, history.md routing, plan lint, create_track note fix, tests). Phase 6, applying the contract to the open tracks of laneconductor and otralingo, follows: one pilot track first, owner reviews.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 80%
+**Phase**: Contract, history.md, plan lint and the create_track note fix shipped in plugins 1.5.0 (593 then 654 tests). Open: AC-8 tidy of this repo's remaining open tracks and AC-9 otralingo AM-1259 pilot (owner sends the text), the next display of the lint.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -28,5 +28,3 @@ Scope:
 4. Pilot: otralingo AM-1259 is restructured by otralingo's own agent using this contract (the lead tells it); this repo's own tracks are not rewritten.
 5. Tests: create_track creates history.md; system entries land in history.md and are committed, human entries in conversation.md and are not; the lint on fixtures (clean plan, dated sections, oversized); text tests that the guides name the contract; base stays Markdown-only and free of daemon-era words.
 **Summary**: Found 2026-11-18 on the otralingo project, track AM-1259: its plan.md is 97 KB with about 25 dated STATUS, RELEASE and INCIDENT sections mixed in, and it has no spec and no conversation file. The plug
-**Run Started**: 2026-11-18T18:34:03.200Z
-**Run By**: claude-code c_929bd06c05bb

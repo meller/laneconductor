@@ -36,13 +36,13 @@ Every track file has one job and the skill says which; every lane's completion l
 
 ## Acceptance criteria
 
-- [ ] AC-1: the skill, the lane guides, the bundled guides and the scaffolded workflow.md name the six files and what each holds and never holds.
-- [ ] AC-2: create_track and the scaffold create an empty history.md; the file is not gitignored.
-- [ ] AC-3: append_conversation with author system writes a dated line to history.md and commits it with the track; human, claude and gemini entries go to conversation.md and are not committed; the response says which file got the line.
-- [ ] AC-4: a plan with two or more dated or STATUS, RELEASE, INCIDENT, UPDATE or LOG headings, or over 60 KB, gets a plan_has_log warning in get_track, one aggregate line in list_tracks and a summary lint line; one dated heading is clean.
-- [ ] AC-5: the splitting procedure exists in ops/tracks.md: ask first, move not delete, decisions to spec.md, dated entries to history.md, checkboxes stay in the plan.
-- [ ] AC-6: the create_track branch note is short, recent-branch only and under the 200-character bound.
-- [ ] AC-7: the tool descriptions did not grow (the context-size test passes), the base stays Markdown-only and free of daemon-era words, no lc command and no track numbers in shipped text.
+- [x] AC-1: the skill, the lane guides, the bundled guides and the scaffolded workflow.md name the six files and what each holds and never holds.
+- [x] AC-2: create_track and the scaffold create an empty history.md; the file is not gitignored.
+- [x] AC-3: append_conversation with author system writes a dated line to history.md and commits it with the track; human, claude and gemini entries go to conversation.md and are not committed; the response says which file got the line.
+- [x] AC-4: a plan with two or more dated or STATUS, RELEASE, INCIDENT, UPDATE or LOG headings, or over 60 KB, gets a plan_has_log warning in get_track, one aggregate line in list_tracks and a summary lint line; one dated heading is clean.
+- [x] AC-5: the splitting procedure exists in ops/tracks.md: ask first, move not delete, decisions to spec.md, dated entries to history.md, checkboxes stay in the plan.
+- [x] AC-6: the create_track branch note is short, recent-branch only and under the 200-character bound.
+- [x] AC-7: the tool descriptions did not grow (the context-size test passes), the base stays Markdown-only and free of daemon-era words, no lc command and no track numbers in shipped text.
 - [ ] AC-8: this repo's open tracks have no '(To be filled in.)' template text, no placeholder plan or test.md, and no repeated headers.
 - [ ] AC-9: otralingo's AM-1259 is restructured by its own agent as the pilot and the owner has seen the result.
 
