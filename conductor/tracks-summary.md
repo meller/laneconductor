@@ -3,7 +3,7 @@
 
 Generated: 2026-11-18T13:18:00Z
 
-240 tracks. Source is the first 12 characters of the git blob sha of each track's index.md; a reader that finds a different value regenerates this file.
+241 tracks. Source is the first 12 characters of the git blob sha of each track's index.md; a reader that finds a different value regenerates this file.
 
 ## Needs attention
 
@@ -295,3 +295,4 @@ Generated: 2026-11-18T13:18:00Z
 | AM-10135 | Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work | plan | queue | 0% | New | - | 61f0503e175b |
 | AM-10136 | Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate | plan | queue | 0% | New | - | 5a09385f1fda |
 | AM-10137 | Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome | plan | queue | 0% | New | - | b8bcd87cb944 |
+| AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | plan | queue | 0% | New | - | b91ac55584f8 |
