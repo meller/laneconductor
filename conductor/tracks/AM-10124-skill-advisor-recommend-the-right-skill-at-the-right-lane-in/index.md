@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 15%
-**Phase**: Scope refined 2026-11-18 after a registry survey: LaneConductor does NOT build a skill registry (several exist); it keeps a SMALL vetted catalog, recommends by lane AND by the project's stack (conductor/tech-stack.md), and points to a generic finder for anything else. Ready for the owner to confirm, then implement Phases 2 to 5.
+**Phase**: Experience simplified 2026-11-18 (owner): plain text offers at the moment of intent, a starter set at setup, and the add-ons (parallel, board) are ordinary catalog entries, not special. The base is the discovery module (planning, implementation, setup); everything else is something it can offer.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
