@@ -53,6 +53,7 @@ test('shape, ordering and counts on a fixture repo', () => {
   assert.deepEqual(by['AM-123-new-thing'], {
     number: 123, folder: 'AM-123-new-thing', title: 'New thing', lane: 'plan', lane_status: 'running', progress: 0, phase: 'New',
     depends_on: ['100', '99'], auto_run: true, merge_mode: 'pr', source_hash: blobSha(fs.readFileSync(path.join(dir, 'conductor/tracks/AM-123-new-thing/index.md'), 'utf8')).slice(0, 12), needs_attention: false,
+    action: { c: null, w: 'running; nothing to do' },
   });
   assert.equal(by['100-legacy-track'].number, 100);
   assert.equal(by['100-legacy-track'].lane, 'done');
@@ -125,7 +126,7 @@ test('privacy: no conversation, spec or plan text, and no Problem or Summary tex
   assert.ok(!/Problem|summary text|from the (spec|plan|conversation)/i.test(out.replace(/"problem"/g, '')), 'file body text leaked');
   const b = JSON.parse(out);
   const keys = new Set(b.tracks.flatMap((t) => Object.keys(t)));
-  assert.deepEqual([...keys].sort(), ['archived', 'auto_run', 'depends_on', 'folder', 'lane', 'lane_status', 'merge_mode', 'needs_attention', 'number', 'phase', 'progress', 'source_hash', 'title']);
+  assert.deepEqual([...keys].sort(), ['action', 'archived', 'auto_run', 'depends_on', 'folder', 'lane', 'lane_status', 'merge_mode', 'needs_attention', 'number', 'phase', 'progress', 'source_hash', 'title']);
 });
 
 test('privacy: a marker value never runs into the body (legacy index.md): Lane Status is one line, a title line ends a value', () => {

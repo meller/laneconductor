@@ -76,8 +76,8 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'lanes', 'tracks', 'attn']);
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
-  for (const t of j.tracks) assert.deepEqual(Object.keys(t), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
-  for (const a2 of j.attn) assert.deepEqual(Object.keys(a2), ['n', 'p', 't', 'r']);
+  for (const t of j.tracks) assert.deepEqual(Object.keys(t).filter((k) => k !== 'x'), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
+  for (const a2 of j.attn) assert.deepEqual(Object.keys(a2).filter((k) => k !== 'x'), ['n', 'p', 't', 'r']);
   assert.equal(j.tracks.length, 8, 'live tracks only');
   assert.ok(!raw.includes('ARCHIVED-SENTINEL'), 'archived folders are left out');
   assert.ok(j.tracks.every((t) => t.p === 'AM'));
@@ -860,4 +860,366 @@ test('page: the drawer shows the workflow lane name for a track still carrying a
   ids.lanes.children[1].children[1].children[0].handlers.click();
   await flush();
   assert.equal(ids['d-lane'].textContent, 'in-progress');
+});
+
+// --- card actions (track AM-10115): the next step with a Copy button; a Move menu only where the local connector is reachable ----
+
+const ACT_LANES = ['backlog', 'plan', 'implement', 'review', 'quality-gate', 'done'];
+const ACT_WF = { lanes: { plan: { on_success: 'plan:success' }, implement: { on_success: 'review:queue' }, review: { on_success: 'quality-gate:queue' }, 'quality-gate': { on_success: 'done:queue' }, done: {} } };
+function actionData(rows) {
+  const entries = rows.map(([n, lane, status, extra]) => ({ folder: `AM-${n}-t${n}`, index: { content: INDEX(n, `Title ${n}`, { lane, status, extra: extra ?? '' }) } }));
+  return boardPageData(buildBoard(entries, { lanes: ACT_LANES, generatedAt: NOW, project: 'Act', workflow: ACT_WF }), { lanes: ACT_LANES });
+}
+const stubs = [];
+function stubGlobal(name, value) {
+  const d = Object.getOwnPropertyDescriptor(globalThis, name);
+  Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+  stubs.push(() => { if (d) Object.defineProperty(globalThis, name, d); else delete globalThis[name]; });
+}
+const unstub = () => { while (stubs.length) stubs.pop()(); };
+after(unstub);
+const fakeEv = (key) => ({ key, stopped: false, stopPropagation() { this.stopped = true; }, preventDefault() {} });
+const cls = (name) => (x) => String(x.className).split(' ').includes(name);
+const cardN = (ids, n) => all(ids.lanes, (x) => cls('card')(x) && x.attrs['aria-label']?.startsWith(`AM-${n}:`))[0];
+const BASE = { commit: 'c0ffee', files: { index: 'aaa' }, markers: { Lane: 'plan', 'Lane Status': 'queue' } };
+const okTrack = { payload: { ok: true, data: { base: BASE } } };
+const toolError = (code, message = 'x') => Object.assign(new Error(message), { code: 'tool_error', result: { structuredContent: { ok: false, error: { code, message } } } });
+
+/** A stand-in for the artifact runtime's `claude`: `use('mcp')` resolves the namespace, `listTools` lists `servers`, `callTool` is `handler(tool, input)`. */
+function fakeClaude({ servers, handler = async () => okTrack }) {
+  const log = { use: [], listTools: [], calls: [] };
+  const mcp = {
+    listTools: async (s) => { log.listTools.push(s); return { servers }; },
+    callTool: async (server, tool, input) => { log.calls.push([server, tool, input]); return handler(tool, input); },
+  };
+  return { log, claude: { use: async (n) => { log.use.push(n); return mcp; } } };
+}
+const HOST = 'host:plugin_laneconductor-parallel_lc';
+const REACHABLE = [{ server: HOST, authStatus: 'unknown', tools: [{ name: 'get_track' }, { name: 'update_track' }] }];
+const moveBtns = (root) => all(root, cls('mvbtn'));
+const dataFor = () => actionData([[201, 'plan', 'queue'], [202, 'implement', 'running'], [203, 'done', 'success'], [204, 'review', 'waiting', '**Waiting for reply**: yes\n'], [205, 'backlog', 'queue'], [208, 'nowhere', 'queue']]);
+const serve = (data) => async () => ({ ok: true, status: 200, json: async () => data });
+/** Opens the Move menu of `card`, picks `lane` and, unless `confirm` is false, confirms. */
+async function moveVia(card, lane, { confirm = true } = {}) {
+  moveBtns(card)[0].handlers.click(fakeEv('x')); await flush();
+  all(card, cls('mvopt')).find((o) => o._text === lane).handlers.click(fakeEv('x'));
+  if (confirm) { all(card, cls('mvgo'))[0].handlers.click(fakeEv('x')); await flush(); }
+}
+
+test('actions: cards, Needs-attention rows and the drawer header show the reason and the exact command; no Move without the capability', async () => {
+  const ids = await runPage(serve(dataFor()));
+  const c201 = cardN(ids, 201);
+  assert.ok(c201.textContent.includes('/laneconductor:plan 201'));
+  assert.ok(c201.textContent.includes('ready to plan'));
+  assert.ok(cardN(ids, 202).textContent.includes('running; nothing to do'));
+  assert.equal(all(cardN(ids, 202), cls('copy')).length, 0, 'no command, so no Copy button');
+  assert.ok(ids['attn-rows'].textContent.includes('/laneconductor:comment 204 <your reply>'));
+  assert.ok(ids['attn-rows'].children.every((r) => r.children.length === 5), 'the Needs-attention rows have a Next step column');
+  ids['backlog-toggle'].onclick();
+  assert.ok(ids['backlog-cards'].textContent.includes('parked in the backlog'));
+  assert.equal(moveBtns(ids.lanes).length + moveBtns(ids['attn-rows']).length, 0, 'no `claude` runtime: no Move anywhere, and no message about it');
+  assert.ok(!/desktop app/.test(ids.board.textContent));
+  c201.handlers.click();
+  await flush();
+  assert.ok(ids['d-act'].textContent.includes('/laneconductor:plan 201'), 'the drawer header shows it too');
+  assert.equal(moveBtns(ids['d-act']).length, 0);
+});
+
+test('actions: Copy calls navigator.clipboard.writeText inside the click handler, says Copied, and does not open the card', async () => {
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    const btn = all(card, cls('copy'))[0];
+    assert.equal(btn.attrs['aria-label'], 'Copy the command for AM-201: /laneconductor:plan 201');
+    assert.equal(btn._text, 'Copy');
+    const e = fakeEv('x');
+    btn.handlers.click(e);
+    assert.deepEqual(written, ['/laneconductor:plan 201'], 'the write is made synchronously, in the click');
+    assert.equal(e.stopped, true, 'the click does not open the details');
+    await flush();
+    const note = all(card, cls('copied'))[0];
+    assert.equal(note.textContent, 'Copied');
+    assert.equal(note.attrs.role, 'status');
+    const k = fakeEv('Enter'); btn.handlers.keydown(k); assert.equal(k.stopped, true, 'Enter on the button does not open the card');
+    const esc = fakeEv('Escape'); btn.handlers.keydown(esc); assert.equal(esc.stopped, false, 'Escape still reaches the drawer handler');
+  } finally { unstub(); }
+});
+
+test('actions: a refused clipboard write falls back to selecting the command text', async () => {
+  const sel = {};
+  stubGlobal('navigator', { clipboard: { writeText() { return Promise.reject(new Error('NotAllowedError')); } } });
+  stubGlobal('window', { getSelection: () => ({ removeAllRanges() { sel.cleared = true; }, addRange(r) { sel.range = r; } }) });
+  try {
+    const ids = await runPage(serve(dataFor()));
+    ids.__doc.createRange = () => ({ selectNodeContents(n) { sel.node = n; } });
+    const card = cardN(ids, 201);
+    all(card, cls('copy'))[0].handlers.click(fakeEv('x'));
+    await flush();
+    assert.equal(sel.node, all(card, cls('actc'))[0], 'the command element is selected');
+    assert.equal(sel.cleared, true);
+    assert.equal(all(card, cls('copied'))[0].textContent, 'Selected; press Ctrl+C to copy');
+  } finally { unstub(); }
+});
+
+test('actions: no clipboard API and no selection API at all: no error, and the page says what to do', async () => {
+  stubGlobal('navigator', {});
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    all(card, cls('copy'))[0].handlers.click(fakeEv('x'));
+    await flush();
+    assert.match(all(card, cls('copied'))[0].textContent, /Ctrl\+C/);
+  } finally { unstub(); }
+});
+
+test('actions: the drawer header carries the Copy button and it is part of the focus trap', async () => {
+  stubGlobal('navigator', { clipboard: { writeText: () => Promise.resolve() } });
+  try {
+    const ids = await runPage(serve(dataFor()));
+    cardN(ids, 201).handlers.click();
+    await flush();
+    const copy = all(ids['d-act'], cls('copy'))[0];
+    assert.ok(copy);
+    // This board has no docs for the track, so the cycle is [Close, Copy]: Shift+Tab on Close lands on Copy, Tab on Copy wraps to Close.
+    ids['d-close'].focus();
+    const back = ev('Tab', { shiftKey: true }); ids.__doc.handlers.keydown(back);
+    assert.equal(back.prevented, true);
+    assert.equal(ids.__doc.activeElement, copy, 'the Copy button is in the focus trap');
+    const fwd = ev('Tab'); ids.__doc.handlers.keydown(fwd);
+    assert.equal(ids.__doc.activeElement, ids['d-close']);
+    copy.handlers.click(fakeEv('x')); await flush();
+    assert.equal(all(ids['d-act'], cls('copied'))[0].textContent, 'Copied');
+  } finally { unstub(); }
+});
+
+test('Move: capability absent (no claude, use() null, use() rejects, no use): nothing is drawn, nothing is said', async () => {
+  for (const claude of [undefined, { use: async () => null }, { use: async () => { throw Object.assign(new Error('x'), { code: 'not_granted' }); } }, {}]) {
+    if (claude) stubGlobal('claude', claude);
+    try {
+      const ids = await runPage(serve(dataFor()));
+      assert.equal(moveBtns(ids.lanes).length, 0);
+      assert.equal(moveBtns(ids['attn-rows']).length, 0);
+      cardN(ids, 201).handlers.click(); await flush();
+      assert.equal(moveBtns(ids['d-act']).length, 0);
+      assert.ok(!/Move|desktop app|error/i.test(all(ids.lanes, cls('act')).map((x) => x.textContent).join(' ')));
+    } finally { unstub(); }
+  }
+});
+
+test('Move: with the capability the menu is drawn on cards, attention rows and in the drawer, but the server is never probed or called on load', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    assert.deepEqual(log.use, ['mcp']);
+    assert.ok(moveBtns(cardN(ids, 201)).length === 1 && moveBtns(cardN(ids, 202)).length === 1);
+    assert.ok(moveBtns(ids['attn-rows']).length >= 1);
+    assert.deepEqual(log.listTools, [], 'no probe on load');
+    assert.deepEqual(log.calls, [], 'no tool call on load');
+    const b = moveBtns(cardN(ids, 201))[0];
+    assert.equal(b.attrs['aria-label'], 'Move AM-201 to another lane');
+    assert.equal(b.attrs['aria-haspopup'], 'true');
+    assert.equal(b.attrs['aria-expanded'], 'false');
+    cardN(ids, 201).handlers.click(); await flush();
+    assert.equal(moveBtns(ids['d-act']).length, 1, 'and in the drawer');
+    assert.deepEqual(log.listTools, []);
+  } finally { unstub(); }
+});
+
+test('Move: the first click probes once; a menu of the other lanes; a confirm names the exact move; then get_track and update_track; the card moves with a note', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    const ke = fakeEv('Enter'); all(card, cls('move'))[0].handlers.keydown(ke); assert.equal(ke.stopped, true, 'Enter inside the control does not open the card');
+    moveBtns(card)[0].handlers.click(fakeEv('x')); await flush();
+    assert.deepEqual(log.listTools, [HOST]);
+    assert.deepEqual(log.calls, [], 'listing is not a write');
+    const opts = all(card, cls('mvopt'));
+    assert.deepEqual(opts.map((o) => o._text), ['backlog', 'implement', 'review', 'quality-gate', 'done'], 'every lane but the current one');
+    assert.equal(moveBtns(card)[0].attrs['aria-expanded'], 'true');
+    opts[2].handlers.click(fakeEv('x'));
+    assert.match(all(card, cls('mvask'))[0].textContent, /Move AM-201 from plan to review with status queue/);
+    assert.deepEqual(log.calls, [], 'nothing is written before the confirm');
+    all(card, cls('mvgo'))[0].handlers.click(fakeEv('x')); await flush();
+    assert.deepEqual(log.calls, [
+      [HOST, 'get_track', { track: 'AM-201', files: ['index'] }],
+      [HOST, 'update_track', { track: 'AM-201', base: BASE, markers: { Lane: 'review', 'Lane Status': 'queue' } }],
+    ]);
+    assert.equal('reopen' in log.calls[1][2], false, 'no reopen for a track that is not done');
+    assert.equal(ids.lanes.children[0].children[1].children.length, 0, 'gone from plan');
+    const moved = cardN(ids, 201);
+    assert.ok(ids.lanes.children[2].children[1].children.includes(moved), 'now in review');
+    assert.ok(moved.textContent.includes('Moved to review:queue; the board is a snapshot, ask Claude to refresh it.'));
+    assert.ok(!moved.textContent.includes('/laneconductor:plan 201'), 'the old command is not shown for the new lane');
+    moveBtns(moved)[0].handlers.click(fakeEv('x')); await flush();
+    assert.equal(log.listTools.length, 1, 'a second Move does not probe again');
+  } finally { unstub(); }
+});
+
+test('Move: cancel at the confirm step writes nothing', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    await moveVia(card, 'review', { confirm: false });
+    all(card, cls('mvno'))[0].handlers.click(fakeEv('x'));
+    assert.equal(all(card, cls('mvpanel')).length, 0);
+    assert.deepEqual(log.calls, []);
+  } finally { unstub(); }
+});
+
+test('Move: a running track gets a warning in the confirm step', async () => {
+  const { claude } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 202);
+    await moveVia(card, 'review', { confirm: false });
+    assert.ok(all(card, cls('mvwarn'))[0].textContent.includes('running'));
+  } finally { unstub(); }
+});
+
+test('Move: a server that is not reachable (not in the desktop app): the menu goes on the first click, with a quiet note, and nothing is called', async () => {
+  const { claude, log } = fakeClaude({ servers: [] });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    assert.equal(moveBtns(cardN(ids, 201)).length, 1, 'drawn until the first click proves otherwise');
+    moveBtns(cardN(ids, 201))[0].handlers.click(fakeEv('x')); await flush();
+    assert.equal(moveBtns(ids.lanes).length, 0, 'no card keeps a Move button');
+    assert.ok(cardN(ids, 201).textContent.includes('Move works only in the Claude desktop app'));
+    assert.deepEqual(log.calls, []);
+    assert.equal(all(ids.board, (x) => x.attrs?.role === 'alert').length, 0, 'never an error banner');
+  } finally { unstub(); }
+});
+
+test('Move: a server that lists without update_track is unreachable; so is a listTools rejection', async () => {
+  for (const claude of [
+    fakeClaude({ servers: [{ server: HOST, tools: [{ name: 'get_track' }] }] }).claude,
+    { use: async () => ({ listTools: async () => { throw toolError('server_not_connected'); }, callTool: async () => okTrack }) },
+  ]) {
+    stubGlobal('claude', claude);
+    try {
+      const ids = await runPage(serve(dataFor()));
+      moveBtns(cardN(ids, 201))[0].handlers.click(fakeEv('x')); await flush();
+      assert.equal(moveBtns(ids.lanes).length, 0);
+    } finally { unstub(); }
+  }
+});
+
+test('Move: CONFLICT shows "changed since you looked; refresh the board and try again" and the card stays', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE, handler: async (tool) => { if (tool === 'update_track') throw toolError('CONFLICT', '1 item changed since your base'); return okTrack; } });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    await moveVia(card, 'review');
+    assert.equal(log.calls.length, 2, 'it did try, once');
+    assert.ok(card.textContent.includes('changed since you looked; refresh the board and try again'));
+    assert.ok(ids.lanes.children[0].children[1].children.includes(card), 'not moved on screen');
+    assert.equal(moveBtns(card).length, 1, 'the menu stays for another try after a refresh');
+  } finally { unstub(); }
+});
+
+test('Move: other failures are told apart (connector refusal, cancelled, approval, ambiguous outcome); none moves the card or retries', async () => {
+  const cases = [
+    [toolError('VALIDATION_FAILED', 'Lane "x" is not a lane'), /connector refused the move: Lane "x" is not a lane/],
+    [Object.assign(new Error('declined'), { code: 'cancelled' }), /Cancelled; nothing was moved/],
+    [Object.assign(new Error('ask'), { code: 'approval_required' }), /needs your approval/],
+    [Object.assign(new Error('timeout'), { code: 'server_unavailable', retryable: true }), /may or may not have happened/],
+    [Object.assign(new Error('?'), { code: 'upstream_error' }), /may or may not have happened/],
+  ];
+  for (const [err, re] of cases) {
+    const { claude, log } = fakeClaude({ servers: REACHABLE, handler: async (tool) => { if (tool === 'update_track') throw err; return okTrack; } });
+    stubGlobal('claude', claude);
+    try {
+      const ids = await runPage(serve(dataFor()));
+      const card = cardN(ids, 201);
+      await moveVia(card, 'review');
+      assert.match(card.textContent, re);
+      assert.equal(log.calls.filter((c) => c[1] === 'update_track').length, 1, 'never retried by the page');
+      assert.ok(ids.lanes.children[0].children[1].children.includes(card));
+    } finally { unstub(); }
+  }
+});
+
+test('Move: a get_track without a base writes nothing', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE, handler: async () => ({ payload: { ok: true, data: {} } }) });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    await moveVia(card, 'review');
+    assert.deepEqual(log.calls.map((c) => c[1]), ['get_track']);
+    assert.match(card.textContent, /nothing was moved/);
+  } finally { unstub(); }
+});
+
+test('Move: leaving the done lane needs an explicit tick in the page and passes reopen: true; never silently', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    ids['done-rows'].children[0].handlers.click(); await flush();
+    assert.equal(ids['d-id'].textContent, 'AM-203');
+    const head = ids['d-act'];
+    await moveVia(head, 'implement', { confirm: false });
+    assert.ok(all(head, cls('mvwarn'))[0].textContent.includes('reopens a finished track'));
+    const go = all(head, cls('mvgo'))[0];
+    assert.equal(go._text, 'Reopen and move');
+    assert.equal(go.disabled, true, 'disabled until the tick');
+    go.handlers.click(fakeEv('x'));
+    assert.deepEqual(log.calls, [], 'a click on a disabled confirm does nothing');
+    const cb = all(head, (x) => x.tag === 'input')[0];
+    cb.checked = true; cb.handlers.change();
+    assert.equal(go.disabled, false);
+    go.handlers.click(fakeEv('x')); await flush();
+    assert.deepEqual(log.calls[1], [HOST, 'update_track', { track: 'AM-203', base: BASE, markers: { Lane: 'implement', 'Lane Status': 'queue' }, reopen: true }]);
+    assert.equal(ids['d-lane'].textContent, 'implement', 'the drawer header follows');
+    assert.ok(ids['d-act'].textContent.includes('the board is a snapshot, ask Claude to refresh it'));
+    assert.equal(ids['done-rows'].children.length, 0, 'gone from the done list');
+  } finally { unstub(); }
+});
+
+test('Move: moving into done asks the same confirm and names the exact move; the menu options are in the drawer focus trap', async () => {
+  const { claude, log } = fakeClaude({ servers: REACHABLE });
+  stubGlobal('claude', claude);
+  try {
+    const ids = await runPage(serve(dataFor()));
+    cardN(ids, 201).handlers.click(); await flush();
+    const head = ids['d-act'];
+    moveBtns(head)[0].handlers.click(fakeEv('x')); await flush();
+    const cycle = [...moveBtns(head), ...all(head, cls('mvopt'))];
+    for (const o of cycle.slice(0, -1)) {
+      o.focus();
+      const tab = ev('Tab'); ids.__doc.handlers.keydown(tab);
+      assert.equal(tab.prevented, undefined, `${o._text} is inside the focus trap`);
+    }
+    cycle.at(-1).focus();
+    const wrap = ev('Tab'); ids.__doc.handlers.keydown(wrap);
+    assert.equal(ids.__doc.activeElement, ids['d-close'], 'the last menu option is the end of the cycle');
+    all(head, cls('mvopt')).find((o) => o._text === 'done').handlers.click(fakeEv('x'));
+    assert.match(all(head, cls('mvask'))[0].textContent, /to done with status queue/);
+    assert.deepEqual(log.calls, []);
+  } finally { unstub(); }
+});
+
+test('actions: new CSS uses theme variables only, wraps at phone width, and the page keeps its safe-DOM rule', () => {
+  const html = fs.readFileSync(PAGE, 'utf8');
+  const from = html.indexOf('/* Card actions');
+  const css = html.slice(from, html.indexOf('@media (max-width: 700px)', from));
+  assert.ok(css.length > 500);
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css), 'colours come from the variables, so both themes work');
+  assert.match(css, /\.act code\.actc \{[^}]*overflow-wrap: anywhere/);
+  assert.match(css, /\.act \.actrow \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.act \.mvpanel \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.act \.copy:focus-visible/, 'keyboard focus is visible');
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\balert\(|\bconfirm\(|\bprompt\(|\bwindow\.open\(/.test(html));
+  assert.ok(!/XMLHttpRequest|sendBeacon/.test(html), 'no network from the actions');
+  assert.ok(/globalThis\.claude/.test(html) && /c\.use\('mcp'\)/.test(html));
 });

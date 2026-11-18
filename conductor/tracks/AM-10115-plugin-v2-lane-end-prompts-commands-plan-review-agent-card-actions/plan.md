@@ -41,4 +41,14 @@ Facts verified in the hooks reference (2026-11-17): events include SessionStart,
 - [ ] Task 2: If it works, or once the remote connector exists: one write action (set lane) with a confirm step in the page, `base` handling and CONFLICT shown to the user
 - [ ] Task 3: Skip this phase's build entirely if the spike fails and the remote connector is not ready; say so here
 
+## Phase 4: Board card actions (owner decision 2026-11-18: both steps)
+
+Step 1 shows each card's next step with its exact command and a Copy button, everywhere. Step 2 adds a Move menu that exists only where the page can reach the local connector. Running work is never a page action: only the command is copied.
+
+- [x] Task 1: `connector/src/board-actions.mjs` (pure): the action of one track from its markers, the dependency state, the stale-claim check and the workflow (next lane through the shared resolver); `buildBoard` adds `action` to live tracks and attention rows, `boardPageData` carries it as `x`; `lc-board.mjs` passes the parsed workflow
+- [x] Task 2: Page, step 1: action line on every card, in every Needs-attention row (new Next step column) and in the drawer header; Copy inside the click handler, selection fallback, "Copied"; safe DOM, theme variables, wrapping at 375 px, focus and aria-labels; the controls do not open the card
+- [x] Task 3: Page, step 2: Move menu behind `claude.use('mcp')`, lazy probe of `host:plugin_laneconductor-parallel_lc` on the first click, `get_track` then `update_track`, confirm step, done-lane tick with `reopen: true`, CONFLICT and other failures told apart, card moves with the snapshot note; an absent capability draws nothing
+- [x] Task 4: Fake-DOM tests with `claude.use('mcp')` stubbed for present, absent, unreachable, CONFLICT and success (test.md TC-6 to TC-12); generator run, `--check` clean
+- [ ] Task 5 (HUMAN): the board is published with `capabilities.mcp` declaring `{server: "host:plugin_laneconductor-parallel_lc", tools: ["get_track", "update_track"]}`; in the Claude desktop app confirm the real server name (`listTools` shows it), the first-use consent, a successful Move and a CONFLICT; in a browser tab confirm no Move is drawn. Record the result here (this also answers Phase 3 Task 1)
+
 **Impact**: The plugin does the follow-up work a skill cannot, and the board becomes a place to review and act.

@@ -173,6 +173,24 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
 .md .mdtable { overflow-x: auto; margin: .8em 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .md table { min-width: 0; width: auto; }
 .md th, .md td { padding: 6px 10px; font-size: 13px; }
+/* Card actions: the next step with its exact command and a Copy button; and, only where the page can reach the local connector, a Move menu. */
+.act { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 6px; border-top: 1px dashed var(--line); }
+.act .actw { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.act .actrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.act code.actc { font-family: var(--font-mono); font-size: 12px; background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 2px 6px; overflow-wrap: anywhere; min-width: 0; user-select: all; }
+.act .copy, .act .mvbtn, .act .mvopt, .act .mvgo, .act .mvno { font: inherit; font-size: 12px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+.act .mvgo { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.act .mvgo[disabled] { opacity: .5; cursor: not-allowed; }
+.act .copy:focus-visible, .act .mvbtn:focus-visible, .act .mvopt:focus-visible, .act .mvgo:focus-visible, .act .mvno:focus-visible, .act input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.act .copied, .act .mvnote { font-size: 12px; color: var(--ok); overflow-wrap: anywhere; }
+.act .mvnote.bad { color: var(--bad); }
+.act .move { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.act .mvpanel { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
+.act .mvask { flex-basis: 100%; font-size: 12.5px; overflow-wrap: anywhere; }
+.act .mvwarn { color: var(--warn); }
+.act label.mvack { flex-basis: 100%; display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; }
+td .act { border-top: 0; padding-top: 0; }
+.d-head .act { border-top: 0; padding-top: 2px; }
 @media (max-width: 700px) {
   .detail { justify-content: stretch; }
   .drawer { width: 100%; border-left: 0; box-shadow: none; }
@@ -218,7 +236,7 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     <h2>Needs attention <span class="n" id="attn-n"></span></h2>
     <p class="hint">Tracks whose markers do not match the workflow, or that are stuck. These come from a check of every track file, so a fix is an edit to that track's <span class="mono">index.md</span>.</p>
     <div class="chips" id="attn-chips" role="group" aria-label="Filter by cause"></div>
-    <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Why</th></tr></thead><tbody id="attn-rows"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Why</th><th>Next step</th></tr></thead><tbody id="attn-rows"></tbody></table></div>
     <button class="more" id="attn-more" hidden></button>
   </section>
 
@@ -253,6 +271,7 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
       <h2 id="d-title"></h2>
       <div class="d-prog"><div class="bar" id="d-bar"></div><span class="mono" id="d-pct"></span></div>
       <div class="phase" id="d-phase"></div>
+      <div id="d-act"></div>
     </div>
     <div class="tabs" id="d-tabs" role="tablist" aria-label="Track documents" hidden></div>
     <div class="d-body" id="d-body" role="tabpanel" tabindex="-1"></div>
@@ -491,6 +510,180 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   try { state.backlogOpen = localStorage.getItem('lc-board-backlog') === '1'; } catch (e) { /* storage can be unavailable */ }
   var PER = 8;
 
+  // ---- Card actions. Step 1 works everywhere: the next step of a track as its exact command and a Copy button (the command
+  // comes from board.json, `x`: c the command or null, w the reason). Running work is never a page action: only the command is copied.
+  // Step 2 only where the page can reach the local connector (the Claude desktop app): a Move menu. It is drawn only when the
+  // runtime gives this page the `mcp` capability, and the server is probed on the first click, never on load. Where the capability
+  // is absent nothing is drawn and nothing is said.
+  var MOVE = { server: 'host:plugin_laneconductor-parallel_lc', cap: false, dead: false, probe: null, ns: null };
+  state.moved = {};
+  var NO_HOST = 'Move works only in the Claude desktop app with the LaneConductor connector running.';
+  function stopKeys(e) { var k = e && e.key; if (k === 'Enter' || k === ' ' || k === 'Spacebar') e.stopPropagation(); }
+  function inert(node) { node.addEventListener('click', function (e) { e.stopPropagation(); }); node.addEventListener('keydown', stopKeys); return node; }
+
+  // Copy inside the click handler (a clipboard write needs the gesture). A refusal falls back to selecting the text.
+  function copyText(text, codeNode, note) {
+    function selectIt() {
+      try { var r = document.createRange(); r.selectNodeContents(codeNode); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch (e) { /* no selection API */ }
+      note.textContent = 'Selected; press Ctrl+C to copy';
+    }
+    try {
+      var cb = typeof navigator !== 'undefined' ? navigator.clipboard : null;
+      if (cb && typeof cb.writeText === 'function') {
+        var p = cb.writeText(text);
+        if (p && typeof p.then === 'function') { p.then(function () { note.textContent = 'Copied'; }, selectIt); return; }
+        note.textContent = 'Copied'; return;
+      }
+    } catch (e) { /* refused: fall through */ }
+    selectIt();
+  }
+
+  // The next step of one track, as drawn on a card, in a Needs-attention row and in the drawer header.
+  function actionLine(t, kind, x) {
+    var a = x === undefined ? t.x : x, moved = state.moved[idOf(t)], ctl = moveControl(t, kind);
+    if (!(a && typeof a.w === 'string') && !moved && !ctl) return null;
+    var box = el('div', 'act'), els = [];
+    if (a && typeof a.w === 'string') box.appendChild(el('div', 'actw', a.w));
+    if (a && typeof a.c === 'string' && a.c) {
+      var row = el('div', 'actrow'), code = el('code', 'actc', a.c), note = el('span', 'copied');
+      note.setAttribute('role', 'status');
+      var b = el('button', 'copy', 'Copy'); b.type = 'button'; b.setAttribute('aria-label', 'Copy the command for ' + idOf(t) + ': ' + a.c);
+      b.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.c, code, note); });
+      b.addEventListener('keydown', stopKeys);
+      row.appendChild(code); row.appendChild(b); row.appendChild(note); box.appendChild(row); els.push(b);
+    }
+    if (moved) { var mn = el('div', 'mvnote' + (moved.bad ? ' bad' : ''), moved.text); mn.setAttribute('role', 'status'); box.appendChild(mn); }
+    if (ctl) { box.appendChild(ctl.node); els.push(ctl); }
+    box.focusables = function () { var out = []; els.forEach(function (x2) { if (x2.focusables) out = out.concat(x2.focusables()); else out.push(x2); }); return out; };
+    return box;
+  }
+
+  function mcpNs() {
+    if (!MOVE.ns) {
+      MOVE.ns = new Promise(function (res) {
+        try {
+          var c = globalThis.claude;
+          if (!c || typeof c.use !== 'function') return res(null);
+          Promise.resolve(c.use('mcp')).then(function (m) { res(m && typeof m === 'object' ? m : null); }, function () { res(null); });
+        } catch (e) { res(null); }
+      });
+    }
+    return MOVE.ns;
+  }
+  // First click on any Move: is the local connector reachable? A host server is omitted from listTools outside the desktop app.
+  function probe() {
+    if (!MOVE.probe) {
+      MOVE.probe = mcpNs().then(function (m) {
+        if (!m || typeof m.listTools !== 'function' || typeof m.callTool !== 'function') return null;
+        return Promise.resolve(m.listTools(MOVE.server)).then(function (r) {
+          var sv = r && Array.isArray(r.servers) ? r.servers.filter(function (x) { return x && x.server === MOVE.server; })[0] : null;
+          var names = sv && Array.isArray(sv.tools) ? sv.tools.map(function (x) { return x && x.name; }) : [];
+          return names.indexOf('get_track') >= 0 && names.indexOf('update_track') >= 0 ? m : null;
+        });
+      }).catch(function () { return null; });
+    }
+    return MOVE.probe;
+  }
+  function envOf(r) { var e = r && (r.payload || r.structuredContent); return e && typeof e === 'object' ? e : (r && typeof r === 'object' ? r : null); }
+  function errInfo(e) {
+    var env = e && e.result ? envOf(e.result) : null, er = env && env.error ? env.error : null;
+    return { code: er && er.code ? String(er.code) : (e && e.code ? String(e.code) : ''), conn: Boolean(er), msg: er && er.message ? String(er.message).split('\n')[0].slice(0, 200) : '' };
+  }
+  // The move: get_track for `base`, then update_track with Lane and Lane Status. The connector's own checks stay authoritative.
+  function doMove(t, lane, reopen) {
+    return probe().then(function (m) {
+      if (!m) { var u = new Error('unavailable'); u.unavailable = true; throw u; }
+      var track = idOf(t);
+      return m.callTool(MOVE.server, 'get_track', { track: track, files: ['index'] }).then(function (r) {
+        var env = envOf(r), base = env && env.data && env.data.base ? env.data.base : env && env.base ? env.base : null;
+        if (!base) { var b = new Error('no base'); b.noBase = true; throw b; }
+        var input = { track: track, base: base, markers: { Lane: lane, 'Lane Status': 'queue' } };
+        if (reopen) input.reopen = true;
+        return m.callTool(MOVE.server, 'update_track', input);
+      });
+    });
+  }
+  function moveFailure(e) {
+    if (e && e.unavailable) return { dead: true, text: NO_HOST };
+    if (e && e.noBase) return { text: 'Could not read the track; nothing was moved. Refresh the board and try again.' };
+    var c = errInfo(e);
+    if (c.code === 'CONFLICT') return { text: 'This track changed since you looked; refresh the board and try again.' };
+    if (c.conn) return { text: 'The connector refused the move' + (c.msg ? ': ' + c.msg : '.') };
+    if (c.code === 'cancelled') return { text: 'Cancelled; nothing was moved.' };
+    if (c.code === 'approval_required' || c.code === 'consent_required') return { text: 'The move needs your approval; nothing was moved. Click Move to ask again.' };
+    if (/^(server_not_connected|server_not_found|capability_disabled|capability_removed|not_granted|not_in_manifest)$/.test(c.code)) return { dead: true, text: NO_HOST };
+    return { text: 'The move may or may not have happened. Refresh the board and check before trying again.' };
+  }
+
+  // One Move control. Self-contained: it redraws only its own node; a finished move redraws the board.
+  function moveControl(t, kind) {
+    if (!MOVE.cap || MOVE.dead) return null;
+    var node = inert(el('div', 'move')), local = { step: 'closed', lane: null, ack: false, busy: false, err: null }, els = [];
+    var ctl = { node: node, focusables: function () { return els.slice(); } };
+    var wasDone = t.l === 'done';
+    function draw() {
+      node.textContent = ''; els = [];
+      var btn = el('button', 'mvbtn', 'Move'); btn.type = 'button';
+      btn.setAttribute('aria-haspopup', 'true'); btn.setAttribute('aria-expanded', String(local.step !== 'closed'));
+      btn.setAttribute('aria-label', 'Move ' + idOf(t) + ' to another lane');
+      btn.addEventListener('click', function (e) { e.stopPropagation(); if (local.busy) return; if (local.step !== 'closed') { local.step = 'closed'; local.err = null; draw(); btn.focus(); return; } open(); });
+      node.appendChild(btn); els.push(btn);
+      if (local.err) { var er = el('div', 'mvnote bad', local.err); er.setAttribute('role', 'status'); node.appendChild(er); }
+      if (local.step === 'menu') {
+        var panel = el('div', 'mvpanel'); panel.setAttribute('role', 'group'); panel.setAttribute('aria-label', 'Move ' + idOf(t) + ' to lane');
+        ALL.filter(function (l) { return l !== t.l; }).forEach(function (l) {
+          var o = el('button', 'mvopt', l); o.type = 'button'; o.setAttribute('aria-label', 'Move ' + idOf(t) + ' to ' + l);
+          o.addEventListener('click', function (e) { e.stopPropagation(); local.step = 'confirm'; local.lane = l; local.ack = false; local.err = null; draw(); });
+          panel.appendChild(o); els.push(o);
+        });
+        node.appendChild(panel);
+      } else if (local.step === 'confirm' || local.step === 'busy') {
+        var cp = el('div', 'mvpanel'); cp.setAttribute('role', 'group'); cp.setAttribute('aria-label', 'Confirm the move of ' + idOf(t));
+        cp.appendChild(el('div', 'mvask', 'Move ' + idOf(t) + ' from ' + (t.l || 'no lane') + ' to ' + local.lane + ' with status queue? This changes the track file.'));
+        if (t.s === 'running') cp.appendChild(el('div', 'mvask mvwarn', 'It says running: a session may be working on it right now.'));
+        var cb = null;
+        if (wasDone) {
+          cp.appendChild(el('div', 'mvask mvwarn', idOf(t) + ' is done. Moving it out of done reopens a finished track.'));
+          var lb = el('label', 'mvack'); cb = el('input'); cb.type = 'checkbox'; cb.setAttribute('aria-label', 'I mean to reopen ' + idOf(t));
+          lb.appendChild(cb); lb.appendChild(el('span', null, 'I mean to reopen this finished track')); cp.appendChild(lb); els.push(cb);
+        }
+        var go = el('button', 'mvgo', wasDone ? 'Reopen and move' : 'Move'); go.type = 'button'; go.disabled = local.step === 'busy' || (wasDone && !local.ack);
+        go.setAttribute('aria-label', (wasDone ? 'Reopen and move ' : 'Confirm the move of ') + idOf(t) + ' to ' + local.lane);
+        if (cb) cb.addEventListener('change', function () { local.ack = Boolean(cb.checked); go.disabled = !local.ack; });
+        go.addEventListener('click', function (e) { e.stopPropagation(); if (go.disabled) return; send(); });
+        var no = el('button', 'mvno', 'Cancel'); no.type = 'button';
+        no.addEventListener('click', function (e) { e.stopPropagation(); local.step = 'closed'; draw(); });
+        cp.appendChild(go); cp.appendChild(no); els.push(go); els.push(no); node.appendChild(cp);
+      }
+    }
+    function gone(text) { MOVE.dead = true; state.moved[idOf(t)] = { text: text, bad: true }; render(); if (cur && cur.t === t) drawHeadAction(); }
+    function open() {
+      local.busy = true;
+      probe().then(function (m) {
+        local.busy = false;
+        if (!m) return gone(NO_HOST);
+        local.step = 'menu'; local.err = null; draw();
+        if (els[1] && els[1].focus) els[1].focus();
+      });
+    }
+    function send() {
+      var lane = local.lane;
+      local.step = 'busy'; local.busy = true; draw();
+      doMove(t, lane, wasDone).then(function () {
+        t.l = lane; t.s = 'queue'; t.x = null;
+        state.moved[idOf(t)] = { text: 'Moved to ' + lane + ':queue; the board is a snapshot, ask Claude to refresh it.' };
+        regroup(); render(); if (cur && cur.t === t) drawHead();
+      }, function (e) {
+        local.busy = false; local.step = 'closed';
+        var f = moveFailure(e);
+        if (f.dead) return gone(f.text);
+        local.err = f.text; draw();
+      });
+    }
+    draw();
+    return ctl;
+  }
+
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function idOf(t) { return (t.p ? t.p + '-' : '') + t.n; }
   function pill(s) { var p = el('span', 'pill ' + (STATUSES.indexOf(s) >= 0 ? s : 'none'), s || 'no status'); return p; }
@@ -519,9 +712,13 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   live.forEach(function (t) { if (LEGACY[t.l]) t.l = LEGACY[t.l]; });
   var statusByKey = {}, byKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; byKey[idOf(t)] = t; });
   var DONE_CAP = 12, FILTER_CAP = 40;
-  var byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
-  live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
-  Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
+  var byLane = {};
+  function regroup() {
+    byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
+    live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
+    Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
+  }
+  regroup();
   var planned = LANES.length ? byLane[LANES[0]].length : 0; // the first column is where tracks are planned
   var inflight = 0; LANES.slice(1).forEach(function (l) { inflight += byLane[l].length; });
 
@@ -652,12 +849,24 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
       renderDoc(doc, key);
     }).catch(function (e) { if (cur && cur.seq === mine && cur.tab === key) renderError(e); });
   }
+  // The drawer header's lane tag, status and action line (redrawn after a move).
+  var headAct = null;
+  function drawHeadAction() {
+    var host = $('d-act'); host.textContent = ''; headAct = null;
+    if (!cur) return;
+    headAct = actionLine(cur.t, 'drawer'); if (headAct) host.appendChild(headAct);
+  }
+  function drawHead() {
+    if (!cur) return;
+    $('d-lane').textContent = cur.t.l || 'no lane';
+    var ps = $('d-pill'); ps.textContent = ''; ps.appendChild(pill(cur.t.s));
+    drawHeadAction();
+  }
   function openDetail(t, kind) {
     seq++;
     cur = { t: t, kind: kind, tab: 'index', seq: seq };
     $('d-id').textContent = idOf(t);
-    $('d-lane').textContent = t.l || 'no lane';
-    var ps = $('d-pill'); ps.textContent = ''; ps.appendChild(pill(t.s));
+    drawHead();
     $('d-title').textContent = t.t || '(no title)';
     var bar = $('d-bar'); bar.textContent = ''; var f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g || 0)) + '%'; bar.appendChild(f);
     bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuenow', String(t.g || 0)); bar.setAttribute('aria-label', 'Progress');
@@ -673,13 +882,14 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   function closeDetail() {
     if (!cur) return;
     var back = focusEls[cur.kind + ':' + idOf(cur.t)];
-    cur = null; seq++;
+    cur = null; seq++; headAct = null;
     $('detail').hidden = true;
     $('wrap').removeAttribute('inert');
     if (back && back.focus) back.focus();
   }
   function trapList() {
     var list = [$('d-close')];
+    if (headAct && headAct.focusables) list = list.concat(headAct.focusables());
     tabEls.forEach(function (b) { if (b.attrs ? b.attrs['aria-selected'] === 'true' : b.getAttribute('aria-selected') === 'true') list.push(b); });
     if (retryBtn) list.push(retryBtn);
     return list.concat(bodyLinks);
@@ -708,6 +918,7 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     c.appendChild(el('div', 'title', t.t));
     if (t.g > 0 || t.l !== 'backlog') { var b = el('div', 'bar'), f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g)) + '%'; b.appendChild(f); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-valuenow', String(t.g)); b.setAttribute('aria-label', 'Progress'); c.appendChild(b); }
     if (t.h && t.h !== 'New') c.appendChild(el('div', 'phase', t.h));
+    var act = actionLine(t, 'card'); if (act) c.appendChild(act);
     activatable(c, t, 'card');
     return c;
   }
@@ -744,7 +955,8 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     (state.attnAll ? rows : rows.slice(0, DONE_CAP)).forEach(function (a) {
       var tr = document.createElement('tr');
       var c1 = el('td', 'mono', idOf(a)); var c2 = el('td', 't', a.t || '(no title)'); var cs = el('td'); cs.appendChild(pill(statusByKey[idOf(a)])); var c3 = el('td'); a.r.forEach(function (r) { c3.appendChild(el('div', 'why', r.replace(/\*\*/g, ''))); });
-      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); activatable(tr, byKey[idOf(a)] || { n: a.n, p: a.p, t: a.t, l: null, s: null, g: 0, h: '', d: false }, 'attn'); tb.appendChild(tr);
+      var c4 = el('td'), tk = byKey[idOf(a)], al = actionLine(tk || { n: a.n, p: a.p }, 'attn', tk ? tk.x : a.x); if (al) c4.appendChild(al);
+      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); tr.appendChild(c4); activatable(tr, byKey[idOf(a)] || { n: a.n, p: a.p, t: a.t, l: null, s: null, g: 0, h: '', d: false }, 'attn'); tb.appendChild(tr);
     });
     var m = document.getElementById('attn-more'); m.hidden = rows.length <= DONE_CAP; m.textContent = state.attnAll ? 'Show fewer' : 'Show all ' + rows.length;
     m.onclick = function () { state.attnAll = !state.attnAll; drawAttn(); };
@@ -804,6 +1016,8 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawEpics(); drawDone(); drawBacklog(); }
   document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; state.backlogAll = false; render(); });
   render();
+  // Resolves quickly (null at once with no `claude`, within seconds in an unserved frame). It only decides whether a Move menu is drawn.
+  mcpNs().then(function (m) { if (m) { MOVE.cap = true; render(); if (cur) drawHeadAction(); } });
   document.getElementById('status').hidden = true;
   document.getElementById('board').hidden = false;
   }

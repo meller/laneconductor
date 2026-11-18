@@ -46,7 +46,7 @@ const entries = await Promise.all(dirs.map(async (d) => {
   return { folder: d.name, index: content === null ? null : { content, sha: blobSha(content) } };
 }));
 
-const board = buildBoard(entries, { lanes: lanes.length ? lanes : DEFAULT_LANES, generatedAt: now, project });
+const board = buildBoard(entries, { lanes: lanes.length ? lanes : DEFAULT_LANES, generatedAt: now, project, workflow: wf });
 
 const checkFile = opt('--check');
 const siteDir = opt('--site');

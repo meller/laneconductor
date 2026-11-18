@@ -218,7 +218,10 @@ test('TC-18: the add-on ships conductor/services/workflow-transitions.mjs, byte-
   const shipped = path.join(REPO, 'plugins/laneconductor-parallel', rel);
   assert.ok(fs.existsSync(shipped), 'shipped in the add-on');
   assert.ok(fs.readFileSync(shipped).equals(fs.readFileSync(path.join(REPO, rel))), 'byte-identical');
-  for (const base of ['plugins/laneconductor', 'plugins/laneconductor-board']) assert.ok(!fs.existsSync(path.join(REPO, base, rel)), `${base} does not carry it (the base stays Markdown only)`);
+  assert.ok(!fs.existsSync(path.join(REPO, 'plugins/laneconductor', rel)), 'the base plugin does not carry it (the base stays Markdown only)');
+  // Track AM-10115: the board script names each card's next lane through the same resolver, so the board add-on carries the same file.
+  const board = path.join(REPO, 'plugins/laneconductor-board', rel);
+  assert.ok(fs.existsSync(board) && fs.readFileSync(board).equals(fs.readFileSync(path.join(REPO, rel))), 'the board add-on carries it, byte-identical');
 });
 
 test('TC-18: installed layout: a copy of the add-on (a plain directory with the npm dependencies beside it) serves valid.next and outcome through stdio', async () => {

@@ -8,6 +8,8 @@ import { epicsOf } from './epics.mjs';
 import { staleRunning } from './claims.mjs';
 import { lintTracks, rowOf } from './summary.mjs';
 import { trackNumberOfFolder } from './tracks.mjs';
+import { dependencyState } from './dependencies.mjs';
+import { actionOf } from './board-actions.mjs';
 
 /** The lanes the page draws when a project has no conductor/workflow.json (or one without lanes). */
 export const DEFAULT_PAGE_LANES = ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done'];
@@ -59,9 +61,9 @@ function trackOf(e, archived) {
 
 /**
  * @param {{ folder: string, index: { content: string, sha?: string } | null }[]} entries
- * @param {{ lanes?: string[], generatedAt: string, project?: string }} opts
+ * @param {{ lanes?: string[], generatedAt: string, project?: string, workflow?: object | null }} opts workflow: the parsed conductor/workflow.json, used only to say which lane a finished lane leads to (card actions)
  */
-export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, project = null } = {}) {
+export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, project = null, workflow = null } = {}) {
   const laneList = [...new Set(['backlog', ...(lanes?.length ? lanes : DEFAULT_LANES)])];
   const active = [];
   const archived = [];
@@ -77,6 +79,8 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
   // Lint only the live folders: archived copies share their track's number and would read as clashes.
   const lint = lintTracks(active, act.map((a) => a.row), laneList);
   const reasonsByFolder = new Map(lint.map((l) => [l.folder, l.problems.map(safeReason)]));
+  const deps = dependencyState(act.map((a) => a.row));
+  const actionByFolder = new Map();
   act.forEach(({ row }, i) => {
     const reasons = reasonsByFolder.get(row.folder) ?? [];
     const stale = active[i].index ? staleRunning(active[i].index.content, Date.parse(generatedAt)) : null;
@@ -86,10 +90,13 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     // Track AM-10135: in the done lane only `success` means shipped; the other statuses are work somebody still has to finish.
     if (row.lane === 'done' && DONE_ATTENTION[row.lane_status]) reasons.push(DONE_ATTENTION[row.lane_status]);
     if (reasons.length) reasonsByFolder.set(row.folder, reasons);
+    // Track AM-10115: the next step and its exact command, from this track's own markers only.
+    const action = actionOf({ row, stale, dep: deps.get(row.number) ?? null, lanes: laneList, workflow });
+    if (action) actionByFolder.set(row.folder, action);
   });
 
   const laneIdx = (t) => { const i = laneList.indexOf(t.lane); return i === -1 ? laneList.length : i; };
-  const tracks = [...act, ...arc].map((a) => ({ ...a.track, ...(a.track.archived ? {} : { needs_attention: reasonsByFolder.has(a.track.folder) }) }))
+  const tracks = [...act, ...arc].map((a) => ({ ...a.track, ...(a.track.archived ? {} : { needs_attention: reasonsByFolder.has(a.track.folder) }), ...(actionByFolder.has(a.track.folder) && !a.track.archived ? { action: actionByFolder.get(a.track.folder) } : {}) }))
     .sort((a, b) => laneIdx(a) - laneIdx(b) || b.number - a.number || (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || a.folder.localeCompare(b.folder));
 
   const by_lane = Object.fromEntries(laneList.map((l) => [l, 0]));
@@ -100,7 +107,7 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
   }
   const needs_attention = act
     .filter(({ row }) => reasonsByFolder.has(row.folder))
-    .map(({ row }) => ({ number: row.number, folder: row.folder, reasons: reasonsByFolder.get(row.folder) }))
+    .map(({ row }) => ({ number: row.number, folder: row.folder, reasons: reasonsByFolder.get(row.folder), ...(actionByFolder.has(row.folder) ? { action: actionByFolder.get(row.folder) } : {}) }))
     .sort((a, b) => b.number - a.number || a.folder.localeCompare(b.folder));
 
   const epics = epicsOf(act.map((a) => a.row)).map(({ row, table }) => ({
@@ -139,8 +146,9 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
  *           d a docs file is published for this track,
+ *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
- *   attn:   n number, p prefix, t title, r reasons
+ *   attn:   n number, p prefix, t title, r reasons, x the next step (as on a track; only when there is one)
  *   epics (only when a track is named by `Part Of`): n number, p prefix, t title, d children done, c children [i id, t title, l lane, s status, g progress]
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
@@ -157,11 +165,12 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
     tracks: live.map((t) => ({
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
       d: withDocs.has(t.folder),
+      ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),
     attn: board.needs_attention
       .filter((a) => titleOf.has(a.folder))
-      .map((a) => ({ n: a.number, p: prefixOf(a.folder), t: titleOf.get(a.folder) ?? '', r: a.reasons })),
+      .map((a) => ({ n: a.number, p: prefixOf(a.folder), t: titleOf.get(a.folder) ?? '', r: a.reasons, ...(a.action ? { x: a.action } : {}) })),
     ...(board.epics?.length ? { epics: board.epics.map((e) => ({ n: e.number, p: prefixOf(e.folder), t: e.title ?? '', d: e.done, c: e.children.map((c) => ({ i: c.id, t: c.title ?? '', l: c.lane, s: c.lane_status, g: c.progress || 0 })) })) } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
