@@ -1,9 +1,9 @@
 # Track AM-10142: Worktree single writer: track-runner reads through the connector, code branches never carry track files
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Parked in the backlog by the owner on 2026-11-18.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct

@@ -1,9 +1,9 @@
 # Track AM-10138: outcome:failure honours max_retries (an Attempts marker bounds the loop)
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Parked in the backlog by the owner on 2026-11-18; depends on 10137.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
