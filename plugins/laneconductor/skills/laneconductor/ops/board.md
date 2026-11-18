@@ -14,8 +14,8 @@ From the project root:
 site=$(mktemp -d) && lc board --site "$site" --json
 ```
 
-No `lc` on PATH but the LaneConductor plugin is installed: run its own board script, `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site "$site" --json`. If that variable is not substituted, find the script (Glob `**/laneconductor/**/server/bin/lc-board.mjs` under `~/.claude/plugins`) and run `node <that path> --repo . --site "$site" --json`.
-Neither exists: say so and stop. The temp dir stays outside the repo (the command refuses a folder
+No `lc` on PATH: use the board script of the optional laneconductor-board add-on. Find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` and run `node <that path> --repo . --site "$site" --json`.
+Neither exists: the add-on is not installed. Say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop. The temp dir stays outside the repo (the command refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
 "root": "<dir>", "files": ["board.json", "docs/1.json", ...] }`. `board.html` is the page (identical
 every time, no data in it); `board.json` is the data (project, generated_at, tracks, attn); each
@@ -79,3 +79,21 @@ covers this repo's project only).
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
 - Never claim the board is live or updates by itself; to refresh it, run this command again.
 - If a step fails, report which step and the error; do not publish a partial board.
+
+## If the board script is missing
+
+The board page is built by a small script from the laneconductor-board add-on, which is optional and not part of this plugin. Without it,
+say that in a sentence or two, then show these commands as written. The person runs them; never run an install command yourself.
+It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Do not look for another way to build the board, do not write the page by hand, and do not publish anything.
+
+```bash
+claude plugin marketplace add meller/laneconductor
+```
+
+```bash
+claude plugin install laneconductor-board@laneconductor
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
+
+Everything else in LaneConductor works without it. More: https://github.com/meller/laneconductor

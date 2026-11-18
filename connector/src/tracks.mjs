@@ -90,7 +90,7 @@ function testText(number, title, trackKind) {
   return `${head}- [ ] TC-1 (regression): a test that reproduces the bug (the steps in "Steps to reproduce") and FAILS before the fix; it passes after the fix and stays in the suite\n\n(More test cases to be added)\n`;
 }
 
-export function buildTrackFiles({ number, initials, title, problem, type = 'dev', trackKind, autoRun = 'no', mergeMode = 'direct', dependsOn }) {
+export function buildTrackFiles({ number, initials, title, problem, type = 'dev', trackKind, autoRun = 'no', mergeMode = 'direct', dependsOn, lane = 'plan' }) {
   if (typeof title !== 'string' || title.trim() === '' || title.length > 120 || /[\r\n]/.test(title)) {
     throw fail('VALIDATION_FAILED', 'title must be a single line of 1 to 120 characters');
   }
@@ -107,7 +107,7 @@ export function buildTrackFiles({ number, initials, title, problem, type = 'dev'
   const header = [
     `# Track ${id}: ${title.trim()}`,
     '',
-    '**Lane**: plan',
+    `**Lane**: ${lane}`,
     '**Lane Status**: queue',
     '**Progress**: 0%',
     '**Phase**: New',
@@ -123,7 +123,7 @@ export function buildTrackFiles({ number, initials, title, problem, type = 'dev'
   ].join('\n');
   // Sanity: the header we built must read back with the markers we meant to write.
   const back = parseMarkers(header).values;
-  if (back['Lane'] !== 'plan' || back['Summary'] !== summary) throw fail('VALIDATION_FAILED', 'Could not build a valid index.md from the given title and problem');
+  if (back['Lane'] !== lane || back['Summary'] !== summary) throw fail('VALIDATION_FAILED', 'Could not build a valid index.md from the given title and problem');
   const files = {
     index: header,
     spec: specText(title.trim(), problem.trim(), trackKind),

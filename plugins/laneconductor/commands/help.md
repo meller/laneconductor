@@ -3,7 +3,7 @@ description: List every LaneConductor command with an example phrase
 ---
 Show me this list as it is; run nothing else.
 
-LaneConductor commands. Say one in your own words, or use it as a prompt.
+LaneConductor commands. Say one in your own words, or use it as a slash command.
 
 Plan and deliver
 - plan <track number or title>: Plan a track: write its spec, plan and test cases (the plan lane). Example: "plan track 10106"
@@ -35,6 +35,6 @@ Setup and deploy
 - setup [scaffold]: Set up LaneConductor in this repository (runs only because you named it). Example: "set up LaneConductor here"
 - deploy [setup]: Set up or run deployment for this project (runs only because you named it). Example: "deploy this project"
 
-Needs the `lc` command-line tool (or the board script) when it is missing: board (only to refresh), refresh-board. Without it they say so and stop; every other command works through the connector tools or by editing the track files.
+Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh) and refresh-board; without it they say so and show how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.
 
 In Claude Code, type a command as `/laneconductor:<name>`, for example `/laneconductor:plan 10106`; typing `/laneconductor:` lists them all.

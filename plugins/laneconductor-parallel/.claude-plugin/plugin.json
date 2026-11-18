@@ -1,0 +1,21 @@
+{
+  "name": "laneconductor-parallel",
+  "displayName": "LaneConductor Parallel",
+  "version": "1.0.0",
+  "description": "LaneConductor Parallel: an add-on for LaneConductor. A local connector with conflict-checked track writes and automatic commits, and a track-runner subagent that works one track in its own git worktree.",
+  "author": {
+    "name": "Asaf Meller",
+    "url": "https://github.com/meller"
+  },
+  "homepage": "https://laneconductor.com",
+  "repository": "https://github.com/meller/laneconductor",
+  "license": "Elastic-2.0",
+  "keywords": [
+    "laneconductor",
+    "tracks",
+    "worktrees",
+    "git",
+    "mcp"
+  ],
+  "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
+}

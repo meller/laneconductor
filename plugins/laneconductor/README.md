@@ -1,98 +1,118 @@
 # LaneConductor
 
-LaneConductor keeps a project's plans as plain files in git: one folder per track under
-`conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and
-`conversation.md`. This one plugin teaches Claude the workflow for them (how to plan, implement, review,
-quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy) and includes
-the local connector that reads and writes the track files safely and the board generator.
+LaneConductor teaches Claude a plan-first way of working on a project whose plans are plain files in git: one folder per track
+under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
+to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 0.6.0.
+Version 1.0.0.
 
 ## What is in it
 
-- the `laneconductor` skill: the lane guides (`plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`),
-  the track operations (create, move, comment, status, workflow) and the working-a-track guardrails;
-- slash commands, run as `/laneconductor:<name>` (type `/laneconductor:` to list them; `help` shows each with an example
-  phrase): `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `new`, `bug`, `feature`, `status`,
-  `move`, `comment`, `board`, `show-board`, `refresh-board`, `workflow`, `review-plan` and `help`; `setup`,
-  `new-project` and `deploy` run only when you name them. They are generated from the same command catalog the connector serves as MCP prompts, so any MCP client sees the same commands;
-- the new-project flow: `/laneconductor:new-project` interviews you in chat, writes the `conductor/` scaffold (no
-  daemon, no database) and creates the first tracks, asking before any commit and never pushing. The script behind it,
-  `lc-scaffold`, is in `server/bin/`; it never pushes and never overwrites an existing file;
-- a lane-to-skill map: each lane guide ends with a short "Skills that help here" section that suggests skills worth
-  using at that lane (if you have them installed), and `conductor/workflow.json` may carry an optional `skills` object
-  naming your own per lane. LaneConductor only knows which skills help; it does not bundle, wrap or install them;
-- two subagents: `track-runner` works one track through one lane in its own git worktree, and `plan-reviewer`
-  reads a track's spec and plan and reports gaps without changing anything. `run`, `implement` and `review` only
-  recommend `track-runner` (one subagent per track, so tracks do not collide) and show the exact dispatch; nothing
-  starts until you say yes;
-- the connector, a local MCP server (`/mcp` shows `plugin:laneconductor:lc`; its tools are named
-  `mcp__plugin_laneconductor_lc__<tool>`): conflict-checked writes (a write needs the `base` from your last read and
-  is refused with a `CONFLICT` if someone edited the file since), automatic commits (each write is one git commit
-  containing only the files it wrote) and freshness warnings;
-- the board generator, `server/bin/lc-board.mjs`, used by `/laneconductor:board`: a static page and data snapshot of
-  every track by lane, which Claude publishes as a private artifact.
+It is Markdown only, and it works on its own:
 
-Hooks are not part of this plugin. They are planned as a separate, opt-in extension, `laneconductor-hooks` (not yet
-available), because hooks run on every session and tool call; you will be able to remove it by uninstalling it. Until
-then a few habits (a short status first, one next step, asking before a push) are written into the skill.
+- the `laneconductor` skill: the lane guides (`plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`), the track
+  operations (create, move, comment, status, workflow) and the working-a-track guardrails;
+- slash commands, run as `/laneconductor:<name>` (type `/laneconductor:` to list them; `help` shows each with an example phrase);
+  `setup`, `new-project` and `deploy` run only when you name them;
+- a lane-to-skill map: each lane guide ends with a short "Skills that help here" section that suggests skills worth using at that
+  lane (if you have them installed); `conductor/workflow.json` may carry an optional `skills` object naming your own per lane;
+- one read-only subagent, `plan-reviewer`, which reads a track's spec and plan and reports gaps without changing anything.
+
+Claude edits the track files directly, following the skill's file formats, and asks before any merge or push. The plugin declares
+no pre-approved tools, so nothing is allowed without your say.
+
+It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
+policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
+
+## Optional add-ons
+
+Optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. None is needed, they have
+no dependency on this plugin or on each other, and LaneConductor does not install them for you. When one is installed, the commands
+use it; when it is missing, LaneConductor mentions it at most once per session, and only when it is relevant.
+
+| Plugin | Provides |
+| :--- | :--- |
+| `laneconductor` (base) | the `laneconductor` skill, every slash command (`/laneconductor:<name>`), the `plan-reviewer` subagent. Markdown only. |
+| `laneconductor-parallel` (add-on) | the connector's tools (`mcp__plugin_laneconductor-parallel_lc__*`) and MCP prompts, the `track-runner` subagent (one per track, in its own worktree), `lc-scaffold.mjs`. No slash commands. |
+| `laneconductor-board` (add-on) | `lc-board.mjs` and its page. No slash commands. |
+
+### `laneconductor-parallel`
+
+Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+
+```bash
+claude plugin marketplace add meller/laneconductor
+```
+
+```bash
+claude plugin install laneconductor-parallel@laneconductor
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
+
+### `laneconductor-board`
+
+The board, one private page of every track by lane, which Claude publishes as an artifact. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
+
+```bash
+claude plugin marketplace add meller/laneconductor
+```
+
+```bash
+claude plugin install laneconductor-board@laneconductor
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
+
+The full list of what each plugin provides, and which commands need which add-on, is in
+[docs/plugin-map.md](https://github.com/meller/laneconductor/blob/main/docs/plugin-map.md).
 
 ## Install
 
 In Claude Code:
 
-```
+```bash
 claude plugin marketplace add meller/laneconductor
+```
+
+```bash
 claude plugin install laneconductor@laneconductor
 ```
 
-Add `--scope local` to install it for one project only (just for you), or `--scope user` for every project.
-Or use "Upload plugin" in Claude (desktop app or claude.ai: Customize, Plugins, Add) with `laneconductor-<version>.zip`
-from the Releases page of https://github.com/meller/laneconductor. After an upload install, `/mcp` should show the
-connector; if it does not, run `npm ci` inside the plugin's folder. It needs Node.js 20 or newer and installs its two
-npm packages (`@modelcontextprotocol/server`, `zod`) from the lockfile in this plugin. Update with
-`claude plugin marketplace update laneconductor`, then `claude plugin update laneconductor@laneconductor`.
-If you keep a copy of the LaneConductor skill in your own project (`.claude/skills/laneconductor`) or in
-`~/.claude/skills`, remove it so the skill is not loaded twice.
+Add `--scope local` to install it for one project only (just for you), or `--scope user` for every project. Or use "Upload plugin"
+in Claude (desktop app or claude.ai: Customize, Plugins, Add) with `laneconductor-<version>.zip` from the Releases page of
+https://github.com/meller/laneconductor. Update with `claude plugin marketplace update laneconductor`, then
+`claude plugin update laneconductor@laneconductor`. If you keep a copy of the LaneConductor skill in your own project
+(`.claude/skills/laneconductor`) or in `~/.claude/skills`, remove it so the skill is not loaded twice.
 
-## What it runs and writes
+## Moving from the all-in-one plugin (versions 0.x)
 
-- The connector is a Node process started over stdio by Claude Code (`node server/bin/lc-connector.mjs`). It works on
-  the git repository of the project you have open (`CLAUDE_PROJECT_DIR`, else the current directory).
-- The only program it starts is `git`, in that repository: read-only queries, and `add`, `commit` and `reset` for its own
-  writes. It reads and writes files under `conductor/` (track folders, `tracks-summary.md`) and appends to
-  `conductor/advice-log/`. Every write is a commit on the project's state branch (`main` by default) that contains
-  exactly the files it wrote, and writes are refused when the checkout is on another branch.
-- It makes no network requests of its own and never runs `git fetch`. It never pushes unless you set
-  `{ "connector": { "push": "auto-state" } }` in `.laneconductor.json`; then it runs a fast-forward `git push` of the
-  state branch 60 seconds after its last write, and only when every unpushed commit touches nothing outside `conductor/`.
-  It never forces a push.
-- The advice log records tool names, success flags, timings, sizes and error codes, plus the one-line reason Claude gives
-  when it deviates from advice; it holds no file contents or prompts. It is an ordinary file in your repository and goes
-  to your git remote only if you or the `auto-state` setting push it.
-- The board script runs `git` read-only (the origin URL and the current branch name), reads `conductor/workflow.json`,
-  `.laneconductor.json` and each track's `index.md`, `spec.md`, `plan.md` and `test.md`, and writes only into the
-  folder you name with `--site`, never inside `conductor/`. Publishing the artifact is done by Claude, with your
-  approval, never by the script.
-- The skill is instructions for Claude: it asks Claude to read and edit files and to run shell commands in your project
-  (git, tests, builds, and the deploy commands you configure) under your normal Claude Code permission prompts. It
-  declares no pre-approved tools, and it asks before any merge or push.
+Before version 1.0.0 `laneconductor` was one plugin that also held the connector and the board. It is now this Markdown-only base,
+plus the two add-ons above. If you are on 0.x, the connector and the board are no longer in `laneconductor`. Uninstall the old one,
+install the base and the add-ons you want, and restart your sessions (a running connector process keeps the version it started
+with):
 
-## Board privacy
+```bash
+claude plugin uninstall laneconductor
+```
 
-Every document is scanned for secrets and personal data before it goes onto the board; a file with any match is
-withheld whole and named by track number and file name, never by its content. `conversation.md` is left out unless you
-set `board.include_conversation: true`, and sharing the artifact shares the documents on it, so share it only with
-people who may read them.
+```bash
+claude plugin install laneconductor@laneconductor
+```
+
+Then install `laneconductor-parallel` and `laneconductor-board` as shown above if you want them. The files in git are unchanged,
+so nothing is lost: your tracks are the same.
+
+## What it reads and writes
+
+The skill is instructions for Claude: it asks Claude to read and edit files and to run shell commands in your project (git, tests,
+builds, and the deploy commands you configure) under your normal Claude Code permission prompts. It reads and writes the track
+folders under `conductor/`, plus `.laneconductor.json` when it exists, and it asks before any push.
 
 ## Where it works
 
-The connector, the board script and the subagents run in Claude Code and Cowork on your own computer. In claude.ai chat
-only the skill and the commands load (as skills), and Claude edits the track files directly, following the skill.
-
-## Not in Anthropic's directory
-
-This plugin is not in Anthropic's plugin directory yet; install it from the marketplace above or by upload.
+In Claude Code and Cowork, and in claude.ai chat, where the skill and the commands load as skills and Claude edits the track files
+directly.
 
 ## License and support
 

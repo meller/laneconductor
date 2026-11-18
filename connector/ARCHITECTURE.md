@@ -30,28 +30,46 @@ produced by the generator profiles in `scripts/build-plugin.mjs` from sources in
 and never edited by hand under `plugins/`:
 
 - the plugin manifests (`plugin.json`), the marketplace entries (`.claude-plugin/marketplace.json`) and the icon;
-- the slash commands (`commands/`), generated from the neutral command catalog (Claude frontmatter, the sub-agent names, the Artifact tool and the fallback line for an unavailable connector are added by the generator), and the subagents (`agents/`, from `connector/plugin-extras/agents/`);
-- the skill frontmatter transforms (the `allowed-tools` key is dropped in both profiles) and the Habits section appended
-  to `SKILL.md` because no hooks ship in the main plugin;
-- `.mcp.json`, which starts the connector over stdio with Claude's `${CLAUDE_PLUGIN_ROOT}` variable.
+- the slash commands of the base (`commands/`), generated from the neutral command catalog (Claude frontmatter, the sub-agent names, the Artifact tool, the board-script lookup and the one line naming the add-on's tools are added by the generator), and the subagents (`agents/`, from `connector/plugin-extras/agents/`);
+- the skill frontmatter transforms (the `allowed-tools` key is dropped) and the Habits and Add-ons sections appended
+  to `SKILL.md` because no hooks ship;
+- `.mcp.json` of the parallel add-on, which starts the connector over stdio with Claude's `${CLAUDE_PLUGIN_ROOT}` variable.
 
-There is ONE plugin, `laneconductor`, installed locally from the owner's marketplace or by uploading a zip (decision of
-2026-11-17: the connector is the main LaneConductor). It is built by the generator in two profiles from the same sources:
+There are THREE plugins, built by the generator from the same sources (decision of 2026-11-18, track AM-10128: the directory portal blocks
+the all-in-one plugin for an organization that is not Verified, so only a Markdown-only plugin can be submitted):
 
-- `full` (the default build, `plugins/laneconductor`, the one we ship): the skill, commands, agents, the MCP server with
-  server key `lc` (tools are named `mcp__plugin_laneconductor_lc__<tool>`), the board script and page, the lockfile and the
-  icon.
-- `lite` (`plugins/laneconductor-lite`, written by the normal run, not in the marketplace file): LaneConductor Lite, Markdown, JSON
-  and one PNG only. The directory portal's Validate (run 2026-11-18) blocks the full plugin for an organization that is not
-  Verified: the local MCP server, package.json and lockfile, scripts, config fields and frontmatter keys such as `isolation`
-  outside its allowed lists. So only a Markdown-only plugin can be submitted: Lite drops the agents' `isolation` key and the
-  plugin.json fields the portal does not know, works by editing the track files, and points to the full plugin in one place
-  (`FULL-PLUGIN.md`) when something needs it (track AM-10127).
+- `laneconductor`, the BASE (`plugins/laneconductor`, profile `base`, the plugin submitted to the directory): Markdown, JSON and one PNG
+  only. The skill, every slash command, the read-only `plan-reviewer` subagent, README, `ADD-ONS.md`, LICENSE, icon and a manifest of
+  fields the portal knows. No program, no `.mcp.json`, no package files, no `isolation` key. It works alone, by editing the track files.
+- `laneconductor-parallel` (add-on, our marketplace only, profile `parallel`): the connector (MCP server key `lc`), the scaffold script,
+  `package.json` and lockfile at the root, and the `track-runner` subagent with `isolation: worktree`.
+- `laneconductor-board` (add-on, our marketplace only, profile `board`): the board script and its page. It works without the connector.
 
-The commands and agents use the connector's tools and fall back to editing the track files directly when the MCP server
-fails to start. Hooks will not go into the main plugin: they will be a separate, opt-in extension, `laneconductor-hooks`
-(`dependencies: ["laneconductor"]`, scripts only), not yet available, because hooks run on every session and tool call
-and must be removable by uninstalling them.
+All slash commands live in the base (a plugin's slash prefix is its plugin name, so add-on commands would split what people type); the
+add-ons ship no `commands/` or `skills/`, and reach people through the base commands, the connector's MCP prompts and agents.
+
+THE INTERFACE between the plugins (no dependency: the base comes from the directory, the add-ons from our marketplace). It is defined once,
+in `scripts/plugin-texts.mjs`, and tested in `connector/test/interop.test.mjs`:
+
+| What | Value | Used by |
+| :--- | :--- | :--- |
+| connector server key | `lc` (`.mcp.json` of the parallel add-on) | tool names |
+| connector tool prefix | `mcp__plugin_laneconductor-parallel_lc__<tool>` (Claude Code derives it from plugin name + server key) | the base's commands, Habits and agents name it only `if present` |
+| sub-agent | `laneconductor-parallel:track-runner` | the base's `run`, `implement`, `review` recommend it only when it is listed |
+| board script | `server/bin/lc-board.mjs` in the board add-on, found by Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed versions only, not the marketplaces/ clone) | the base's `board`, `refresh-board`, `ops/board.md` |
+| scaffold script | `server/bin/lc-scaffold.mjs` in the parallel add-on, found by Glob `**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` | `ops/new-project.md` (by hand when absent) |
+| versions | all three start at 1.0.0 and follow `connector/package.json` | `plugin.json` |
+
+DETECTION: Claude sees which tools, agents and files exist. When the connector tools or the board script are present the base uses them and
+recommends nothing; when they are missing the base mentions the add-on once per session, only when the person asks for a board, mentions
+several sessions, people or sub-agents writing the same tracks, worktrees, or wants automatic commits, a privacy scan or a health report;
+it shows the install commands (one per bash block; the person runs them) and never runs an install itself. The directory policy bans
+listings that exist mainly as advertising, so the base is useful alone and the pointers are short. The text is written once (the
+`BASE_HABITS` funnel paragraph and `ADD_ONS_MD` in `scripts/plugin-texts.mjs`).
+
+The commands and agents of the add-ons use the connector's tools; the base's fall back to editing the track files directly. Hooks will not
+go into any of them: they will be a separate, opt-in extension, `laneconductor-hooks` (scripts only), not yet available, because hooks
+run on every session and tool call and must be removable by uninstalling them.
 
 ## (c) What another agent would need
 

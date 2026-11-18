@@ -6,8 +6,8 @@ Arguments: `$ARGUMENTS` (track number, then lane[:status]).
 
 Move track <track> to <lane> (a `lane` or `lane:status`; a bare lane means `queue`). The procedure is the skill file `ops/tracks.md` (`move`, `pulse`, `updateTrack`).
 
-1. Check `conductor/workflow.json` (or `get_context`, which lists the lane transitions) for a `lane:status` that lane defines.
-2. Call `get_track`, then `update_track` with the `base` from `get_track` and `markers` such as `{"Lane": "implement", "Lane Status": "queue"}`; a progress or phase update is the same call with `Progress` or `Phase`. On a CONFLICT, re-read with `get_track`, merge, and retry; never work around it.
+1. Check `conductor/workflow.json` for a `lane:status` that lane defines; use the lane names of that file (a project may call a lane `planning` or `in-progress`).
+2. Re-read the track's `index.md` right before editing, then change only the marker lines: `**Lane**` and `**Lane Status**` (a progress or phase update is `**Progress**` or `**Phase**`).
 3. Say what changed. Moving a track only sets markers; it starts no work.
 
-Use the connector's tools (`mcp__plugin_laneconductor_lc__*`) when they are present. If the connector's tools are unavailable (its MCP server failed to start), do the same by editing the track files directly, following the skill's `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.
+If the laneconductor-parallel add-on's tools are present (`mcp__plugin_laneconductor-parallel_lc__get_context`, `mcp__plugin_laneconductor-parallel_lc__get_track`, `mcp__plugin_laneconductor-parallel_lc__update_track`), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass `update_track` the `base` from `get_track` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.

@@ -60,7 +60,7 @@ project. Then run `/reload-plugins` in your session.
 Check that it loaded:
 
 - `claude plugin list` shows `laneconductor`.
-- `/mcp` shows `plugin:laneconductor:lc`, the connector.
+- With the optional parallel add-on, `/mcp` shows `plugin:laneconductor-parallel:lc`, the connector.
 
 If you installed with `--scope local` and open another folder, `claude plugin list` shows the plugin as disabled
 there. That is how local scope works, not a fault.
@@ -74,9 +74,23 @@ claude plugin update laneconductor@laneconductor
 
 then `/reload-plugins`.
 
-The plugin is not in Anthropic's plugin directory yet, so you install it from this marketplace or by upload. A directory
-submission is being prepared. Hooks are planned as a separate opt-in extension (`laneconductor-hooks`) and are not
-available yet.
+LaneConductor is three plugins from one generator: `laneconductor` (the base, Markdown only, works alone; the one prepared for
+Anthropic's directory), and two optional add-ons from this marketplace: `laneconductor-parallel` (parallel work in worktrees, a
+local connector with conflict-checked writes) and `laneconductor-board` (the board). What each provides, and which commands need
+which add-on, is in [docs/plugin-map.md](docs/plugin-map.md). The add-ons install a local program, so they are not in the directory:
+
+```bash
+claude plugin install laneconductor-parallel@laneconductor
+```
+
+```bash
+claude plugin install laneconductor-board@laneconductor
+```
+
+**Moving from the all-in-one plugin (0.x):** version 1.0.0 of `laneconductor` no longer holds the connector or the board. Uninstall
+the old one (`claude plugin uninstall laneconductor`), install the base and the add-ons you want, and restart your sessions (a running
+connector keeps the version it started with). Your track files are unchanged. To try all three in a scratch repository:
+`scripts/try-local.sh --dry-run <scratch-repo-path>`. Hooks are planned as a separate opt-in extension and are not available yet.
 
 ### Other ways to get it
 
@@ -183,8 +197,7 @@ and `lc ui` belong to it. Use that tag if you want to run it.
 
 - [Why LaneConductor](docs/why-laneconductor.md): where it comes from, how it differs from trackers and their coding
   agents, who it is for and who it is not for.
-- [`connector/PLUGIN-README.md`](connector/PLUGIN-README.md): what the plugin contains, what it runs and writes,
-  board privacy.
+- [`docs/plugin-map.md`](docs/plugin-map.md): what each of the three plugins provides (generated).
 - [`connector/README.md`](connector/README.md): the connector's tools, push policy, advice log and board data.
 - [`connector/ARCHITECTURE.md`](connector/ARCHITECTURE.md): the neutral core and the Claude adapter.
 - [Knowledge Base](https://laneconductor-site.web.app/wiki.html).
@@ -192,7 +205,7 @@ and `lc ui` belong to it. Use that tag if you want to run it.
 
 ## Project structure
 
-- `plugins/laneconductor/`: the built plugin (generated; do not edit by hand).
+- `plugins/laneconductor/`, `plugins/laneconductor-parallel/`, `plugins/laneconductor-board/`: the built plugins (generated; do not edit by hand).
 - `connector/`: the connector's source, its tests and the plugin's extra files.
 - `scripts/`: the plugin generator and the zip script.
 - `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).

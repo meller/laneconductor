@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { fail } from '../errors.mjs';
 import { LANES, framing, guideSources, loadGuide, newServeId } from '../guides.mjs';
-import { projectField, readOnly, sizeOf } from './common.mjs';
+import { projectField, readOnly, sizeOf, workflowVocabulary } from './common.mjs';
 
 const CONTEXT_FILES = ['product.md', 'product-guidelines.md', 'tech-stack.md', 'workflow.md', 'quality-gate.md', 'kpis.md'];
 const STYLEGUIDE_DIR = 'conductor/code_styleguides';
@@ -48,7 +48,7 @@ export const getContext = {
     const got = await store.readFiles(paths);
     const present = known.filter((n, i) => got.get(paths[i]));
 
-    const data = {};
+    const data = { valid: await workflowVocabulary(store) };
     if (!args.files && !args.lane) {
       data.manifest = present.map((n) => describeFile(n, got.get(`conductor/${n}`).content, got.get(`conductor/${n}`).sha));
       let transitions = null;
