@@ -94,3 +94,7 @@ A person who installs the plugins and runs `/laneconductor:setup` meets a produc
 - Writing the skill advisor's catalog entries (track 10124).
 - Deploying the landing, or editing it before the owner's go.
 - Adjacent daemon-era residue that the base test does not name (`tracks-metadata.json`, `file_sync_queue.md`, `.conductor/locks`, `FRESH_SESSION`, `last_run.log`: about 38 lines in 15 files). The edits of this track remove the ones inside lines it already rewrites; a full sweep is a follow-up.
+
+## Decision recorded 2026-11-18
+
+The board add-on is offered once in setup, next and new-project, instead of being detected, because an installed plugin cannot be detected without reading outside the project (track 10132 made those commands read-free). This knowingly replaces the detection wording of REQ-6 and TC-17 for the board add-on.

@@ -1,9 +1,9 @@
 # Track AM-10133: Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 85%
-**Phase**: Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict validate x4). Owner ruled: no Remote-tier sentence in the README (backlog items stay out of public text). Open: Phase 7 landing and wiki edits (relabel the legacy tier, with the owner's go), Phase 8 real use (fiti-plug with the old lc on PATH, /usr/local/bin/lc and ~/.laneconductorrc decision).
+**Lane**: quality-gate
+**Lane Status**: waiting
+**Progress**: 90%
+**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): plugin-only setup, no lc CLI or old scheme, setup offers the recommended plugins; TC-8 and TC-28 done. Open: Phase 7 landing and wiki wording (owner go), Phase 8 real use (owner).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -22,3 +22,6 @@ Scope:
 
 Out of scope: deleting the legacy daemon code or the `v1-legacy` tag; removing `bin/lc.mjs` from this repository; changing the `/usr/local/bin/lc` link on this machine (tell the owner it exists).
 **Summary**: The owner's decision (2026-11-18): the `lc` command line and the old scheme (daemon, database, `make install`, rc file, `lc` subcommands, `.laneconductor.json` as a control file) do not exist any more
+**Part Of**: 10145
+**Verdict**: pass
+**Waiting Reason**: Phase 7 landing and wiki wording (needs the owner go and the other session to commit landing), Phase 8 real use (owner).
