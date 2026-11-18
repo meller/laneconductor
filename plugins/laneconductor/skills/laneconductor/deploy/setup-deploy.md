@@ -2,6 +2,7 @@
 
 Run only when the user asks for it by name. This is a chat procedure: you scan, ask, and then write the files.
 It runs nothing that changes anything outside the project, and it never asks for or reads a secret.
+Once you know the stack (step 1), offer its deploy pack if it is missing, as `deploy.md` says: one plain offer, never a block.
 
 1. **Scan for deployment signals.** Look for `deploy.sh`, `Dockerfile`, `firebase.json`, `vercel.json`, `infra/`, CI files
    and the hosting hints in `package.json`, and read `conductor/deployment-stack.md` if it exists. Say what you found.

@@ -169,22 +169,24 @@ else is ever stored: there is no counter and no write on a plain run.
 In S02, S03 and S04 there is nothing to rank yet, so the card is followed, once per session, by the optional add-ons that fit this
 project and are not installed. Show them; never run an install. An add-on that is already installed is not offered (the board has one more sentence, below), and one
 already offered in this session (by setup, for example) or declined is not offered again. Later runs, with tracks, never offer
-add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. An add-on is offered once because an installed plugin cannot be detected without reading outside the project, which the base never does; if the person says it is installed already, take their word and stop offering it.
+add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. Detect an installed add-on from the skills list and `claude plugin list` (read only); if you still cannot tell and the person says it is installed already, take their word and stop offering it.
 
 The board is the one add-on that is also named when it is installed. In S02, S03 and S04 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop from there is: open the board, copy the step, run it here, ask for a refresh.
 
-After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
-the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
-that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
-nothing about it. If nothing fits, say nothing and go on.
+After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once, so the person does not have to find them in
+the README. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, how big the project is,
+what the person told you and the Type of the tracks), pick only the entries below that fit and are not installed, and say for each, in one short paragraph, why it fits this project.
+Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
+nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
+If the person says later, record nothing: each item is offered again at its own moment, as `/laneconductor:suggest-skills` describes.
 
 How to offer one:
 
-- Show its two install commands exactly as written below, each alone in its own bash block, then the reload step. You only show them:
+- Show its install commands exactly as written below, each alone in its own bash block (one command per block, no leading `$`), then the reload step. You only show them:
   never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
 - Say plainly what it installs, from the note under its name.
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
-- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
+- Detect what is installed as `/laneconductor:suggest-skills` says (the skills list, `claude plugin list`); if you still cannot tell and the person says it is installed, take their word and say no more about it.
 
 **`laneconductor-parallel`**: Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed.
 
@@ -210,13 +212,85 @@ claude plugin install laneconductor-board@laneconductor
 
 Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
 
-When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing, after the offers above, also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
+**`frontend-design`**: Design direction for a new or reshaped UI: typography, layout and choices that do not read as templated defaults. It fits when the project has a front end (React, Vue, Vite, HTML pages) or tracks that plan screens. It is Markdown only: it adds knowledge and installs no program. It comes from `anthropics/claude-plugins-official`, Anthropic's official marketplace. It counts as installed when a skill named `frontend-design` is in the session's skills list (it may show as `frontend-design:frontend-design`), or `claude plugin list` shows `frontend-design@claude-plugins-official`.
+
+```bash
+claude plugin install frontend-design@claude-plugins-official
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin install frontend-design@claude-plugins-official` instead (that opens the plugin's details for review).
+
+**`marketing-skills`**: Marketing and sales skills for content: strategy, launch plans, copywriting, social posts, sales enablement, prospecting, cold email, analytics and A/B tests (53 skills in all). It fits when the project's tracks are marketing or sales work (copy, launch, outreach), or it is a product that needs a website and a launch. It is Markdown only: it adds knowledge and installs no program. It comes from `coreyhaines31/marketingskills`, a third-party source, not LaneConductor. It counts as installed when a skill from it (for example `copywriting` or `cold-email`) is in the session's skills list, in `.claude/skills` or `~/.claude/skills`, or `claude plugin list` shows `marketing-skills@marketingskills`.
+
+```bash
+claude plugin marketplace add coreyhaines31/marketingskills
+```
+
+```bash
+claude plugin install marketing-skills@marketingskills
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add coreyhaines31/marketingskills` and `/plugin install marketing-skills@marketingskills` instead (that opens the plugin's details for review).
+
+**`superpowers`**: Process skills for the lanes: brainstorming and writing plans, test-first work, systematic debugging, sub-agent execution, worktrees, code review and verification before done. It fits when the project writes code: it adds the brainstorm, plan, test-first, debugging and review skills the lanes use. It installs a shell hook script that runs when each session starts, plus Markdown skills on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace. It counts as installed when one of its skills (for example `test-driven-development`) is in the session's skills list, or `claude plugin list` shows `superpowers@claude-plugins-official`.
+
+```bash
+claude plugin install superpowers@claude-plugins-official
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin install superpowers@claude-plugins-official` instead (that opens the plugin's details for review).
+
+**`playwright`**: Drives a real browser to check a UI flow, click through it and take screenshots, for the quality gate of a UI track. It fits when the project has a web UI that a person checks in a browser. It installs an MCP server (the Playwright MCP Node.js program from Microsoft, fetched with npx) that drives a real browser on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace. It counts as installed when its browser tools are among your tools (they start with `mcp__plugin_playwright_playwright__`), or `claude plugin list` shows `playwright@claude-plugins-official`.
+
+```bash
+claude plugin install playwright@claude-plugins-official
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin install playwright@claude-plugins-official` instead (that opens the plugin's details for review).
+
+**`firebase`**: Firebase tools for Claude: Firestore, auth, functions, hosting and storage, including the steps to deploy hosting. It fits when the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack. It installs an MCP server (the `firebase-tools` Node.js program from Google, fetched with npx) that can change your Firebase project when you ask on your computer, from `anthropics/claude-plugins-official`, Anthropic's official marketplace. It counts as installed when its tools are among your tools (they start with `mcp__plugin_firebase_firebase__`), or `claude plugin list` shows `firebase@claude-plugins-official`.
+
+```bash
+claude plugin install firebase@claude-plugins-official
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin install firebase@claude-plugins-official` instead (that opens the plugin's details for review).
+
+**`cloudflare`**: Cloudflare platform skills and its hosted MCP server for edge functions, Durable Objects and deployments. It fits when the project has `wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare in its tech stack. It installs a connection to Cloudflare's hosted MCP server (no local program; you sign in to use it), plus Markdown skills on your computer, from `cloudflare/skills`, a third-party source, not LaneConductor. It counts as installed when a skill named `cloudflare` is in the session's skills list, or `claude plugin list` shows `cloudflare@cloudflare`.
+
+```bash
+claude plugin marketplace add cloudflare/skills
+```
+
+```bash
+claude plugin install cloudflare@cloudflare
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add cloudflare/skills` and `/plugin install cloudflare@cloudflare` instead (that opens the plugin's details for review).
+
+When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, after the offers above also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
 
 Both add-ons in one line:
 
 ```bash
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
+
+## A skill tip
+
+After the card, add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first: the skills list this session shows you, `claude plugin list` (read only), `.claude/skills/` and `~/.claude/skills/`; an older name counts. Say nothing when nothing is missing, nothing for an entry the person declined (the project's declined list is the file `skill-advisor-declined.txt` inside the directory that `git rev-parse --git-common-dir` prints), and never show a command here: the tip points at `/laneconductor:suggest-skills`. It never replaces the step.
+
+**The current track** is, in this order: the track the person named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, for example `track-NNN` or a name holding a track number, matched to its folder under `conductor/tracks/`); the track this session has running (its `index.md` says `**Lane Status**: running`, and with the connector `**Run By**` names this client). When none of these gives one, no track is in play. With one in play, the work follows its lane, `**Type**`, stack and skill offers; with none, skill offers go by the project's stack only, and there is no KPI block to write (that belongs to a marketing or sales track).
+
+Skills that fit each step (name, then the track Types and stack tags it fits). The tip picks from the row of the step's lane:
+
+- brainstorm: `superpowers` (dev)
+- plan: `frontend-design` (dev; ui), `marketing-skills` (marketing, sales), `superpowers` (dev), `customer-support` (support), `data` (dev; dashboard)
+- implement: `laneconductor-parallel` (dev), `frontend-design` (dev; ui), `marketing-skills` (marketing, sales), `superpowers` (dev), `firebase` (dev; firebase), `cloudflare` (dev; cloudflare), `customer-support` (support), `data` (dev; dashboard)
+- review: `laneconductor-parallel` (dev), `superpowers` (dev), `pr-review-toolkit` (dev)
+- quality-gate: `marketing-skills` (marketing, sales), `superpowers` (dev), `security-guidance` (dev), `playwright` (dev; ui)
+- merge: `superpowers` (dev)
+- deploy: `firebase` (dev; firebase), `cloudflare` (dev; cloudflare)
 
 For "look around" (S02, path c): say in four sentences what LaneConductor is (the plan-first process, tracks as files in git, five
 lanes, nothing to install but this plugin), show the list from `help`, write nothing, and end by saying that `next` can be asked

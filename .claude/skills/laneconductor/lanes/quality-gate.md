@@ -4,6 +4,8 @@ Run the checks, post the result, and route the track. Passing here queues the tr
 (`done:queue`); it does not mean shipped, because the merge action sets `done:success` once the
 code is on `main`.
 
+Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
+
 0. **Claim the track first.** Write `**Lane**: quality-gate` and `**Lane Status**: running` to
    the track's `index.md`. Set `**Lane**` explicitly: when run directly the track may not sit in
    this lane, and the board would show it running in the wrong column. In the same edit, clear
@@ -103,6 +105,12 @@ code is on `main`.
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
+
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+
+<!-- generated: skill offers for this lane -->
 
 ## Skills that help here
 

@@ -4,7 +4,7 @@ LaneConductor teaches Claude a plan-first way of working on a project whose plan
 under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
 to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 1.7.0.
+Version 1.8.0.
 
 ## Getting started
 
@@ -32,6 +32,10 @@ no pre-approved tools.
 
 It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
 policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
+
+## Skill suggestions: nothing is installed without your yes
+
+`/laneconductor:suggest-skills`, and the start of each lane, can suggest a skill that fits the track. **It installs nothing without your yes and never runs an install itself**: it shows the commands and you run them. To look, it runs only `claude plugin list` and `git rev-parse --git-common-dir` and reads `.claude/skills/` and `~/.claude/skills/`; it changes no settings. The sources, all public and checked on 2026-11-18: `meller/laneconductor`, `anthropics/claude-plugins-official`, `cloudflare/skills`, `coreyhaines31/marketingskills`, `anthropics/knowledge-work-plugins`. A plugin that installs a program or a hosted connection says so first (`laneconductor-parallel`, `laneconductor-board`, `superpowers`, `security-guidance`, `playwright`, `firebase`, `cloudflare`, `customer-support`, `data`). A generic finder, `find-skills`, may be named as third-party and not vetted.
 
 ## Optional add-ons
 

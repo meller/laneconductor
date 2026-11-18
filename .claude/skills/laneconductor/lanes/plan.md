@@ -4,6 +4,8 @@ Produce or refine `spec.md`, `plan.md` and `test.md` for track N. This lane writ
 only. Application code written here gets in the way: the implement lane works from what you
 planned, and `plan` always runs in the primary checkout whatever `**Workspace**` says.
 
+Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
+
 0. **Claim the track first.** Write `**Lane**: plan` and `**Lane Status**: running` to the track's
    `index.md`. Set `**Lane**` explicitly, not just `**Lane Status**`: when plan is run directly
    (a KPI-miss replan, a manual re-run) the track may not sit in the plan lane, and the board
@@ -161,6 +163,12 @@ The track's progress is derived from these checkboxes, so keep them accurate.
 - [ ] All unit tests pass
 - [ ] No regressions in related features
 ```
+
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+
+<!-- generated: skill offers for this lane -->
 
 ## Skills that help here
 

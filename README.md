@@ -118,12 +118,13 @@ A remote connector for chat and mobile does not exist yet; it is not available.
 
 Open your project in Claude Code and ask in plain words, or use a command:
 
-- `/laneconductor:setup` sets LaneConductor up in a project (it needs no installed program), and at the end says which of the
-  two add-ons would help that project, with the install commands for you to run; `/laneconductor:new <title: what and why>` starts a
+- `/laneconductor:setup` sets LaneConductor up in a project (it needs no installed program), and at the end offers a starter set of
+  three or four plugins that fit that project (the add-ons among them), with the install commands for you to run; `/laneconductor:new <title: what and why>` starts a
   track (`:bug` and `:feature` start one of those kinds).
 - `/laneconductor:new-project <name or idea>` starts a project from a short chat: it asks a few questions one at a
   time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
   any commit and never pushes.
+- `/laneconductor:suggest-skills` says what could help with the track in hand: the skills you already have that apply, and the ones worth installing (see "Skill suggestions" below).
 - `/laneconductor:next` is the front door: it reads where the project stands and names the one next step, with the command and why (it writes nothing).
 - `/laneconductor:plan 12`, `:implement 12`, `:review 12`, `:quality-gate 12`, `:merge 12` take a track through
   its lanes. `:run` recommends the next step and asks before it starts anything.
@@ -191,6 +192,24 @@ plugin or marketplace. What LaneConductor adds is the map: each lane guide sugge
 example test-driven development and systematic debugging at implement, verification before completion at the quality
 gate), and an optional `skills` object in `conductor/workflow.json` adds your own per lane. They are suggestions, in the
 second-opinion style: use them if installed, say so if one is missing.
+
+### Skill suggestions: nothing is installed without your yes
+
+LaneConductor can suggest a skill that fits the lane you are in, the kind of track and the project's stack: when you ask (`/laneconductor:suggest-skills`), at the start of a lane, when a track is a marketing, sales or support one, and at the end of setup. **It installs nothing without your yes, and it never runs an install itself.** A suggestion is plain text with the install commands shown; you run them yourself, or use your client's own plugin browser.
+
+What it does run, only to look: `claude plugin list` (read only) and `git rev-parse --git-common-dir`, and it reads `.claude/skills/` of the project and `~/.claude/skills/` to see what you already have. If you say "do not ask again" for a suggestion, it writes one line to a file inside `.git/` (never committed); it changes no settings and no permissions.
+
+The suggestions come from a small public catalog, checked on 2026-11-18 (`connector/plugin-extras/recommended-plugins.json`, validated by `node scripts/check-catalog.mjs --online`). Every source is a public GitHub repository, and an entry whose plugin installs a program or a connection to a hosted service says so plainly before you install it:
+
+| Source | Plugins in the catalog | Licence | Installs a program or a connection |
+| :--- | :--- | :--- | :--- |
+| `meller/laneconductor` | `laneconductor-parallel`, `laneconductor-board` | Elastic-2.0 | yes: `laneconductor-parallel`, `laneconductor-board` |
+| `anthropics/claude-plugins-official` | `superpowers`, `frontend-design`, `pr-review-toolkit`, `security-guidance`, `playwright`, `firebase` | MIT, Apache-2.0 | yes: `superpowers`, `security-guidance`, `playwright`, `firebase` |
+| `cloudflare/skills` | `cloudflare` | Apache-2.0 | yes: `cloudflare` |
+| `coreyhaines31/marketingskills` | `marketing-skills` | MIT | no, Markdown only |
+| `anthropics/knowledge-work-plugins` | `customer-support`, `data` | Apache-2.0 | yes: `customer-support`, `data` |
+
+Each plugin is installed from its own source with the platform's own install commands; LaneConductor does not bundle, wrap or copy it. If nothing in the catalog fits, it may name one generic finder, `find-skills` (`vercel-labs/skills`), as a third-party tool that LaneConductor has not vetted.
 
 ## The experimental tier
 

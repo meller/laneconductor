@@ -30,7 +30,7 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
    copy or link is stale, and offer its removal: show `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a
    folder; `git rm` for one that git tracks, and removing it then needs a commit, which you ask about first). Never run it and
    touch nothing else.
-5. **Say what else fits.** After the project is read, say which optional plugins would help this project (see "What else fits this
+5. **Say what else fits.** After the project is read, say which optional plugins would help this project, as a starter set of three or four at most (see "What else fits this
    project" below), then wait for the person's answer. When the board add-on is installed, also say once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`.
 6. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
    line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
@@ -44,5 +44,3 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
 `/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow
 [scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview. Use it when the person already
 knows what they want, or another tool has already scanned the project.
-
-<!-- Starter set: reserved for the skill advisor -->

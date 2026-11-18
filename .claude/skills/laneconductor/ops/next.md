@@ -164,11 +164,19 @@ else is ever stored: there is no counter and no write on a plain run.
 In S02, S03 and S04 there is nothing to rank yet, so the card is followed, once per session, by the optional add-ons that fit this
 project and are not installed. Show them; never run an install. An add-on that is already installed is not offered (the board has one more sentence, below), and one
 already offered in this session (by setup, for example) or declined is not offered again. Later runs, with tracks, never offer
-add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. An add-on is offered once because an installed plugin cannot be detected without reading outside the project, which the base never does; if the person says it is installed already, take their word and stop offering it.
+add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. Detect an installed add-on from the skills list and `claude plugin list` (read only); if you still cannot tell and the person says it is installed already, take their word and stop offering it.
 
 The board is the one add-on that is also named when it is installed. In S02, S03 and S04 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop from there is: open the board, copy the step, run it here, ask for a refresh.
 
 <!-- generated: recommended plugins -->
+
+## A skill tip
+
+After the card, add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first: the skills list this session shows you, `claude plugin list` (read only), `.claude/skills/` and `~/.claude/skills/`; an older name counts. Say nothing when nothing is missing, nothing for an entry the person declined (the project's declined list is the file `skill-advisor-declined.txt` inside the directory that `git rev-parse --git-common-dir` prints), and never show a command here: the tip points at `/laneconductor:suggest-skills`. It never replaces the step.
+
+<!-- generated: current track -->
+
+<!-- generated: skill tips -->
 
 For "look around" (S02, path c): say in four sentences what LaneConductor is (the plan-first process, tracks as files in git, five
 lanes, nothing to install but this plugin), show the list from `help`, write nothing, and end by saying that `next` can be asked

@@ -15,6 +15,7 @@
 // relevant, shows the install commands and never runs them. The pointers stay short: the directory bans listings that exist mainly as
 // advertising, so the base is useful alone.
 import fs from 'node:fs';
+import { derivedInstall, OFFICIAL_MARKETPLACE } from './check-catalog.mjs';
 
 export const AUTHOR = 'Asaf Meller';
 export const AUTHOR_URL = 'https://github.com/meller';
@@ -47,6 +48,10 @@ export const CATALOG_REL = 'connector/plugin-extras/recommended-plugins.json';
 export const CATALOG = JSON.parse(fs.readFileSync(new URL(`../${CATALOG_REL}`, import.meta.url), 'utf8'));
 export const RECOMMENDED = CATALOG.entries;
 export const ADDONS = RECOMMENDED.filter((e) => e.kind === 'addon');
+/** The starter set candidates (track AM-10124): the entries that say when they fit a project at setup. */
+export const STARTER = RECOMMENDED.filter((e) => e.setup_fit);
+export const STACK_TAGS = CATALOG.stack_tags;
+export const FALLBACK = CATALOG.fallback;
 export const entryOf = (name) => {
   const e = RECOMMENDED.find((x) => x.name === name);
   if (!e) throw new Error(`recommended-plugins.json has no entry ${name}`);
@@ -58,16 +63,17 @@ const entryFor = (profileOrName) => (typeof profileOrName === 'object' ? profile
 export const RELOAD_COMMAND = '/reload-plugins';
 export const MARKETPLACE_ADD_COMMAND = `claude plugin marketplace add ${MARKETPLACE_SOURCE}`;
 /** The two shell commands that install a recommended plugin, in order. Each is shown alone in its own bash block (the desktop app adds a Run button to bash blocks; the person clicks it, Claude runs nothing). */
-export const installCommands = (profileOrName) => { const e = entryFor(profileOrName); return [`claude plugin marketplace add ${e.source.add}`, `claude plugin install ${e.source.plugin}@${e.source.marketplace}`]; };
+export const installCommands = (profileOrName) => derivedInstall(entryFor(profileOrName)); // the official marketplace needs no `marketplace add`
 /** The same two steps typed inside a session (slash commands, so inline code, not a shell block). */
-export const sessionInstallCommands = (profileOrName) => { const e = entryFor(profileOrName); return [`/plugin marketplace add ${e.source.add}`, `/plugin install ${e.source.plugin}@${e.source.marketplace}`]; };
-export const installBlock = (profileOrName) => `${installCommands(profileOrName).map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}\n\nThen run \`${RELOAD_COMMAND}\` in the session. Inside a session you can type \`${sessionInstallCommands(profileOrName)[0]}\` and \`${sessionInstallCommands(profileOrName)[1]}\` instead (that opens the plugin's details for review).`;
+export const sessionInstallCommands = (profileOrName) => installCommands(profileOrName).map((c) => c.replace(/^claude plugin /, '/plugin '));
+export const installBlock = (profileOrName) => `${installCommands(profileOrName).map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}\n\nThen run \`${RELOAD_COMMAND}\` in the session. Inside a session you can type ${sessionInstallCommands(profileOrName).map((c) => `\`${c}\``).join(' and ')} instead (that opens the plugin's details for review).`;
 /** The one visible difference between entries: a plugin that installs code says so plainly. */
 export const installsNote = (profileOrName) => {
   const e = entryFor(profileOrName);
-  return e.installs_code
-    ? `It installs ${e.installs} on your computer, from the owner's marketplace (\`${e.source.add}\`), not from Anthropic's directory.`
-    : 'It is Markdown only: it installs no program.';
+  const own = e.source.add === MARKETPLACE_SOURCE;
+  const from = own ? `from the owner's marketplace (\`${e.source.add}\`), not from Anthropic's directory` : e.source.add === OFFICIAL_MARKETPLACE.add ? `from \`${e.source.add}\`, Anthropic's official marketplace` : `from \`${e.source.add}\`, a third-party source, not LaneConductor`;
+  if (e.installs_code) return `It installs ${e.installs} on your computer, ${from}.`;
+  return own ? 'It is Markdown only: it installs no program.' : `It is Markdown only: it adds knowledge and installs no program. It comes ${from}.`;
 };
 /**
  * The one-line installs (track AM-10128, owner decision 2026-11-18), derived from the catalog's `bundles` (plugin names) and the marketplace
@@ -115,12 +121,125 @@ Everything else in LaneConductor works without it. More: ${REPO_URL}`;
 export const RECOMMEND_MARKER = '<!-- generated: recommended plugins -->';
 export const BOARD_MISSING_ANCHOR = 'If the script is not found, the add-on is not installed: say so in a sentence and stop.';
 
+// ---- The skill advisor (track AM-10124): offers generated from the catalog, never typed by hand ----
+// One catalog (recommended-plugins.json), four places that use it: the lane guides (the entries that fit the lane), `ops/suggest-skills.md` (the
+// whole catalog and the command /laneconductor:suggest-skills), the starter set at the end of setup and new-project, and a one-line tip in `next`.
+// The rules of an offer are one text (OFFER_RULES), so every place says the same. The base only shows commands; nothing here runs one.
+export const LANE_OFFER_MARKER = '<!-- generated: skill offers for this lane -->';
+export const TYPE_OFFER_MARKER = '<!-- generated: skill offers for non-dev types -->';
+export const SKILLS_MARKER = '<!-- generated: skill catalog -->';
+export const RULES_MARKER = '<!-- generated: skill offer rules -->';
+export const TIPS_MARKER = '<!-- generated: skill tips -->';
+export const DECLINED_FILE = 'skill-advisor-declined.txt';
+
+// Track AM-10124, REQ-12 (owner, 2026-11-18): the advisor works on the current track, and real work with no track in play gets one soft offer.
+// The lookup of the current track is written once here and used by the base skill, suggest-skills and next; the lane guides are given a track.
+export const CURRENT_TRACK_MARKER = '<!-- generated: current track -->';
+export const TRACK_CONTEXT_MARKER = '<!-- generated: track context -->';
+export const CURRENT_TRACK = `**The current track** is, in this order: the track the person named in the prompt (a number or a title); the track a branch is named after (\`git branch --show-current\`, for example \`track-NNN\` or a name holding a track number, matched to its folder under \`conductor/tracks/\`); the track this session has running (its \`index.md\` says \`**Lane Status**: running\`, and with the connector \`**Run By**\` names this client). When none of these gives one, no track is in play. With one in play, the work follows its lane, \`**Type**\`, stack and skill offers; with none, skill offers go by the project's stack only, and there is no KPI block to write (that belongs to a marketing or sales track).`;
+export const TRACK_CONTEXT = `When the person asks for real work (it changes files, or takes more than a quick answer) and no track is in play, say so in one sentence and offer three ways in, in plain text: update the nearest existing track (search first: \`list_tracks\` when the connector tools are there, else the folders under \`conductor/tracks/\`; the default wording is "Update track N?"), create a new track, or go on without a track. Never block: when the work is clearly small, go ahead without asking. Create or change a track only after a yes. A question, reading, a one-line or typo fix gets no offer, and "no track" once, or a choice to go on without one, means no more track offers this session.
+
+${CURRENT_TRACK}`;
+
+const KIND_LABEL = { addon: 'LaneConductor add-on', skillpack: 'LaneConductor skill pack', thirdparty: 'third-party' };
+const KIND_ORDER = { addon: 0, skillpack: 1, thirdparty: 2 };
+const LEVEL_ORDER = { prerequisite: 0, helps: 1 };
+const cap = (t) => `${t[0].toUpperCase()}${t.slice(1)}`;
+const ticks = (list) => list.map((x) => `\`${x}\``).join(', ');
+const skillsOf = (e, lanes) => (e.skills ?? []).filter((k) => !lanes || (k.lanes ?? e.lanes).some((l) => lanes.includes(l)));
+const skillList = (list) => list.map((k) => `\`${k.name}\`${k.aliases?.length ? ` (older installs list it as ${k.aliases.map((a) => `\`${a}\``).join(' or ')})` : ''}`).join(', ');
+/** The order of an offer: our own entries first, then third-party ones; a prerequisite before a helper; otherwise the catalog's order. */
+export const offerOrder = (entries) => entries.map((e, i) => [e, i]).sort(([a, i], [b, j]) => (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) || (LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]) || (i - j)).map(([e]) => e);
+/** The entries that apply to a set of lanes (an entry with skills applies when one of them does). */
+export const entriesForLanes = (lanes, { types = null, entries = RECOMMENDED } = {}) => offerOrder(entries.filter((e) => (skillsOf(e, lanes).length || (!e.skills?.length && e.lanes.some((l) => lanes.includes(l)))) && (!types || e.types.some((t) => types.includes(t)))));
+
+export const OFFER_RULES = `**How to offer.** Plain text in your reply: never a form, a menu or a question that blocks the work.
+
+1. **Look first.** A skill counts as installed when any of these is true: it is in the skills list this session shows you (that list already covers project, user and plugin skills, and a plugin skill can appear as \`plugin:skill\`); \`claude plugin list\` (read only; run it once per session, and only when the list is not enough) shows its plugin as enabled; or a folder with its name exists in \`.claude/skills/\` of the project or in \`~/.claude/skills/\`. A skill listed under an older name counts too. When it is installed, say so in one line ("you have \`<skill>\` installed, use it before writing the content") and use it.
+2. **Offer only what is missing**, from the candidates below that fit the lane, the track's \`**Type**\` (\`dev\` when it has none) and the project's stack: read \`conductor/tech-stack.md\` and look for the marker files named under "Stack tags". When nothing is missing, say nothing.
+3. **Be quiet.** At most two items per offer: our own entries before third-party ones, \`prerequisite\` before \`helps\`. Never the same entry twice in a session, and never an entry on the project's declined list: the file \`${DECLINED_FILE}\` inside the directory that \`git rev-parse --git-common-dir\` prints (one entry name per line; it is inside \`.git\`, so it is never committed). A trivial track gets at most the one-line tip, and a suggestion in the middle of a step (a failing test and \`systematic-debugging\`) is one line.
+4. **Say it in one or two plain sentences**: what it is, why it helps here, where it comes from, and what it installs (use the note under its name: an entry that installs a program says so plainly; a Markdown-only one adds knowledge only). Then each install command alone in its own bash block, one command per block, no leading \`$\`, so the desktop app shows a Run button. In a session the person can type \`/plugin install <plugin>@<marketplace>\` instead (inline text, not a block); that opens the plugin's details for review.
+5. **Level.** \`prerequisite\`: say the result will be better with it and ask, in the same sentence, whether to install it first or carry on. \`helps\`: a one-line tip. Either way the work is not blocked: with no answer, carry on.
+6. **The answer.** *Install first*: show the commands, say nothing has been changed yet, say to run them and then \`${RELOAD_COMMAND}\`, and when the person is back start the step again from the top with the skill present. *Carry on*: start the step at once and do not repeat the offer this session. *Do not ask again*: show the line you would add and, after the yes, append the entry's name to the declined file; with no git directory, just do not offer it again this session.
+7. **Never run an install yourself.** The commands are shown; the person runs them, or uses the client's own plugin browser. If one fails, report the command and its output, retry nothing silently and work around nothing by editing settings or permissions. To share a plugin with collaborators, offer to add it to \`enabledPlugins\` in the project's \`.claude/settings.json\` only when the person asks: show the exact change first, say it turns the plugin on for them but does not download it (each person runs the install once with \`--scope project\`), and write it only after a yes.`;
+
+/** One catalog entry as it appears in a guide: why, where it comes from, when it fits, how to tell it is installed, what it installs, the commands. */
+export function entryBlock(e, { lanes = null } = {}) {
+  const sk = skillsOf(e, lanes);
+  const fits = `Fits ${ticks(e.lanes)} (lanes), Type ${ticks(e.types)}, ${e.stack.length ? `only when the project has ${e.stack.map((t) => `\`${t}\``).join(' or ')}` : 'any stack'}. Level: \`${e.level}\`.`;
+  const when = e.kind === 'addon' ? ` Mention it only when: ${e.triggers.join('; or ')}.` : '';
+  const skills = sk.length ? `\nSkills${lanes ? ' for this part' : ''}: ${skillList(sk)}.` : '';
+  return `#### \`${e.name}\`
+
+${cap(e.why)}. ${cap(KIND_LABEL[e.kind])}, licence ${e.licence}, from \`${e.source.add}\`. ${fits}${when}${skills}
+It counts as installed when ${e.detect}. ${installsNote(e)}
+
+${installCommands(e).map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}`;
+}
+
+const tagsUsed = (entries) => [...new Set(entries.flatMap((e) => e.stack))];
+const stackTagLines = (tags) => tags.map((t) => `- \`${t}\`: ${STACK_TAGS[t]}.`).join('\n');
+const stackTagBlock = (entries) => (tagsUsed(entries).length ? `\n\nStack tags used above:\n\n${stackTagLines(tagsUsed(entries))}` : '');
+
+/** The block at the end of a lane guide: the rules and the entries of that lane (generated, so it follows the catalog). */
+export function laneOfferBlock(lane) {
+  const entries = entriesForLanes([lane]);
+  return `The track is the one this command names, so its lane, \`**Type**\` and stack are known. At the start of this lane, and again when the track's situation changes (a failing test, a review comment to answer, a UI, a deploy), look at what fits and offer what is missing. Usually this is silent. The full command is \`/${NAMES.base}:suggest-skills\`.
+
+${OFFER_RULES}
+
+Candidates for the \`${lane}\` lane:
+
+${entries.map((e) => entryBlock(e, { lanes: [lane] })).join('\n\n')}${stackTagBlock(entries)}`;
+}
+
+/** The offer for a new non-dev track (marketing, sales, support): at creation, at plan and at implement. */
+export function typeOfferBlock() {
+  const types = ['marketing', 'sales', 'support'];
+  const entries = entriesForLanes(['plan', 'implement'], { types }).filter((e) => e.types.some((t) => types.includes(t)));
+  return `A track whose \`**Type**\` is \`marketing\`, \`sales\` or \`support\` is written, not coded, and it is better with the matching skills in hand. Offer what is missing when the track is created, again when it is planned and when it is implemented (once per session each time it is still missing), and look first: the skills may already be installed at user level or from a plugin, not only in \`.claude/skills/\`.
+
+${OFFER_RULES}
+
+Candidates for these Types:
+
+${entries.map((e) => entryBlock(e, { lanes: ['plan', 'implement'] })).join('\n\n')}${stackTagBlock(entries)}`;
+}
+
+/** ops/suggest-skills.md: the whole catalog, the stack tags and the fallback. */
+export function skillsCatalogBlock() {
+  const fb = FALLBACK;
+  const fallback = `### If nothing in the catalog fits
+
+Say so in one line. Then you may name one generic finder, \`${fb.name}\` (\`${fb.source}\`, licence ${fb.licence}): ${fb.note}. Show its command alone in its own bash block, never run it, and say it is third-party:
+
+${fb.install.map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}`;
+  return `### Stack tags
+
+${stackTagLines(Object.keys(STACK_TAGS))}
+
+### The entries (checked ${CATALOG.checked})
+
+${offerOrder(RECOMMENDED).map((e) => entryBlock(e)).join('\n\n')}
+
+${fallback}`;
+}
+
+/** The one-line tip table for `next`: per lane, which entries could be missing. No commands: the tip points at /laneconductor:suggest-skills. */
+export function skillTipsBlock() {
+  const lanes = ['brainstorm', 'plan', 'implement', 'review', 'quality-gate', 'merge', 'deploy'];
+  const lines = lanes.map((l) => `- ${l}: ${entriesForLanes([l]).map((e) => `\`${e.name}\` (${e.types.join(', ')}${e.stack.length ? `; ${e.stack.join(', ')}` : ''})`).join(', ')}`);
+  return `Skills that fit each step (name, then the track Types and stack tags it fits). The tip picks from the row of the step's lane:
+
+${lines.join('\n')}`;
+}
+
 /**
- * The "what else fits this project" step of setup, generated from the catalog (one entry each, so the skill advisor, track AM-10124, adds
- * entries and they flow in). It only shows: no command is run and nothing is installed without a yes.
+ * The starter set at the end of setup and new-project (REQ-9), generated from the catalog entries that say when they fit a project
+ * (`setup_fit`): one entry each, so a new entry flows in. It only shows: no command is run and nothing is installed without a yes.
  */
-export const setupRecommendBlock = (entries = RECOMMENDED) => {
-  const list = entries.map((e) => {
+export const setupRecommendBlock = (entries = STARTER) => {
+  const list = offerOrder(entries).map((e) => {
     const fit = e.setup_fit ? ` It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.` : '';
     return `**\`${e.name}\`**: ${e.why[0].toUpperCase()}${e.why.slice(1)}.${fit} ${installsNote(e)} It counts as installed when ${e.detect}.\n\n${installBlock(e)}`;
   }).join('\n\n');
@@ -128,7 +247,7 @@ export const setupRecommendBlock = (entries = RECOMMENDED) => {
   const both = addons.length >= 2 // both add-ons of the live catalog; one add-on alone keeps only its own offer
     ? `
 
-When BOTH add-ons (${addons.map((e) => `\`${e.name}\``).join(' and ')}) are missing, after the offers above, also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
+When BOTH add-ons (${addons.map((e) => `\`${e.name}\``).join(' and ')}) are missing and you offer both, after the offers above also say "Both add-ons in one line:" and show this one more block, alone in its own bash block, then the reload step. When only one of them is missing, keep its offer above and add nothing. The same rules hold: you only show it, never run an install command yourself, and install nothing unless the person says yes (and then still show the line for them to run). It is for use inside this session, where the base is already installed.
 
 Both add-ons in one line:
 
@@ -136,21 +255,35 @@ Both add-ons in one line:
 ${ADDONS_INSTALL}
 \`\`\``
     : '';
-  return `After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
-the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
-that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
-nothing about it. If nothing fits, say nothing and go on.
+  return `After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once, so the person does not have to find them in
+the README. Look at what you read (the stack from \`package.json\`, the marker files and \`conductor/tech-stack.md\`, the git history, the CI files, how big the project is,
+what the person told you and the Type of the tracks), pick only the entries below that fit and are not installed, and say for each, in one short paragraph, why it fits this project.
+Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
+nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
+If the person says later, record nothing: each item is offered again at its own moment, as \`/${NAMES.base}:suggest-skills\` describes.
 
 How to offer one:
 
-- Show its two install commands exactly as written below, each alone in its own bash block, then the reload step. You only show them:
+- Show its install commands exactly as written below, each alone in its own bash block (one command per block, no leading \`$\`), then the reload step. You only show them:
   never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
 - Say plainly what it installs, from the note under its name.
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
-- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
+- Detect what is installed as \`/${NAMES.base}:suggest-skills\` says (the skills list, \`claude plugin list\`); if you still cannot tell and the person says it is installed, take their word and say no more about it.
 
 ${list}${both}`;
 };
+
+/**
+ * The README block on skill suggestions (REQ-7): nothing is installed without the person's yes, from which sources, and what it runs.
+ * The directory's security scan reads this, so it is plain and generated from the catalog (the sources cannot drift from the entries).
+ */
+export function skillAdvisorReadmeBlock() {
+  const sources = [...new Set(RECOMMENDED.map((e) => e.source.add))].map((a) => `\`${a}\``).join(', ');
+  const programs = RECOMMENDED.filter((e) => e.installs_code).map((e) => `\`${e.name}\``).join(', ');
+  return `## Skill suggestions: nothing is installed without your yes
+
+\`/${NAMES.base}:suggest-skills\`, and the start of each lane, can suggest a skill that fits the track. **It installs nothing without your yes and never runs an install itself**: it shows the commands and you run them. To look, it runs only \`claude plugin list\` and \`git rev-parse --git-common-dir\` and reads \`.claude/skills/\` and \`~/.claude/skills/\`; it changes no settings. The sources, all public and checked on ${CATALOG.checked}: ${sources}. A plugin that installs a program or a hosted connection says so first (${programs}). A generic finder, \`${FALLBACK.name}\`, may be named as third-party and not vetted.`;
+}
 
 export function skillEdits() {
   const recommend = [RECOMMEND_MARKER, setupRecommendBlock()];
@@ -161,7 +294,12 @@ export function skillEdits() {
     ],
     'ops/new-project.md': [recommend],
     'setup/setup.md': [recommend],
-    'ops/next.md': [recommend],
+    'ops/next.md': [recommend, [TIPS_MARKER, skillTipsBlock()], [CURRENT_TRACK_MARKER, CURRENT_TRACK]],
+    'SKILL.md': [[TRACK_CONTEXT_MARKER, TRACK_CONTEXT]],
+    'ops/suggest-skills.md': [[CURRENT_TRACK_MARKER, CURRENT_TRACK], [RULES_MARKER, OFFER_RULES], [SKILLS_MARKER, skillsCatalogBlock()]],
+    'ops/tracks.md': [[TYPE_OFFER_MARKER, typeOfferBlock()]],
+    ...Object.fromEntries(['brainstorm', 'plan', 'implement', 'review', 'quality-gate', 'merge'].map((lane) => [`lanes/${lane}.md`, [[LANE_OFFER_MARKER, laneOfferBlock(lane)]]])),
+    'deploy/deploy.md': [[LANE_OFFER_MARKER, laneOfferBlock('deploy')]],
   };
 }
 

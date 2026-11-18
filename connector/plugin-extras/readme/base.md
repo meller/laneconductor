@@ -28,6 +28,8 @@ no pre-approved tools.
 It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
 policy is {{PRIVACY_URL}}.
 
+{{SKILL_ADVISOR}}
+
 ## Optional add-ons
 
 Optional add-ons live in the same marketplace as this plugin and are not in Anthropic's directory. None is needed, they have

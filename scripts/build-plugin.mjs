@@ -55,7 +55,7 @@ import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, fullInstallBlock, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
   DISPLAY, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
   RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits, toolRef, toolsUsedBy,
-  RECOMMEND_MARKER, setupRecommendBlock, NEXT_JOURNEY,
+  RECOMMEND_MARKER, setupRecommendBlock, NEXT_JOURNEY, skillAdvisorReadmeBlock,
 } from './plugin-texts.mjs';
 
 export {
@@ -423,7 +423,7 @@ function buildEverything(repo) {
   const built = Object.fromEntries(PROFILES.map((p) => [p, BUILDERS[p](repo)]));
   const facts = Object.fromEntries(PROFILES.map((p) => [p, pluginFacts(p, built[p].files)]));
   const pkg = readPkg(repo);
-  const common = { VERSION: pkg.version, PRIVACY_URL, PLUGIN_MAP: shortMap(facts), ADDONS: addonsReadmeBlock(), FULL_INSTALL: fullInstallBlock(), NEXT_JOURNEY };
+  const common = { VERSION: pkg.version, PRIVACY_URL, PLUGIN_MAP: shortMap(facts), ADDONS: addonsReadmeBlock(), FULL_INSTALL: fullInstallBlock(), NEXT_JOURNEY, SKILL_ADVISOR: skillAdvisorReadmeBlock() };
   for (const p of PROFILES) {
     const own = RECOMMENDED.find((e) => e.name === NAMES[p]);
     const vars = { ...common, INSTALL_SELF: own ? installBlock(p) : '', SELF_NOTE: own ? installsNote(p) : '' };

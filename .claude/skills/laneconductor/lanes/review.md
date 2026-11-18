@@ -4,6 +4,8 @@ Evaluate the implementation against the plan and the product guidelines, post th
 comment, and route the track. This lane only evaluates: fixing the bugs it finds hides them from
 the implement lane's retry loop, so write them up as gaps instead.
 
+Before step 1, look at "Offer a missing skill" near the end of this guide: one check, usually silent.
+
 0. **Claim the track first.** Write `**Lane**: review` and `**Lane Status**: running` to the
    track's `index.md`. Set `**Lane**` explicitly: when the command is run directly the track may
    not sit in this lane, and the board would show it running in the wrong column. In the same
@@ -40,6 +42,12 @@ the implement lane's retry loop, so write them up as gaps instead.
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
+
+## Offer a missing skill
+
+Before the work, look at what fits this lane and offer what is missing; `/laneconductor:suggest-skills` is the whole procedure. Usually this is silent: nothing missing means no message, and an offer never blocks the work.
+
+<!-- generated: skill offers for this lane -->
 
 ## Skills that help here
 

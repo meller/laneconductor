@@ -22,9 +22,10 @@ advice can be fixed or pruned. Two things are firm because breaking them corrupt
 overrides the human: the file formats and base-commit checks below, and the human's authority
 (ask before merge or push, never handle secrets).
 
-Each lane guide ends with "Skills that help here": skills worth using at that lane if they are installed, plus any the
-project lists under `skills` in `conductor/workflow.json`. LaneConductor only knows which skills help; it does not
-wrap or bundle them.
+Each lane guide ends with "Offer a missing skill" and "Skills that help here": skills worth using at that lane if they are
+installed, plus any the project lists under `skills` in `conductor/workflow.json`; a skill that is missing is offered once, in
+plain text, with the install commands shown and never run ([ops/suggest-skills.md](ops/suggest-skills.md)). LaneConductor only knows which skills
+help; it does not wrap or bundle them.
 
 ## How to run a command
 
@@ -38,6 +39,7 @@ wrap or bundle them.
 | Command | Read | May start unprompted |
 |---------|------|----------------------|
 | `next` | [ops/next.md](ops/next.md) ("what's next", "what now"; names the one next step for this project and explains it; read only) | yes, read only |
+| `suggest-skills` | [ops/suggest-skills.md](ops/suggest-skills.md) (which skills fit this lane, track Type and stack, and what is missing; shows install commands, never runs them) | yes, read only |
 | `plan` | [lanes/plan.md](lanes/plan.md) | yes |
 | `brainstorm` | [lanes/brainstorm.md](lanes/brainstorm.md) | yes |
 | `implement` | [lanes/implement.md](lanes/implement.md) | yes |
@@ -71,6 +73,12 @@ lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-p
 `setup` adds LaneConductor to a project that already exists: the same procedure, but it reads `package.json`, the README and
 the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
 imports no older tracks silently ([setup/setup.md](setup/setup.md)).
+
+## Work without a track
+
+When the person asks for real work (it changes files, or takes more than a quick answer) and no track is in play, say so in one sentence and offer three ways in, in plain text: update the nearest existing track (search first: `list_tracks` when the connector tools are there, else the folders under `conductor/tracks/`; the default wording is "Update track N?"), create a new track, or go on without a track. Never block: when the work is clearly small, go ahead without asking. Create or change a track only after a yes. A question, reading, a one-line or typo fix gets no offer, and "no track" once, or a choice to go on without one, means no more track offers this session.
+
+**The current track** is, in this order: the track the person named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, for example `track-NNN` or a name holding a track number, matched to its folder under `conductor/tracks/`); the track this session has running (its `index.md` says `**Lane Status**: running`, and with the connector `**Run By**` names this client). When none of these gives one, no track is in play. With one in play, the work follows its lane, `**Type**`, stack and skill offers; with none, skill offers go by the project's stack only, and there is no KPI block to write (that belongs to a marketing or sales track).
 
 ## Finding a track
 

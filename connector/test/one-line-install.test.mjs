@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, NAMES, PROFILES, RECOMMENDED, ADDONS, CATALOG_REL, buildPlugin, setupRecommendBlock } from '../../scripts/build-plugin.mjs';
-import { FULL_INSTALL, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
+import { STARTER, FULL_INSTALL, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
 
 const catalog = JSON.parse(fs.readFileSync(path.join(REPO, CATALOG_REL), 'utf8'));
 const market = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin/marketplace.json'), 'utf8'));
@@ -55,7 +55,7 @@ test('the shared setup/next block carries addons_install alone in its own bash f
   assert.match(block, /never run an install command yourself/);
   assert.match(block, /install nothing unless the person says yes/);
   assert.ok(!/\b(now|then|please)\s+run\s+`?claude plugin/i.test(block));
-  for (const e of RECOMMENDED) assert.ok(block.includes(`claude plugin install ${e.source.plugin}@${e.source.marketplace}`), `the per-add-on commands stay (${e.name})`);
+  for (const e of STARTER) assert.ok(block.includes(`claude plugin install ${e.source.plugin}@${e.source.marketplace}`), `the per-entry commands stay (${e.name})`);
 });
 
 test('the block is for the case where BOTH add-ons are missing; with one add-on the offer is the single one and adds nothing', () => {
@@ -82,7 +82,7 @@ test('the generated texts carry the block: ops/next.md (S02-S04 through "The fro
     assert.ok(text.includes(`Both add-ons in one line:\n\n\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``), f);
   }
   const source = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops/next.md'), 'utf8');
-  assert.ok(!source.includes('claude plugin') && !source.includes('Both add-ons in one line'), 'the source ops/next.md has the block only through the marker');
+  assert.ok(!/claude plugin (install|marketplace)/.test(source) && !source.includes('Both add-ons in one line'), 'the source ops/next.md has the block only through the marker');
   const added = setupRecommendBlock().split('When BOTH add-ons')[1];
   assert.ok(!/\bAM-\d+|\btrack \d{3,}/i.test(added), 'no track number in the added text');
 });
