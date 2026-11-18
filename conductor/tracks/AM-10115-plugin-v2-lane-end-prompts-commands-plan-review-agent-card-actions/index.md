@@ -1,9 +1,9 @@
 # Track AM-10115: Plugin v2: prompts after a lane ends, commands, a plan-review agent, and board card actions
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: queue
-**Progress**: 27%
-**Phase**: Phase 2 built (commands, agents, coverage test); Phase 1 hooks pending
+**Progress**: 60%
+**Phase**: Board card actions, Project drawer, What's next panel, freshness and Refresh, one board command shipped in plugins 1.3.0 to 1.6.0 (654 connector tests). Open: Phase 1 hooks extension, review-plan button, real desktop-app and phone checks.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

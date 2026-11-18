@@ -51,4 +51,16 @@ Step 1 shows each card's next step with its exact command and a Copy button, eve
 - [x] Task 4: Fake-DOM tests with `claude.use('mcp')` stubbed for present, absent, unreachable, CONFLICT and success (test.md TC-6 to TC-12); generator run, `--check` clean
 - [ ] Task 5 (HUMAN): the board is published with `capabilities.mcp` declaring `{server: "host:plugin_laneconductor-parallel_lc", tools: ["get_track", "update_track"]}`; in the Claude desktop app confirm the real server name (`listTools` shows it), the first-use consent, a successful Move and a CONFLICT; in a browser tab confirm no Move is drawn. Record the result here (this also answers Phase 3 Task 1)
 
+## Phase 5: Project drawer, What's next panel, freshness and Refresh, one board command (owner decisions 2026-11-18, spec items 3 to 5)
+
+Build order from the spec: Project drawer, then the What's next panel (the ranking is extracted into shipped code first), then the first-run text, then freshness and the single board command. Released in plugins 1.4.0 (Project drawer), 1.5.0 (What's next panel), 1.6.0 (freshness chip, Refresh board, one board command); the card actions of Phase 4 are in 1.3.0.
+
+- [x] Task 1: Project drawer: a **Project** button in the board header opens every definition file as a tab (Overview, Tech stack, Workflow drawn as a flow with the lane and status primer, Quality gate, KPIs, Guidelines, Stories, Deployment); the same secret, email and phone scan as the track documents; `board.include_docs: false` turns it off; `.laneconductor.json` is never published (spec item 3, AC-10)
+- [x] Task 2: What's next panel: a **What's next** button and panel with the command, a Copy button, what it does, why, the Also waiting list and the primer; one shipped ranking in `connector/src/next.mjs` shared by the board and `/laneconductor:next`; first-run text so that, when the board add-on is installed, `/laneconductor:board` and its What's next button show the same step (spec items 4 and 5, AC-11)
+- [x] Task 3: Freshness and refresh: a freshness chip, **Check now** (desktop app only, `list_tracks` with limit 1, read-only), a **Refresh board** button in the footer and the header that copies `/laneconductor:board refresh`
+- [x] Task 4: One board command: `show-board` and `refresh-board` are removed, `/laneconductor:board [refresh]` is the single board command (`connector/test/board-command.test.mjs`)
+- [ ] Task 5: The **Review the plan** sample button in a track's detail view (REQ-4, AC-4): `sample` capability, fixed instruction, plan and spec text only when not withheld by the scan, `not_granted` hides the button; not built
+- [ ] Task 6 (HUMAN): real desktop-app check of the Move menu and Check now: the server string `host:plugin_laneconductor-parallel_lc` is unverified (same check as Phase 4 Task 5)
+- [ ] Task 7 (HUMAN): visual check of the board at 375 px width and in the light and dark themes (Project drawer, What's next panel, freshness chip, Move menu); the tests check the source only, not a browser
+
 **Impact**: The plugin does the follow-up work a skill cannot, and the board becomes a place to review and act.

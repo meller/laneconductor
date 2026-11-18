@@ -62,9 +62,9 @@ A test parses the routing table of the generated SKILL.md and fails if a row is 
 - [ ] AC-6: The coverage test passes: no skill command exists without a plugin action or a recorded reason.
 - [ ] AC-7: `/laneconductor:run 10106` recommends the track-runner subagent in a worktree and shows the command it would run; it starts nothing without a yes.
 - [ ] AC-8: A subagent run is visible: SubagentStart and SubagentStop hooks write one line per run (track, agent, start, end, result) and the board shows "running now".
-- [ ] AC-9 (owner 2026-11-18): every card and Needs-attention row shows its next step with a Copy button; the Move menu appears only where the connector is reachable and never as an error when absent.
-- [ ] AC-10 (owner 2026-11-18): the Project button opens every definition file as a tab, scanned for secrets, withheld with a reason on a match, and off when `board.include_docs` is false.
-- [ ] AC-11 (owner 2026-11-18): the What's next panel gives the same answer as `/laneconductor:next` from one shared ranking, and first-run text recommends starting with the board.
+- [x] AC-9 (owner 2026-11-18): every card and Needs-attention row shows its next step with a Copy button; the Move menu appears only where the connector is reachable and never as an error when absent. (delivered; real-app and browser checks open)
+- [x] AC-10 (owner 2026-11-18): the Project button opens every definition file as a tab, scanned for secrets, withheld with a reason on a match, and off when `board.include_docs` is false. (delivered; real-app and browser checks open)
+- [x] AC-11 (owner 2026-11-18): the What's next panel gives the same answer as `/laneconductor:next` from one shared ranking, and first-run text recommends starting with the board. (delivered; real-app and browser checks open)
 
 ## Board card actions
 

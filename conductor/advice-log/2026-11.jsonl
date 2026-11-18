@@ -375,3 +375,14 @@
 {"v":1,"ts":"2026-11-18T18:39:51Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":122,"chars":4647,"backend":"local"}
 {"v":1,"ts":"2026-11-18T18:39:59Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":118,"chars":4530,"backend":"local"}
 {"v":1,"ts":"2026-11-18T18:40:00Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":124,"chars":4517,"backend":"local"}
+{"v":1,"ts":"2026-11-18T18:40:26Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":246,"chars":4452,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:41Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":80,"chars":6952,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:41Z","kind":"stale_read","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:41Z","kind":"call","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":87,"chars":9302,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:41Z","kind":"stale_read","session":"c_929bd06c05bb","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"call","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":144,"chars":19505,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"stale_read","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"call","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":142,"chars":8046,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"stale_read","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"call","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":147,"chars":15202,"backend":"local"}
+{"v":1,"ts":"2026-11-18T19:07:44Z","kind":"stale_read","session":"c_7538945cc223","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}

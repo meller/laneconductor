@@ -1,5 +1,7 @@
 # Tests: Track 10115
 
+Run command for the connector tests (all of the board tests below are in this suite): `cd connector && npm test` (that is `node --test "test/*.test.mjs"`). The suite passes 654/654 at plugins 1.6.0; the drift check and `claude plugin validate --strict` are clean.
+
 - [ ] TC-1: Each hook script, fed recorded input: H1 brief is 5 lines or fewer and empty outside a project; H2 offers once for a lane move and never for a Progress-only change; H3 asks once per turn only with `board.auto_update`; H4 denies a diff with a fake secret (file and line, not the text) and allows a clean one; H5 asks, never denies; H6 prints instructions; H7 prints one line; every script exits 0 within 100 ms outside a project
 - [ ] TC-2: The generated plugin contains hooks/hooks.json, the script, two commands and the agent; the validate and directory pre-check tests pass
 - [ ] TC-3: The hook script names no path except `${CLAUDE_PLUGIN_ROOT}/...`, contains no package launcher, no network call
@@ -13,3 +15,10 @@
 - [x] TC-11: Leaving the done lane needs the tick and passes `reopen: true`; a running track gets a warning
 - [x] TC-12: CSS uses theme variables only and wraps at phone width; the page keeps createElement and textContent only (checked on the source, not in a browser)
 - [ ] TC-13 (HUMAN): in a real Claude desktop app and in a browser tab, with the published `capabilities.mcp` declaration: the server name resolves, consent is asked once, Move works and CONFLICT shows; in the tab no Move is drawn; copy works in both. The fake-DOM tests do not prove any of this
+- [x] TC-14: Project drawer (connector/test/board-project.test.mjs): every definition file present becomes a tab and missing files are not shown; the Workflow tab is drawn as a flow with the lane and status primer; the same scan as the track documents withholds a match with a stated reason; `board.include_docs: false` turns the documents off; `.laneconductor.json` is never published
+- [x] TC-15: What's next (connector/test/board-next.test.mjs and next.test.mjs): the board panel and `/laneconductor:next` give the same answer from the one ranking in `connector/src/next.mjs` on the same fixtures; the panel carries the command, what, why, the Also waiting list and the primer; the first-run text names the board when the board add-on is installed
+- [x] TC-16: Freshness (connector/test/board-fresh.test.mjs): the board data carries the state branch commit it was built from and the chip text follows from it
+- [x] TC-17: Freshness on the page (connector/test/board-fresh-page.test.mjs): the freshness chip, Check now (drawn only where `claude.use('mcp')` resolves, calls `list_tracks` with limit 1 and nothing that writes) and the Refresh board button in the footer and the header, which copies `/laneconductor:board refresh`
+- [x] TC-18: One board command (connector/test/board-command.test.mjs): `/laneconductor:board [refresh]` exists, `show-board` and `refresh-board` are gone, and the coverage map and the skill text still agree
+- [ ] TC-19 (HUMAN): in the real Claude desktop app: Check now reaches the local connector and shows the result, the Project drawer and the What's next panel open and copy works, Refresh board copies the command; the fake-DOM tests do not prove this
+- [ ] TC-20 (HUMAN): in a browser tab and on a phone (375 px) in the light and dark themes: the Project drawer tabs, the What's next panel, the freshness chip, the Needs-attention rows and the Move menu wrap and stay readable, with no horizontal scroll
