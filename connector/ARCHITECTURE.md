@@ -58,7 +58,7 @@ in `scripts/plugin-texts.mjs`, and tested in `connector/test/interop.test.mjs`:
 | sub-agent | `laneconductor-parallel:track-runner` | the base's `run`, `implement`, `review` recommend it only when it is listed |
 | board script | `server/bin/lc-board.mjs` in the board add-on, found by Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed versions only, not the marketplaces/ clone) | the base's `board`, `refresh-board`, `ops/board.md` |
 | scaffold script | `server/bin/lc-scaffold.mjs` in the parallel add-on, found by Glob `**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` | `ops/new-project.md` (by hand when absent) |
-| versions | all three start at 1.0.0 and follow `connector/package.json` | `plugin.json` |
+| versions | all three share one version (1.0.0 at launch, 1.1.0 with plugin-only setup) and follow `connector/package.json` | `plugin.json` |
 
 DETECTION: Claude sees which tools, agents and files exist. When the connector tools or the board script are present the base uses them and
 recommends nothing; when they are missing the base mentions the add-on once per session, only when the person asks for a board, mentions

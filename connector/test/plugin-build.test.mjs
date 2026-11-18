@@ -88,8 +88,8 @@ test('TC-1: --check exits 1 and names the file when any of the three plugins, th
 
 // `claude plugin validate --strict` on the three plugins and the marketplace runs in directory-precheck.test.mjs.
 
-test('TC-1: marketplace lists the base, then the two add-ons; each entry names its manifest; versions are 1.0.0 and follow connector/package.json', () => {
-  assert.equal(version, '1.0.0');
+test('TC-1: marketplace lists the base, then the two add-ons; each entry names its manifest; versions are one semver and follow connector/package.json', () => {
+  assert.match(version, /^\d+\.\d+\.\d+$/);
   const market = readJson(path.join(REPO, MARKETPLACE_REL));
   assert.equal(market.name, 'laneconductor');
   assert.deepEqual(market.plugins.map((p) => p.name), ['laneconductor', 'laneconductor-parallel', 'laneconductor-board'], 'base first');

@@ -237,7 +237,7 @@ test('the base holds only the Markdown variant: files, manifest fields, identity
   const manifest = JSON.parse(read('.claude-plugin/plugin.json'));
   const version = JSON.parse(fs.readFileSync(path.join(REPO, 'connector/package.json'), 'utf8')).version;
   assert.equal(manifest.name, 'laneconductor');
-  assert.equal(manifest.version, '1.0.0');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.equal(manifest.version, version, 'the same version as connector/package.json');
   assert.deepEqual(Object.keys(manifest).sort(), ['author', 'description', 'displayName', 'homepage', 'keywords', 'license', 'name', 'privacyPolicyUrl', 'repository', 'version']);
   assert.equal(manifest.documentationUrl, undefined);
