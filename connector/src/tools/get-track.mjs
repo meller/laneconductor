@@ -5,10 +5,23 @@ import { headerDamagedWarning, parseMarkers } from '../markers.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
 import { planLogFindings, planLogWarning } from '../plan-log.mjs';
 import { epicTable } from '../epics.mjs';
+import { dateMalformedTexts, isOutcomeMissing, OUTCOME_MISSING, ownerFlags } from '../owner-steps.mjs';
 import { rowOf } from '../summary.mjs';
 import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readEntries, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
 const EPIC_CHILD_CAP = 50;
+const FULL_MAX = 1000;
+const full = (v) => { const t = String(v).replace(/\s+/g, ' ').trim(); return t.length > FULL_MAX ? `${t.slice(0, FULL_MAX)}…` : t; };
+
+/** Track AM-10147: `owner_action`, `owner_action_due`, `result` (the full text here; listings shorten it) and the computed flags; absent when unset. */
+function ownerFields(values, row, nowMs) {
+  return {
+    ...(row.owner_action ? { owner_action: full(values['Owner Action']) } : {}),
+    ...(row.owner_action_due !== undefined ? { owner_action_due: row.owner_action_due } : {}),
+    ...(row.result ? { result: full(values['Result']) } : {}),
+    ...ownerFlags(row, nowMs),
+  };
+}
 
 const input = z.object({
   project: projectField,
@@ -50,6 +63,11 @@ export const getTrack = {
     if (damaged) warnings.push(damaged);
     const planLog = planLogFindings(got.get('plan')?.content);
     if (planLog.flagged) warnings.push(planLogWarning(planLog));
+    // Track AM-10147 (owner steps): the three markers and the computed flags, only when set; advisory warnings, never a block.
+    const own = rowOf(folder, index);
+    const values = parseMarkers(indexContent).values;
+    warnings.push(...dateMalformedTexts(own));
+    if (isOutcomeMissing(values, got.get('spec'))) warnings.push(OUTCOME_MISSING);
     const conv = wanted.includes('conversation') ? conversationSummary(got.get('conversation')?.content ?? '', tail) : null;
     if (conv) {
       const f = got.get('conversation');
@@ -60,7 +78,7 @@ export const getTrack = {
     }
 
     const data = {
-      track: { ...trackIdentity(folder, indexContent), markers: displayMarkers(indexContent) },
+      track: { ...trackIdentity(folder, indexContent), markers: displayMarkers(indexContent), ...ownerFields(values, own, new Date(ctx.now()).getTime()) },
       files,
       conversation: conv,
       base: { commit: head.commit, files: baseFiles, markers: baseMarkers(indexContent) },
@@ -69,7 +87,6 @@ export const getTrack = {
     // Track AM-10136: only a track with dependencies pays for reading the other tracks.
     // Track AM-10145: an epic's children table is derived from the children's own files here, never stored in the epic. It is added
     // before the budget below so a large epic is sized in with the files, and it lists at most EPIC_CHILD_CAP children ("N more").
-    const own = rowOf(folder, index);
     const allRows = (await readEntries(store, { tracked: false })).map((e) => rowOf(e.folder, e.index));
     const state = dependenciesOf(own).length ? dependencyState(allRows) : null;
     if (state?.has(own.number)) data.dependencies = state.get(own.number);

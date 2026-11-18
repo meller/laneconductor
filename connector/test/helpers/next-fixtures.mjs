@@ -136,7 +136,7 @@ const T = (n, lane, status, more = {}) => ({ n, lane, status, ...more });
 const cmd = (name, n, tail = '') => `/laneconductor:${name} ${n}${tail}`.trim();
 const REPO_FILES = { 'package.json': '{ "name": "demo" }\n', 'README.md': '# demo\n' };
 
-/** One description per fixture of test.md (F01 to F26). `expect`: { state, track, command, also?, skipped?, blocked?, damaged?, level?, offers? }. */
+/** One description per fixture of test.md (F01 to F37). `expect`: { state, track, command, also?, skipped?, blocked?, damaged?, level?, offers? }. */
 export const FIXTURES = {
   F01: { desc: { git: false, files: { 'a.txt': 'x\n' } }, expect: { state: 'S01', command: '/laneconductor:setup' } },
   F02a: { desc: { files: REPO_FILES, commits: 40, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:setup', default: 'continue', offers: ['laneconductor-parallel', 'laneconductor-board'] } },
@@ -193,6 +193,10 @@ export const FIXTURES = {
   F06c: { desc: { tracks: [T(10001, 'review', 'failure')] }, expect: { state: 'S06', track: 10001, command: cmd('plan', 10001) } },
   F06d: { desc: { tracks: [T(10001, 'plan', 'failure')] }, expect: { state: 'S06', track: 10001, command: cmd('plan', 10001) } },
   F28: { desc: { tracks: [T(10001, 'done', 'queue', { branch: 'subject' })] }, expect: { state: 'S12', track: 10001, command: '/laneconductor:move 10001 done:success' } },
+  // Track AM-10147 (owner steps). The days are far from today (2099, 2000), so these fixtures do not depend on the clock; the dated cases are in owner-steps-next.test.mjs.
+  F35: { desc: { tracks: [T(10001, 'implement', 'waiting', { extra: { 'Waiting for reply': 'yes', 'Owner Action': 'Post the video in the group', 'Owner Action Due': '2099-01-01' } })] }, expect: { state: 'S22', track: 10001, command: '/laneconductor:comment 10001 <what you did>' } },
+  F36: { desc: { tracks: [T(10001, 'implement', 'waiting', { extra: { 'Owner Action': 'Approve the spend', 'Owner Action Due': '2000-01-01' } }), T(10002, 'plan', 'queue')] }, expect: { state: 'S22', track: 10001, command: '/laneconductor:comment 10001 <what you did>' } },
+  F37: { desc: { tracks: [T(10001, 'quality-gate', 'waiting', { extra: { 'Waiting Reason': 'run window until 2000-01-01', 'KPI Check After': '2000-01-01' } })] }, expect: { state: 'S23', track: 10001, command: cmd('quality-gate', 10001) } },
 };
 
 /** F23, the ranking fixture, and its variants (a track removed, the priority marker removed). */

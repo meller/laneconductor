@@ -184,7 +184,7 @@ test('the card text: no daemon or lc command words, no unshipped work, no track 
     const repo = fixture(f.desc);
     const facts = await gatherFacts(repo);
     const card = nextCard(classifyFacts(facts), facts);
-    const idText = (card.head + ' ' + card.what + ' ' + card.why).replace(/\bAM-\d+\b/g, '');
+    const idText = (card.head + ' ' + card.what + ' ' + card.why).replace(/\bAM-\d+\b/g, '').replace(/\b\d{4}-\d{2}-\d{2}\b/g, ''); // a due day (owner steps) is data, not a track number
     for (const [k, text] of [['head', card.head], ['what', card.what], ['why', card.why], ...card.primer.map((p) => ['primer', p])]) {
       assert.ok(!BAD.test(text), `${id} ${k}: forbidden word in "${text}"`);
       assert.ok(!FUTURE.test(text), `${id} ${k}: unshipped work in "${text}"`);

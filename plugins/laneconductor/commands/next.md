@@ -37,8 +37,11 @@ way of gathering differs.
    out from `Waiting On Tracks` and `Depends On` as the table says.
 4. **Read these markers**, header block only, the first one wins when a marker is repeated (and the track is damaged, S21):
    `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Part Of`, `Merge Mode`,
-   `PR URL`. Match lane names by meaning (a project may still say `planning` and `in-progress`: use `conductor/workflow.json`, or
+   `PR URL`, `Owner Action`, `Owner Action Due`, `KPI Check After`. Match lane names by meaning (a project may still say `planning` and `in-progress`: use `conductor/workflow.json`, or
    `valid.guide_lanes`), and write the project's own lane names in the card.
+4b. **Today's date.** S22 and S23 compare days, so you need today's date as a UTC calendar day. Take it from the system or the freshness
+   line. If you do not know it, ask the person for it; never guess. With the add-on, `list_tracks` and `get_track` report
+   `overdue` and `ready_to_measure` themselves (computed in UTC); without it, compare the days yourself. Due today is not overdue.
 5. **Where a finished lane goes next** is never worked out from the raw file: use `valid.next` of `get_track`, or read
    `conductor/workflow.json` with the grammar of `ops/lanes-and-statuses.md`. Use it only to say, in one clause,
    what happens when the step finishes. Never move a track with it.
@@ -77,7 +80,7 @@ the epic's own file holds no child status.
 | S02 | A repository (or any folder with files) with no `conductor/` folder | The front door, three paths. (a) Continue this project: set LaneConductor up around the code that is here (it reads the stack, asks only to confirm, writes the `conductor/` files, never overwrites). (b) Start a new project: a short interview, then the scaffold and a first track. (c) Look around: what LaneConductor is in four sentences and the list from `help`; nothing is written. A repository with history defaults to (a); an empty folder defaults to (b). Then the add-ons and the board (see "The front door") | `/laneconductor:setup`, `/laneconductor:new-project`, `/laneconductor:help` |
 | S03 | `conductor/` exists but `workflow.json` or `tracks/` is missing | Finish the scaffold: setup again, it skips what exists. Then the add-ons and the board (see "The front door") | `/laneconductor:setup` |
 | S04 | Set up, and no track folder under `conductor/tracks/` | Create the first track, with an example phrase built from the project's name or README ("new track: something this project needs"). Then the add-ons and the board (see "The front door") | `/laneconductor:new <title>` |
-| S05 | A track waits for a human reply: `Waiting for reply: yes`, or `Lane Status: waiting` with no `Waiting On Tracks` and no unmet `Depends On` (a question or an approval), or the last comment is the human's and unanswered | Answer it: show the last comment in two lines, say what the track needs, offer the answer path (a comment, then resume with `move`) | `/laneconductor:comment N <your answer>` |
+| S05 | A track (with no `Owner Action`, see S22) waits for a human reply: `Waiting for reply: yes`, or `Lane Status: waiting` with no `Waiting On Tracks` and no unmet `Depends On` (a question or an approval), or the last comment is the human's and unanswered | Answer it: show the last comment in two lines, say what the track needs, offer the answer path (a comment, then resume with `move`) | `/laneconductor:comment N <your answer>` |
 | S06 | A track is in `failure` in its lane (`implement:failure`, `plan:failure`, `quality-gate:failure`) or is `done:failure` (a merge that failed) | Look at it first: read its last comment, then choose between a retry and a replan; offer both and recommend one from the lane (implement failure: retry implement; plan failure, review failure and quality-gate failure: replan; done failure: fix the cause, then merge again) | `/laneconductor:implement N`, `/laneconductor:plan N` or `/laneconductor:merge N` |
 | S07 | A track is `running` and looks abandoned: the last commit on its folder or branch is older than 6 hours | Ask, do not decide: "N has said it is running for H hours with no commit; is something still working on it?" If the answer is no, resume by setting `Lane Status` back to `queue`, then run the lane again | `/laneconductor:move N <lane>:queue` |
 | S08 | A track is `running` and recent | Say so and leave it alone ("N is being worked on; start nothing on it"); the card goes on to the next candidate | none |
@@ -94,6 +97,8 @@ the epic's own file holds no child status.
 | S19 | The only tracks that are not shipped are in `backlog` | Pick one to start: show up to three, recommend the oldest, and say that moving it to `plan:queue` starts it | `/laneconductor:move N plan:queue` |
 | S20 | Every track is `done:success`, or none is ready | Nothing waits. Offer `new` for something new, `board` to look at the whole project, `status` for the list | `/laneconductor:new <title>` |
 | S21 | A track's markers cannot be read: a repeated `Lane` block, no `Lane`, a lane or status that is not in the workflow, two folders with one number | Name each such track and the fault in one line each, read it by its first marker, never rank it above a readable track; if every candidate is unreadable, the step is to fix the first one by hand | none (or `status`) |
+| S22 | `Lane Status: waiting` (also `done:waiting`) with an `Owner Action`: a step only the person can do (post, record, approve, submit). Read before S05, even when `Waiting for reply` is yes or a dependency is unmet | Do the owner action: quote it, say its `Owner Action Due` day (`overdue since <day>`, `due today`, or `no due date` when it is missing or not a real `YYYY-MM-DD`) and point to the `## Draft` section of `spec.md` for the kit. The agent posts, sends and spends nothing for the person. When it is done, the person comments and the agent clears both owner markers and starts the run window | `/laneconductor:comment N <what you did>` |
+| S23 | `Lane Status: waiting` with no `Owner Action`, no reply asked for and no unmet dependency, and `KPI Check After` is today or earlier (a `YYYY-MM-DD` day, or a UTC timestamp not later than now) | Measure the KPI: the run window ended. The quality gate reads the KPI from its source or asks for the number, and never invents one | `/laneconductor:quality-gate N` |
 
 In the commands, `N` is the track number as it stands in the project. A shell command (an install command) goes alone in its own
 bash block; a slash command is inline code. Write the command in the form the person's client uses (`/laneconductor:plan N` in
@@ -104,15 +109,17 @@ For S21 say, for example: "Track N has two `Lane` markers; I read the first. Fix
 
 ## Rank
 
-Apply to the readable candidates of S05 to S19, first difference wins:
+Apply to the readable candidates of S05 to S19 and S22 and S23, first difference wins:
 
-1. **Human reply.** A track that waits for an answer (S05) comes before everything else.
+1. **Human reply.** An owner action (S22) comes first: oldest due first (an overdue one is simply the oldest), a missing or malformed due date last. Then a track that waits for an answer (S05). Both come before everything else.
 2. **Failed or stuck.** A failure (S06) or a claim that looks abandoned (S07).
-3. **Ready to resume.** A parked track whose dependencies shipped (S09).
+3. **Ready to resume.** A parked track whose dependencies shipped (S09), or whose run window ended (S23).
 4. **Priority.** The optional marker `Priority` (`high`, `normal`, `low`; absent means `normal`): high before normal before low.
 5. **Lane order, latest lane first.** `done:queue` (merge), then quality-gate, review, implement, plan. Finish work that is nearly
    shipped before starting work that has not begun, so nothing sits gated or unreviewed.
 6. **Number.** Lowest track number first (the oldest request first).
+
+With more than two tracks in S22, add one line after the card: "You have N open owner actions: finish one before starting another." It is advice: it never changes the order or blocks anything.
 
 A `running` track (S08) and a blocked one (S10) are skipped and named in the "also" line. When several tracks tie at the top, name
 the first and list the rest in one line, so the person can say "the other one". When you chose between several, say the rule in

@@ -23,8 +23,8 @@ export function dependencyState(rows) {
     if (!deps.length || r.lane === 'done') continue;
     const blocked_by = deps.filter((n) => !(byNumber.has(n) && isDone(byNumber.get(n))));
     // A track parked with a **Waiting Reason** and no **Waiting On Tracks** waits for something else (a question, an approval): finished
-    // dependencies do not make it ready. Waiting On Tracks keeps the union meaning below.
-    const parkedForOther = Boolean(r.waiting_reason) && !(r.waiting_on ?? []).length;
+    // dependencies do not make it ready; an **Owner Action** (track AM-10147) is such a reason. Waiting On Tracks keeps the union meaning below.
+    const parkedForOther = (Boolean(r.waiting_reason) || Boolean(r.owner_action)) && !(r.waiting_on ?? []).length;
     const ready_to_resume = r.lane_status === 'waiting' && blocked_by.length === 0 && !r.waiting_for_reply && !parkedForOther;
     out.set(r.number, { blocked_by, ready_to_resume });
   }

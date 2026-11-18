@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { STALE_RUNNING_HOURS, staleRunning } from '../claims.mjs';
-import { damagedHeaders } from '../markers.mjs';
+import { damagedHeaders, parseMarkers } from '../markers.mjs';
+import { dateProblems, isOutcomeMissing, ownerFlags } from '../owner-steps.mjs';
 import { dependencyState, readyToResume } from '../dependencies.mjs';
 import { epicsOf } from '../epics.mjs';
 import { planLogFindings } from '../plan-log.mjs';
@@ -18,6 +19,14 @@ const input = z.object({
 });
 
 const EPIC_CHILD_CAP = 15;
+/** One warning that fits the envelope's 200 characters: the label, then as many examples as fit, then how many more. */
+function fitWarning(label, items) {
+  for (let shown = Math.min(items.length, 3); shown >= 1; shown--) {
+    const text = `${label}: ${items.slice(0, shown).join('; ')}${items.length > shown ? ` (+${items.length - shown} more)` : ''}`;
+    if (text.length <= 200 || shown === 1) return text;
+  }
+  return label;
+}
 const shortId = (folder) => folder.match(/^(?:[A-Za-z]+-)?\d+/)?.[0] ?? folder;
 
 export const listTracks = {
@@ -33,6 +42,11 @@ export const listTracks = {
     const rows = entries.map((e) => ({ ...rowOf(e.folder, e.index), ...(e.tracked === false ? { untracked: true } : {}) }));
     const drafts = rows.filter((r) => r.untracked).map((r) => r.folder);
     if (drafts.length) warnings.push(`Not committed (not in git yet; left out of conductor/tracks-summary.md): ${drafts.join(', ')}`);
+    // Track AM-10147: advisory lints of the owner-step markers (the same ones the generated summary lists under Needs attention).
+    const malformed = rows.flatMap((r) => dateProblems(r).map((p) => `${r.id} ${p.marker} ${JSON.stringify(String(p.value).split('\n')[0].slice(0, 24))}`));
+    if (malformed.length) warnings.push(fitWarning('date_malformed (not a real YYYY-MM-DD date or UTC timestamp)', malformed));
+    const noOutcome = entries.filter((e) => e.index && isOutcomeMissing(parseMarkers(e.index.content).values, e.spec)).map((e) => shortId(e.folder));
+    if (noOutcome.length) warnings.push(fitWarning('outcome_missing (done:success marketing or sales track with a KPI block, no KPI Actual or Result)', noOutcome));
     const damagedFolders = [];
     const staleFolders = [];
     const logFolders = entries.filter((e) => e.plan && planLogFindings(e.plan.content).flagged).map((e) => e.folder);
@@ -61,7 +75,8 @@ export const listTracks = {
     const deps = dependencyState(rows);
     // A very large epic lists its first EPIC_CHILD_CAP children and says how many more there are, so one epic cannot fill the response.
     const epics = new Map(epicsOf(rows, { max: EPIC_CHILD_CAP }).map((e) => [e.row.number, e.table]));
-    const present = (list) => list.map(({ source, waiting_on, waiting_reason, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
+    const nowMs = new Date(ctx.now()).getTime();
+    const present = (list) => list.map(({ source, waiting_on, waiting_reason, kpi_check_after, ...r }) => ({ ...r, ...ownerFlags({ ...r, kpi_check_after }, nowMs), ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
     const q = args.query?.toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))

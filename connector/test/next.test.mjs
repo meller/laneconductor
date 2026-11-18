@@ -47,7 +47,7 @@ test('TC-24: every fixture gives the expected state, track and command', async (
   }
 });
 
-test('TC-24: every state S01 to S21 is produced by at least one fixture, so a state cannot be added to the table without a test', () => {
+test('TC-24: every state S01 to S23 is produced by at least one fixture, so a state cannot be added to the table without a test', () => {
   const produced = new Set([...Object.values(FIXTURES).map((f) => f.expect.state), 'S08', 'S10']); // S08 and S10 appear as skipped and blocked
   assert.deepEqual(STATE_IDS.filter((s) => !produced.has(s)), [], 'a state with no fixture');
 });
@@ -104,10 +104,10 @@ test('TC-21: running next in every fixture changes no tracked or untracked file'
 
 const tableRows = () => Object.fromEntries([...NEXT_MD.matchAll(/^\| (S\d\d) \| (.*) \|$/gm)].map((m) => [m[1], m[2]]));
 
-test('TC-1: ops/next.md has a table whose ids are exactly S01 to S21, once each', () => {
+test('TC-1: ops/next.md has a table whose ids are exactly S01 to S23, once each', () => {
   const ids = [...NEXT_MD.matchAll(/^\| (S\d\d) \|/gm)].map((m) => m[1]);
   assert.deepEqual(ids, STATE_IDS);
-  assert.equal(STATE_IDS.length, 21);
+  assert.equal(STATE_IDS.length, 23);
 });
 
 test('TC-1/TC-24 parity: the command cell of every row holds the command shapes the reference uses, and the fixtures use only those shapes', () => {

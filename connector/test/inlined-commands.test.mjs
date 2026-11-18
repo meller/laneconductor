@@ -45,7 +45,7 @@ test('next carries the gather steps, every state row, the rank, the card, the le
     assert.ok(t.includes(part), `next lacks: ${part}`);
   }
   const rows = src('ops/next.md').split('\n').filter((l) => /^\| S\d\d /.test(l));
-  assert.equal(rows.length, 21);
+  assert.equal(rows.length, 23);
   // The rows are copied as they are, except that a link to another skill file is written as its path.
   for (const row of rows) assert.ok(t.includes(row.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')) || t.includes(row), `row missing: ${row.slice(0, 40)}`);
   assert.ok(t.includes(setupRecommendBlock().split('\n').slice(0, 3).join('\n')));

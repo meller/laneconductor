@@ -3,6 +3,7 @@
 // the stamp. Rows depend only on committed content, so any machine can regenerate and compare.
 import { blobSha } from './blob.mjs';
 import { parseMarkers, validateIndex } from './markers.mjs';
+import { OUTCOME_MISSING, dateMalformedTexts, isOutcomeMissing } from './owner-steps.mjs';
 import { PLAN_LOG_PROBLEM, planLogFindings } from './plan-log.mjs';
 import { trackIdentity, trackNumberOfFolder } from './tracks.mjs';
 
@@ -12,6 +13,7 @@ const SOURCE_CHARS = 12;
 
 const numbersOf = (text) => (text ?? '').split(/[,\s]+/).map((s) => s.replace(/^[A-Za-z]+-/, '')).filter((s) => /^\d+$/.test(s));
 
+const clip200 = (s) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > 200 ? `${t.slice(0, 200)}…` : t; };
 const PRIORITIES = ['high', 'normal', 'low'];
 const partOf = (value, own) => { const n = Number(numbersOf(value)[0]); return Number.isInteger(n) && n > 0 && n !== own ? n : null; };
 
@@ -42,6 +44,13 @@ export function rowOf(folder, idx) {
     // (read by `next`). Present only when set, so a track that uses neither is unchanged.
     ...(partOf(v['Part Of'], ident.number) === null ? {} : { part_of: partOf(v['Part Of'], ident.number) }),
     ...(PRIORITIES.includes((v['Priority'] ?? '').trim().toLowerCase()) ? { priority: v['Priority'].trim().toLowerCase() } : {}),
+    // Track AM-10147 (owner steps): present only when set, so a track that uses none of them is unchanged. The row holds no clock: the computed
+    // flags (overdue, ready_to_measure) come from owner-steps.mjs `ownerFlags(row, now)`. The two date fields keep the raw text so a malformed one
+    // can be reported; `kpi_check_after` is the existing run-window marker, read here only to compute `ready_to_measure`.
+    ...(clip200(v['Owner Action']) ? { owner_action: clip200(v['Owner Action']) } : {}),
+    ...('Owner Action Due' in v ? { owner_action_due: v['Owner Action Due'] } : {}),
+    ...(clip200(v['Result']) ? { result: clip200(v['Result']) } : {}),
+    ...('KPI Check After' in v ? { kpi_check_after: v['KPI Check After'] } : {}),
   };
 }
 
@@ -60,7 +69,11 @@ export function lintTracks(entries, rows, lanes) {
     if (same.length > 1) problems.push(`track number ${rows[i].number} is used by ${same.length} folders`);
     // Track AM-10136: a parked track nobody can explain. A done:waiting track is a PR waiting for review, not a park.
     const v = e.index ? parseMarkers(e.index.content).values : {};
-    if (rows[i].lane_status === 'waiting' && rows[i].lane !== 'done' && !(v['Waiting Reason'] ?? '').trim()) problems.push('Lane Status is waiting but there is no **Waiting Reason**');
+    if (rows[i].lane_status === 'waiting' && rows[i].lane !== 'done' && !(v['Waiting Reason'] ?? '').trim() && !rows[i].owner_action) problems.push('Lane Status is waiting but there is no **Waiting Reason**');
+    // Track AM-10147: advisory only. A date marker that is not a real date; a closed marketing or sales track with a KPI block and no outcome
+    // (the caller attaches `spec` only for the few tracks that could be flagged: see common.mjs `attachSpecs`).
+    problems.push(...dateMalformedTexts(rows[i]));
+    if (e.index && isOutcomeMissing(v, e.spec)) problems.push(OUTCOME_MISSING);
     // Track AM-10146: a plan that has become a log (entries carry `plan` only when the caller read the plan.md files).
     if (e.plan && planLogFindings(e.plan.content).flagged) problems.push(PLAN_LOG_PROBLEM);
     if (problems.length) out.push({ id: rows[i].id, folder: e.folder, problems });

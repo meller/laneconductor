@@ -6,6 +6,7 @@ import { countUnparsedLines, parseEntries } from '../conversation.mjs';
 import { fail } from '../errors.mjs';
 import { LANES } from '../guides.mjs';
 import { STATUSES, markerFingerprint, parseMarkers } from '../markers.mjs';
+import { outcomeCandidate } from '../owner-steps.mjs';
 import { SUMMARY_PATH, generateSummary, summaryStamp } from '../summary.mjs';
 import { isTrackFolder, resolveTrack, trackIdentity } from '../tracks.mjs';
 import { guideLaneMap, nearestLane } from '../vocabulary.mjs';
@@ -125,7 +126,28 @@ export async function readEntries(store, { tracked: wantTracked = true, withPlan
   const plans = withPlan ? await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/plan.md`)) : null;
   // Callers that only need the rows (get_track, create_track) skip the `git ls-tree` that answers `tracked`; every entry then counts as tracked.
   const tracked = wantTracked && store.trackedFiles ? await store.trackedFiles(TRACKS_DIR) : null;
-  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, ...(plans ? { plan: plans.get(`${TRACKS_DIR}/${folder}/plan.md`) ?? null } : {}), tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
+  const entries = dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, ...(plans ? { plan: plans.get(`${TRACKS_DIR}/${folder}/plan.md`) ?? null } : {}), tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
+  return withPlan ? attachSpecs(store, entries) : entries;
+}
+
+/**
+ * Track AM-10147: the `outcome_missing` lint needs spec.md (does it have a `## KPI` block?), but only for the few tracks that could be flagged
+ * (a marketing or sales track at done:success with no KPI Actual and no Result), so only those spec.md files are read and carried as `spec`.
+ * Recomputed from each entry's current index.md, so it is safe to call again after a write's own index.md replaced one. `overrides` maps
+ * folder -> the spec.md text this write produces.
+ */
+export async function attachSpecs(store, entries, overrides = new Map()) {
+  const want = entries.filter((e) => e.index && outcomeCandidate(parseMarkers(e.index.content).values));
+  const need = want.filter((e) => !overrides.has(e.folder) && !e.spec).map((e) => `${TRACKS_DIR}/${e.folder}/spec.md`);
+  const got = need.length ? await store.readFiles(need) : new Map();
+  const wanted = new Set(want.map((e) => e.folder));
+  return entries.map((e) => {
+    const { spec: had, ...rest } = e;
+    if (!wanted.has(e.folder)) return rest;
+    const text = overrides.get(e.folder);
+    const f = text !== undefined ? { content: text, sha: blobSha(text) } : (had ?? got.get(`${TRACKS_DIR}/${e.folder}/spec.md`) ?? null);
+    return f ? { ...rest, spec: f } : rest;
+  });
 }
 
 /** The entries a COMMITTED summary may list: tracked ones, plus the folders in `include` (the write's own track). */
@@ -137,7 +159,7 @@ export const publishable = (entries, include = []) => entries.filter((e) => e.tr
  * so it carries no precondition (a hand edit is simply replaced). Untracked draft tracks are left out
  * unless `includeUntracked` (only the summary script's `--include-untracked`, which writes a file but commits nothing).
  */
-export async function summaryChange(tx, nowMs, pending, { includeUntracked = false, plans = new Map() } = {}) {
+export async function summaryChange(tx, nowMs, pending, { includeUntracked = false, plans = new Map(), specs = new Map() } = {}) {
   let entries = await readEntries(tx, { withPlan: true });
   for (const [folder, content] of pending) {
     const i = entries.findIndex((x) => x.folder === folder);
@@ -150,6 +172,8 @@ export async function summaryChange(tx, nowMs, pending, { includeUntracked = fal
     const i = entries.findIndex((x) => x.folder === folder);
     if (i !== -1) entries[i] = { ...entries[i], plan: { content, sha: blobSha(content) } };
   }
+  // Track AM-10147: spec.md is read again for the tracks whose index.md this write changed (a new Lane Status can make one a candidate).
+  entries = await attachSpecs(tx, entries, specs);
   // Privacy: only tracks whose index.md is in git, or is written by this very commit (pending), may appear in a committed file.
   if (!includeUntracked) entries = publishable(entries, [...pending.keys()]);
   const lanes = await workflowLanes(tx);

@@ -1,4 +1,4 @@
-// The `next` ranking and its 21 states, as shipped code (track AM-10115, the What's next panel). One implementation, two users: the
+// The `next` ranking and its 23 states, as shipped code (track AM-10115, the What's next panel). One implementation, two users: the
 // board (`lc-board.mjs` puts the answer into board.json) and the tests (the 34 fixtures of the next test). The
 // procedure an agent follows is `ops/next.md`; this file is that table and that ranking as a function, so the board gives the same
 // answer as `/laneconductor:next`.
@@ -14,6 +14,7 @@ import { LocalGitStore } from './store-local.mjs';
 import { resolveStateBranch } from './state-branch.mjs';
 import { parseMarkers, damagedHeaders, STATUSES } from './markers.mjs';
 import { rowOf } from './summary.mjs';
+import { dueDays, dueText, ownerFlags, todayOf } from './owner-steps.mjs';
 import { isTrackFolder } from './tracks.mjs';
 import { dependencyState } from './dependencies.mjs';
 import { epicsOf } from './epics.mjs';
@@ -56,6 +57,9 @@ export const SHAPES = {
   S19: ['/laneconductor:move N plan:queue'],
   S20: ['/laneconductor:new <title>'],
   S21: [],
+  // Track AM-10147 (owner steps): a waiting track with an Owner Action, and a waiting track whose run window (KPI Check After) has ended.
+  S22: ['/laneconductor:comment N <what you did>'],
+  S23: ['/laneconductor:quality-gate N'],
 };
 export const STATE_IDS = Object.keys(SHAPES);
 
@@ -177,6 +181,8 @@ export function commandFor(state, n, { lane, guide } = {}) {
     case 'S16': return `/laneconductor:implement ${n}`;
     case 'S17': case 'S18': return `/laneconductor:plan ${n}`;
     case 'S19': return `/laneconductor:move ${n} plan:queue`;
+    case 'S22': return `/laneconductor:comment ${n} <what you did>`;
+    case 'S23': return `/laneconductor:quality-gate ${n}`;
     default: return null;
   }
 }
@@ -235,9 +241,14 @@ export function classifyFacts(facts, { installed = [], arg } = {}) {
     if (!t.readable || t.repeatedLane || count.get(n) > 1 || !t.row.lane || !known.has(lane) || !STATUSES.includes(status)) { out.damaged.push(n); continue; }
     if (guide === 'backlog' || (guide === 'done' && status === 'success')) continue;
     const dep = deps.get(n) ?? null;
+    // Track AM-10147: an owner action is read BEFORE the reply state (its card names the action, not "answer a reply") and, like a reply, even when
+    // a dependency is unmet: the owner can do it now. An ended run window is read before the park check below, which would call it a question.
+    const flags = ownerFlags(t.row, facts.now);
     const parkedForOther = status === 'waiting' && guide !== 'done' && (!dep || (!dep.blocked_by.length && !dep.ready_to_resume));
     let state;
-    if (t.row.waiting_for_reply || t.lastHuman || parkedForOther) state = 'S05';
+    if (status === 'waiting' && t.row.owner_action) state = 'S22';
+    else if (flags.ready_to_measure && !t.row.waiting_for_reply && !t.lastHuman && !dep?.blocked_by.length) state = 'S23';
+    else if (t.row.waiting_for_reply || t.lastHuman || parkedForOther) state = 'S05';
     else if (status === 'failure') state = 'S06';
     else if (status === 'running') {
       const aliveByGit = t.activityHours !== null && t.activityHours <= STALE_HOURS;
@@ -257,15 +268,21 @@ export function classifyFacts(facts, { installed = [], arg } = {}) {
     candidates.push({ c, state });
   }
 
-  const group = (s) => (s === 'S05' ? 0 : s === 'S06' || s === 'S07' ? 1 : s === 'S09' ? 2 : 3);
-  const key = ({ c, state }) => [group(state), PRIORITY[lower(c.t.row.priority ?? 'normal')] ?? 1, LANE_ORDER[c.guide] ?? 9, c.n];
+  const group = (s) => (s === 'S22' ? 0 : s === 'S05' ? 1 : s === 'S06' || s === 'S07' ? 2 : s === 'S09' || s === 'S23' ? 3 : 4);
+  // The owner actions come in the order of their due day (an overdue one is simply the oldest; a missing or malformed day is last); the rest of the key is the same.
+  const key = ({ c, state }) => [group(state), ...(state === 'S22' ? [dueDays(c.t.row.owner_action_due)] : []), PRIORITY[lower(c.t.row.priority ?? 'normal')] ?? 1, LANE_ORDER[c.guide] ?? 9, c.n];
   const cmpKeys = (a, b) => { for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
   const cmdOf = ({ c, state }) => commandFor(state, c.n, { lane: c.lane, guide: c.guide });
   const sorted = candidates.filter((x) => x.state !== 'S08').sort((a, b) => cmpKeys(key(a), key(b)));
   out.skipped = candidates.filter((x) => x.state === 'S08').map((x) => ({ track: x.c.n, state: 'S08' }));
   out.ranked = sorted.map((x) => ({ track: x.c.n, state: x.state, command: cmdOf(x), guide: x.c.guide }));
   const extra = { allTracks: tracks.filter((c) => c.guide).map((c) => ({ guide: c.guide })) };
-  const pick = (x) => done(x.state, { track: x.c.n, command: cmdOf(x), lane: x.c.t.row.lane, guide: x.c.guide, ...extra });
+  // Track AM-10147: more than two open owner actions add one line of advice. Advice only: it never changes the order.
+  const open = sorted.filter((x) => x.state === 'S22').length;
+  const today = todayOf(facts.now);
+  const owner = (x) => (x.state === 'S22' ? { owner: { action: x.c.t.row.owner_action, due: x.c.t.row.owner_action_due ?? null, reason: dueText(x.c.t.row, today), overdue: Boolean(ownerFlags(x.c.t.row, facts.now).overdue) } } : x.state === 'S23' ? { window: { check_after: x.c.t.row.kpi_check_after } } : {});
+  if (open > 2) out.advice = `You have ${open} open owner actions: finish one before starting another.`;
+  const pick = (x) => done(x.state, { track: x.c.n, command: cmdOf(x), lane: x.c.t.row.lane, guide: x.c.guide, ...owner(x), ...extra });
 
   if (arg && /^\d+$/.test(arg)) {
     const only = candidates.find((x) => x.c.n === Number(arg));
@@ -292,7 +309,7 @@ const clip = (v, n) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); 
 export const MAX_OTHERS = 5;
 
 /** A short word for the "also waiting" rows. */
-const WORD = { S05: 'answer a reply', S06: 'look at a failure', S07: 'check a claim', S09: 'resume', S11: 'merge', S12: 'record as shipped', S13: 'record as shipped', S14: 'quality gate', S15: 'review', S16: 'implement', S17: 'plan first', S18: 'plan' };
+const WORD = { S22: 'do the owner action', S23: 'measure the KPI', S05: 'answer a reply', S06: 'look at a failure', S07: 'check a claim', S09: 'resume', S11: 'merge', S12: 'record as shipped', S13: 'record as shipped', S14: 'quality gate', S15: 'review', S16: 'implement', S17: 'plan first', S18: 'plan' };
 
 const FAILED_PLAN = 'The plan lane writes the spec, the plan and the test cases again, and no code.';
 // Per state: [headline, what the command does, why it comes next]. `id` is the track id the card is about.
@@ -321,6 +338,12 @@ const TEXT = {
   S18: (id) => [`Plan track ${id}`, 'The plan lane writes the spec, the plan and the test cases, and no code.', 'Nothing is built before the work is agreed and testable.'],
   S19: (id) => [`Start the parked track ${id}`, 'Moves it to the start of the plan lane.', 'Nothing else is waiting, and this is the oldest parked track.'],
   S20: () => ['Nothing is waiting', 'Creates a new track for the next piece of work.', 'Every track is shipped.'],
+  S22: (id, r) => [
+    `Do the owner action on track ${id}`,
+    `Yours to do, not the agent's: "${clip(r.owner?.action, 150)}" The draft and its publish instructions are in the ## Draft section of the track's spec.md. When it is done, comment here and the run window starts.`,
+    `${r.owner?.reason ?? 'no due date'}. The track waits for you and nothing else moves it.`,
+  ],
+  S23: (id, r) => [`Measure the KPI of track ${id}`, 'The quality gate reads the KPI from its source, or asks you for the number, and writes the readout; it never invents a number.', `The run window ended (KPI Check After ${clip(r.window?.check_after, 40)}), so the result can be read now.`],
   S21: (id) => [`Fix track ${id} by hand`, 'Its markers cannot be read: a repeated, missing or unknown lane or status. Keep one of each marker.', 'A track that cannot be read is never ranked above one that can.'],
 };
 
@@ -352,6 +375,7 @@ export function nextCard(result, facts) {
     n,
     others,
     ...(more ? { more } : {}),
+    ...(result.advice ? { advice: clip(result.advice, CARD_MAX.text) } : {}),
     primer: PRIMER.map((p) => clip(p, CARD_MAX.text)),
   };
 }

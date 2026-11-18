@@ -213,7 +213,7 @@ export const updateTrack = {
       const number = trackIdentity(folder, indexNow).number;
       if (changed.length === 0) return { folder, changed, number, noop: true, humanMidRun, curOf, next, transition, indexShaBefore: curOf('index')?.sha ?? null };
       const changes = changed.map((n) => ({ path: trackPath(folder, n), content: next[n] }));
-      const sum = await summaryChange(tx, ctx.now(), new Map(changed.includes('index') ? [[folder, next.index]] : []), { plans: new Map(changed.includes('plan') ? [[folder, next.plan]] : []) });
+      const sum = await summaryChange(tx, ctx.now(), new Map(changed.includes('index') ? [[folder, next.index]] : []), { plans: new Map(changed.includes('plan') ? [[folder, next.plan]] : []), specs: new Map(changed.includes('spec') ? [[folder, next.spec]] : []) });
       if (sum) changes.push(sum);
       const names = changes.map((c) => c.path.split('/').pop()).join(' ');
       const message = `chore(track-${number}): update_track ${names} via lc-connector\n\nBase: ${base.commit}${transition ? `\nOutcome: ${transition.outcome} (${transition.from} -> ${transition.to})` : ''}\nSurface: ${ctx.surface()}`;

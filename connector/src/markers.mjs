@@ -13,7 +13,7 @@ const NAME_RE = /^[A-Za-z][A-Za-z0-9 ]{0,39}$/;
 export const STATUSES = ['queue', 'running', 'success', 'failure', 'waiting'];
 const FINGERPRINT_OVER = 200;
 // Names the tools read by their exact spelling. A hand-edited file may spell one `**lane**` or `**Lane status**`: reads accept that.
-const CANONICAL = ['Lane', 'Lane Status', 'Progress', 'Phase', 'Type', 'Track Kind', 'Merge Mode', 'Auto Run', 'Author', 'Problem', 'Summary', 'Run Started', 'Run By'];
+const CANONICAL = ['Lane', 'Lane Status', 'Progress', 'Phase', 'Type', 'Track Kind', 'Merge Mode', 'Auto Run', 'Author', 'Problem', 'Summary', 'Run Started', 'Run By', 'Owner Action', 'Owner Action Due', 'Result', 'KPI Check After'];
 const CANON_BY_LOWER = new Map(CANONICAL.map((n) => [n.toLowerCase(), n]));
 // Values the tools compare as words are compared lower-cased and trimmed on read ("Plan" is the lane plan).
 const WORD_VALUED = new Set(['Lane', 'Lane Status']);
