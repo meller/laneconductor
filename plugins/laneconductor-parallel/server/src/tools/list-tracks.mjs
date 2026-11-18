@@ -16,6 +16,7 @@ const input = z.object({
   limit: z.number().int().min(1).max(200).optional().describe('Maximum tracks returned (default 50, max 200).'),
 });
 
+const EPIC_CHILD_CAP = 15;
 const shortId = (folder) => folder.match(/^(?:[A-Za-z]+-)?\d+/)?.[0] ?? folder;
 
 export const listTracks = {
@@ -55,7 +56,9 @@ export const listTracks = {
       warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write rewrites the file.`);
     }
     const deps = dependencyState(rows);
-    const epics = new Map(epicsOf(rows).map((e) => [e.row.number, e.table]));
+    // A very large epic lists its first EPIC_CHILD_CAP children and says how many more there are, so one epic cannot fill the response.
+    const epics = new Map(epicsOf(rows, { max: EPIC_CHILD_CAP }).map((e) => [e.row.number, e.table]));
+    const present = (list) => list.map(({ source, waiting_on, waiting_reason, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
     const q = args.query?.toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))
@@ -67,7 +70,7 @@ export const listTracks = {
     let shown = matches.slice(0, limit);
     let truncated = matches.length > shown.length;
     const budget = MAX_TEXT_CHARS - ENVELOPE_RESERVE;
-    while (shown.length > 1 && sizeOf(shown) > budget) {
+    while (shown.length > 1 && sizeOf(present(shown)) > budget) {
       shown = shown.slice(0, Math.floor(shown.length * 0.9));
       truncated = true;
     }
@@ -90,7 +93,7 @@ export const listTracks = {
     return {
       data: {
         // `blocked_by` (dependency numbers not yet done:success) and `ready_to_resume` appear only on tracks that have dependencies.
-        tracks: shown.map(({ source, waiting_on, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children } : {}) })),
+        tracks: present(shown),
         total: matches.length,
         truncated,
         ...(readyToResume(rows).length ? { ready_to_resume: readyToResume(rows) } : {}),

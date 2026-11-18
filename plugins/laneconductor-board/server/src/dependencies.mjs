@@ -22,7 +22,10 @@ export function dependencyState(rows) {
     const deps = dependenciesOf(r);
     if (!deps.length || r.lane === 'done') continue;
     const blocked_by = deps.filter((n) => !(byNumber.has(n) && isDone(byNumber.get(n))));
-    const ready_to_resume = r.lane_status === 'waiting' && blocked_by.length === 0 && !r.waiting_for_reply;
+    // A track parked with a **Waiting Reason** and no **Waiting On Tracks** waits for something else (a question, an approval): finished
+    // dependencies do not make it ready. Waiting On Tracks keeps the union meaning below.
+    const parkedForOther = Boolean(r.waiting_reason) && !(r.waiting_on ?? []).length;
+    const ready_to_resume = r.lane_status === 'waiting' && blocked_by.length === 0 && !r.waiting_for_reply && !parkedForOther;
     out.set(r.number, { blocked_by, ready_to_resume });
   }
   return out;

@@ -101,11 +101,21 @@ export function damagedHeaders(content) {
   return parseMarkers(content).damaged.map(({ name, line }) => ({ name, line }));
 }
 
-/** The `header_damaged` warning text for an index.md, or null when no marker is repeated. */
+/**
+ * The `header_damaged` warning text for an index.md, or null when no marker is repeated. At most 200 characters (the envelope's
+ * warning bound) with its final period: it names up to 4 repeats and drops names from the end until it fits.
+ */
 export function headerDamagedWarning(content) {
   const d = damagedHeaders(content);
   if (!d.length) return null;
-  return `header_damaged: repeats ${d.slice(0, 3).map((x) => `**${x.name}** (line ${x.line})`).join(', ')}${d.length > 3 ? ', ...' : ''}; the first is used. Ask the human, then update_track with repair_index true to move them below a heading.`;
+  const tail = '; the first wins. Ask the human, then update_track repair_index true.';
+  let text = '';
+  for (let shown = Math.min(d.length, 4); shown >= 1; shown--) {
+    const more = d.length > shown ? ` (+${d.length - shown})` : '';
+    text = `header_damaged: repeats ${d.slice(0, shown).map((x) => `${x.name} (l.${x.line})`).join(', ')}${more}${tail}`;
+    if (text.length <= 200) break;
+  }
+  return text;
 }
 
 /** One write that fixes the header: keeps the first of each marker (canonical spelling) and moves the repeated lines below a heading. */
