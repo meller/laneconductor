@@ -255,7 +255,7 @@ Generated: 2026-11-18T18:06:54Z
 | AM-10129 | Public, generic version of the homebrew skills: no private names, paths, repos or commits | plan | queue | 0% | New | 10126 | a2f8edd33407 |
 | AM-10130 | Setup: add LaneConductor to an existing project (route setup to the existing-repo scaffold, drop th… | review | queue | 90% | Merged and pushed 2026-11-18 (main b36011e8). /laneconductor:setup now means ad… | 10128 | 97fb96464e03 |
 | AM-10131 | Workflow transitions: the connector resolves the next lane and status from workflow.json (legacy an… | review | queue | 100% | Implemented and merged to local main 2026-11-18 (365 then 378 connector tests, … | - | 1ab50a848060 |
-| AM-10132 | Plugin reads its own files without a confusing permission prompt | review | queue | 90% | Shipped and pushed in plugins 1.2.1 (2026-11-18, 503 connector tests, strict va… | - | 4eed4bfa8b35 |
+| AM-10132 | Plugin reads its own files without a confusing permission prompt | quality-gate | waiting | 90% | Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (51… | - | 263a8eedbcf0 |
 | AM-10133 | Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins | review | queue | 85% | Merged and pushed 2026-11-18 with plugins 1.1.0 (407 connector tests, strict va… | - | 2a39b0d0425a |
 | AM-10134 | Remote tier: a separate LaneConductor Remote plugin for the old remote, workers and Jira code | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18: not worked now; the focus is … | - | 7b6eb675a1b3 |
 | AM-10135 | Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work | review | queue | 100% | Implemented and merged to local main 2026-11-18 (439 connector tests, strict va… | - | c8982f81672c |

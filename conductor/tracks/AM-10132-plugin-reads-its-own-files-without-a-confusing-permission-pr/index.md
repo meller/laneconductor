@@ -1,9 +1,9 @@
 # Track AM-10132: Plugin reads its own files without a confusing permission prompt
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: quality-gate
+**Lane Status**: waiting
 **Progress**: 90%
-**Phase**: Shipped and pushed in plugins 1.2.1 (2026-11-18, 503 connector tests, strict validate x4). Found by a headless run: the command only passed a launch line and the model had to read the plugin folder, which prompts or fails. Now setup, next, new-project and every lane command carry the text they need (generated from the single skill source), so none reads outside the project; the one-line note on prompt options and the one-message setup interview are in too. Checked headless on scratch copies (setup stops at the pre-filled message and reads nothing outside the project); installed 1.2.0 reproduced the failure. Left: TC-5, a real interactive session in fiti-plug on 1.2.1 to confirm no prompt appears; TC-6, allowed-tools Read, Grep, Glob, evaluated and not shipped, only worth adding if a prompt still shows. Board commands still read the board add-on script, by design.
+**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): setup, next, new-project and the lane commands carry their text, so none reads outside the project. Open: TC-5 real session on 1.2.2; TC-6 only if a prompt still shows.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -21,3 +21,6 @@ Options to evaluate, in this order:
 
 Also fix the wording of the setup interview in the same pass if it is still unclear: one message with everything pre-filled and detected (name, stack, test command, lint, tracks folder with a "private" option for public repos), "reply ok or tell me what differs", nothing written until ok.
 **Summary**: When a user runs `/laneconductor:setup` (or any command that reads a file from the plugin's own install folder, `~/.claude/plugins/cache/...`), Claude Code asks "Allow this read outside the working di
+**Part Of**: 10145
+**Verdict**: pass
+**Waiting Reason**: TC-5: run setup and next in a real fiti-plug session on 1.2.2; TC-6 allowed-tools only if a prompt still shows (owner).
