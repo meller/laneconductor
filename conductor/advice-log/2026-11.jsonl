@@ -75,3 +75,4 @@
 {"v":1,"ts":"2026-11-18T12:07:31Z","kind":"call","session":"c_18e158cb25bc","surface":"claude-code","tool":"update_track","ok":true,"latency_ms":132,"chars":4125,"backend":"local"}
 {"v":1,"ts":"2026-11-18T12:20:51Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","ok":true,"latency_ms":212,"chars":5098,"backend":"local"}
 {"v":1,"ts":"2026-11-18T12:20:51Z","kind":"stale_read","session":"c_e029a94881c8","surface":"claude-code","tool":"list_tracks","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:24:28Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"create_track","ok":true,"latency_ms":213,"chars":5067,"backend":"local"}
