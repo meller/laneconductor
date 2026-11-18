@@ -19,3 +19,4 @@ To decide (this is a brainstorm track, nothing is built before the owner answers
 
 Relates to: tracks 10121 (remote connector, backlog) and 10133 (plugin-only setup, removes old-scheme text from the shipped plugins). Do not delete any daemon code before this track is decided.
 **Summary**: Owner decision (2026-11-18): everything remote is separated from the base and from the new plugin-only way. A separate LaneConductor Remote plugin (or tier) can later create the remote LaneConductor, 
+**Part Of**: 10145
