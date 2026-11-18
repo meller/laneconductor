@@ -4,6 +4,7 @@ import { STALE_RUNNING_HOURS, staleRunning } from '../claims.mjs';
 import { damagedHeaders } from '../markers.mjs';
 import { dependencyState, readyToResume } from '../dependencies.mjs';
 import { epicsOf } from '../epics.mjs';
+import { planLogFindings } from '../plan-log.mjs';
 import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
 import { projectField, publishable, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
 
@@ -27,13 +28,14 @@ export const listTracks = {
   input,
   async run({ store, ctx, args }) {
     const limit = args.limit ?? 50;
-    const entries = await readEntries(store);
+    const entries = await readEntries(store, { withPlan: true });
     const warnings = [];
     const rows = entries.map((e) => ({ ...rowOf(e.folder, e.index), ...(e.tracked === false ? { untracked: true } : {}) }));
     const drafts = rows.filter((r) => r.untracked).map((r) => r.folder);
     if (drafts.length) warnings.push(`Not committed (not in git yet; left out of conductor/tracks-summary.md): ${drafts.join(', ')}`);
     const damagedFolders = [];
     const staleFolders = [];
+    const logFolders = entries.filter((e) => e.plan && planLogFindings(e.plan.content).flagged).map((e) => e.folder);
     for (const r of rows) {
       if (r.source === null) warnings.push(`${r.folder}: no index.md`);
       else if (r.lane === null) warnings.push(`${r.folder}: index.md has no **Lane** marker`);
@@ -43,6 +45,7 @@ export const listTracks = {
     }
     if (damagedFolders.length) warnings.push(`header_damaged in ${damagedFolders.length} track${damagedFolders.length === 1 ? '' : 's'} (a marker is repeated; the first is used): ${damagedFolders.slice(0, 4).map(shortId).join(', ')}${damagedFolders.length > 4 ? ', ...' : ''}. get_track names the lines.`);
     if (staleFolders.length) warnings.push(`stale_running: ${staleFolders.slice(0, 4).map(shortId).join(', ')}${staleFolders.length > 4 ? ', ...' : ''} running over ${STALE_RUNNING_HOURS}h (Run Started). get_track says how to release.`);
+    if (logFolders.length) warnings.push(`plan_has_log in ${logFolders.length} track${logFolders.length === 1 ? '' : 's'} (plan.md holds dated status or a log): ${logFolders.slice(0, 3).map(shortId).join(', ')}${logFolders.length > 3 ? ', ...' : ''}. get_track says what to move to history.md.`);
     const byNumber = new Map();
     for (const r of rows) byNumber.set(r.number, [...(byNumber.get(r.number) ?? []), r.folder]);
     for (const [n, folders] of byNumber) if (folders.length > 1) warnings.push(`Duplicate track number ${n}: ${folders.sort().join(', ')}`);

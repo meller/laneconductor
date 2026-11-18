@@ -3,6 +3,7 @@ import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { staleRunning, staleRunningWarning } from '../claims.mjs';
 import { headerDamagedWarning, parseMarkers } from '../markers.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
+import { planLogFindings, planLogWarning } from '../plan-log.mjs';
 import { epicTable } from '../epics.mjs';
 import { rowOf } from '../summary.mjs';
 import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readEntries, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
@@ -47,6 +48,8 @@ export const getTrack = {
     if (stale) warnings.push(staleRunningWarning(stale));
     const damaged = headerDamagedWarning(indexContent);
     if (damaged) warnings.push(damaged);
+    const planLog = planLogFindings(got.get('plan')?.content);
+    if (planLog.flagged) warnings.push(planLogWarning(planLog));
     const conv = wanted.includes('conversation') ? conversationSummary(got.get('conversation')?.content ?? '', tail) : null;
     if (conv) {
       const f = got.get('conversation');

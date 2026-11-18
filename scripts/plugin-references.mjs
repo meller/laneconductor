@@ -10,7 +10,7 @@ const T = (file, ...heads) => ({ file, heads });
 const PARTS = (file, from, to) => ({ file, from, to });
 const ADDON = { title: 'The add-on\'s install commands', text: () => `Show these as written when the add-on is missing and I ask for parallel work or isolation; never run them.\n\n${installBlock('parallel')}` };
 const TRACKS_SEARCH = T('ops/tracks.md', '## Search first: the default is update, not create');
-const TRACK_FILES = T('ops/tracks.md', '## What goes in each track file');
+const TRACK_FILES = T('ops/tracks.md', '## What goes in each track file', '## Splitting a plan that holds a log');
 const NEWTRACK = '## newTrack `[name] [description]`';
 const UPDATE = '## updateTrack, reportaBug, featureRequest';
 const STATUSES = '## The five lane statuses';

@@ -43,7 +43,7 @@ export const healthReport = {
     if (log.malformed) warnings.push(`${log.malformed} malformed advice-log line(s) were skipped.`);
     const health = computeHealth(log.lines, { sinceMs, untilMs, windowClosed, contextTokens: ctx.contextTokens?.() ?? null });
     const lanes = await workflowLanes(store);
-    const needs = generateSummary(await readEntries(store), { lanes, generatedAt: '' }).attention;
+    const needs = generateSummary(await readEntries(store, { withPlan: true }), { lanes, generatedAt: '' }).attention;
     if (health.items.length > 50) warnings.push(`Showing 50 of ${health.items.length} advice items.`);
     if (needs.length > 50) warnings.push(`Showing 50 of ${needs.length} tracks needing attention.`);
     health.items = health.items.slice(0, 50);

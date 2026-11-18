@@ -3,6 +3,7 @@
 // the stamp. Rows depend only on committed content, so any machine can regenerate and compare.
 import { blobSha } from './blob.mjs';
 import { parseMarkers, validateIndex } from './markers.mjs';
+import { PLAN_LOG_PROBLEM, planLogFindings } from './plan-log.mjs';
 import { trackIdentity, trackNumberOfFolder } from './tracks.mjs';
 
 export const SUMMARY_PATH = 'conductor/tracks-summary.md';
@@ -60,6 +61,8 @@ export function lintTracks(entries, rows, lanes) {
     // Track AM-10136: a parked track nobody can explain. A done:waiting track is a PR waiting for review, not a park.
     const v = e.index ? parseMarkers(e.index.content).values : {};
     if (rows[i].lane_status === 'waiting' && rows[i].lane !== 'done' && !(v['Waiting Reason'] ?? '').trim()) problems.push('Lane Status is waiting but there is no **Waiting Reason**');
+    // Track AM-10146: a plan that has become a log (entries carry `plan` only when the caller read the plan.md files).
+    if (e.plan && planLogFindings(e.plan.content).flagged) problems.push(PLAN_LOG_PROBLEM);
     if (problems.length) out.push({ id: rows[i].id, folder: e.folder, problems });
   });
   return out;
