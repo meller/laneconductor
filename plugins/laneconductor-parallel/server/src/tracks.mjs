@@ -52,6 +52,38 @@ export function nextNumber(localDirs, upstreamDirs = []) {
   return max + 1;
 }
 
+// Track AM-10143 (owner rule: search first, the default is update, not create). Pure word overlap between a new request and the existing
+// tracks; it only informs the caller, it never blocks a create.
+const STOP = new Set('the and for with from that this into when then than not are was were has have had its but can does did out all any one new add use using make made via per also over under only about after before more less should would could will let get got our your their they them you who why how what which where while each every some such just like'.split(' '));
+const stem = (w) => (w.length > 5 ? w.replace(/(ing|ed|es)$/, '') : w).replace(/(?<=\w{3})s$/, '');
+export const wordsOf = (text) => new Set(String(text ?? '').toLowerCase().normalize('NFKD').split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)).map(stem));
+
+/**
+ * Up to `limit` existing tracks (any lane) that share words with a new request, best first. `rows` come from rowOf (number, id, title,
+ * lane, lane_status, summary). A title word counts double. `strong` is true when most title words, or enough of them, are shared.
+ */
+export function similarTracks(rows, { title, problem }, limit = 5) {
+  const t = wordsOf(title);
+  const p = new Set([...wordsOf(String(problem ?? '').slice(0, 400))].filter((w) => !t.has(w)));
+  if (!t.size) return { similar: [], strong: false };
+  const scored = [];
+  for (const r of rows) {
+    if (r.source === null || r.lane === null) continue;
+    const words = wordsOf(`${r.title} ${r.summary}`);
+    const st = [...t].filter((w) => words.has(w)).length;
+    const sp = [...p].filter((w) => words.has(w)).length;
+    const score = st * 2 + sp;
+    if (st < 1 || st + sp < 2) continue;
+    scored.push({ r, score, ratio: st / t.size, st });
+  }
+  scored.sort((a, b) => b.score - a.score || b.r.number - a.r.number);
+  const top = scored.slice(0, limit);
+  return {
+    similar: top.map(({ r }) => ({ number: r.number, id: r.id, title: r.title, lane: r.lane, lane_status: r.lane_status })),
+    strong: top.some((x) => x.st >= 2 && x.ratio >= 0.5),
+  };
+}
+
 export function slugify(title) {
   const s = title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/g, '');
   return s || 'track';

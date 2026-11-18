@@ -30,9 +30,9 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | `merge` | yes | its tools (`get_context`, `get_track`, `list_tracks`, `update_track`) | no |
 | `run` | yes | its tools (`get_track`, `list_tracks`, `get_context`, `update_track`), the `track-runner` sub-agent | no |
 | `review-plan` | yes | nothing | no |
-| `new` | yes | its tools (`list_tracks`, `create_track`) | no |
-| `bug` | yes | its tools (`list_tracks`, `append_conversation`, `create_track`) | no |
-| `feature` | yes | its tools (`list_tracks`, `append_conversation`, `create_track`) | no |
+| `new` | yes | its tools (`list_tracks`, `update_track`, `get_track`, `create_track`) | no |
+| `bug` | yes | its tools (`list_tracks`, `update_track`, `get_track`, `create_track`, `append_conversation`) | no |
+| `feature` | yes | its tools (`list_tracks`, `update_track`, `get_track`, `create_track`) | no |
 | `status` | yes | its tools (`get_track`, `list_tracks`) | no |
 | `move` | yes | its tools (`get_context`, `get_track`, `update_track`) | no |
 | `comment` | yes | its tools (`get_track`, `append_conversation`) | no |

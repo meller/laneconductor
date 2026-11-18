@@ -205,6 +205,14 @@ const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the op
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
 const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';
 
+// Track AM-10143 (owner rule): search first, the default is update, not create. The base lists tracks by reading the files, so it
+// works with no add-on.
+const REUSE = (what) => (
+  `Search first; update is the default, create is the fallback. Read \`conductor/tracks-summary.md\` if it exists (every track, every lane, the backlog and done too), otherwise Glob \`conductor/tracks/*/index.md\` and read the titles, lanes and summaries; look for the key words of ${what} (several words, one at a time). Read the best matches. `
+  + 'If one fits, say so and ask me "Update track N (title, lane) with this? [default: yes]". On yes, or no answer, extend that track (its `spec.md` or `plan.md`, and a comment in `conversation.md`) and do NOT create a track; a done track is reopened only on my explicit yes. '
+  + 'Only if I say no, or nothing fits, create the track by hand as `newTrack` describes, and say which tracks you looked at and why none fit. Several small gaps from one session go into one fitting track, an epic or one backlog track, not one track each.'
+);
+
 /** Procedures of the base by command name; a command not listed here keeps the catalog's procedure. */
 export const BASE_PROCEDURES = {
   plan: LANE('plan', 'lanes/plan.md'),
@@ -221,14 +229,14 @@ export const BASE_PROCEDURES = {
     + `3. ${EDIT_RULE} Ask me before any merge or push.\n`
     + '4. If I ask for the board along the way, follow the `board` command; building it needs the board add-on.',
   new: 'Create a track for: {{title}}. The procedure is the skill file `ops/tracks.md` (`newTrack`).\n\n'
-    + '1. Look through `conductor/tracks/` first (Glob, then the titles in the `index.md` files) so you extend an existing track instead of duplicating it; if one matches, show it and ask whether to use it. Otherwise create the track\'s folder and files by hand as `newTrack` describes, with a short title and the problem in my words (set `**Type**` only if it is not dev).\n'
-    + '2. Report the number and folder. Do not plan it unless I ask; `plan` is the next step.',
+    + `1. ${REUSE('the title')} The track you create gets its folder and files by hand as \`newTrack\` describes, a short title and the problem in my words (set \`**Type**\` only if it is not dev).\n`
+    + '2. Report the number and folder of the track you updated or created. Do not plan it unless I ask; `plan` is the next step.',
   bug: 'File a bug track for: {{description}}. The procedure is the skill file `ops/tracks.md` (`reportaBug`).\n\n'
-    + '1. Look through `conductor/tracks/` for a track that already covers the symptom; if one does, show it and ask whether to add a comment to it instead. Otherwise create the track by hand as `newTrack` describes, with `**Track Kind**: bug`, a short title and the problem in my words (the symptom, the steps to reproduce and the expected result), using the bug form in `ops/tracks.md` and `setup/templates.md` (Symptom, Steps to reproduce, Expected result, Actual result, Suspected area, Environment) and a regression-test case first in `test.md`.\n'
-    + '2. Report the number and folder. Do not start fixing it unless I ask.',
+    + `1. ${REUSE('the symptom')} If a track covers it, add the bug to that track. The track you create is made by hand as \`newTrack\` describes, with \`**Track Kind**: bug\`, a short title and the problem in my words (the symptom, the steps to reproduce and the expected result), using the bug form in \`ops/tracks.md\` and \`setup/templates.md\` (Symptom, Steps to reproduce, Expected result, Actual result, Suspected area, Environment) and a regression-test case first in \`test.md\`.\n`
+    + '2. Report the number and folder of the track you updated or created. Do not start fixing it unless I ask.',
   feature: 'File a feature track for: {{description}}. The procedure is the skill file `ops/tracks.md` (`featureRequest`).\n\n'
-    + '1. Look through `conductor/tracks/` for a track that already covers the request; if one does, show it and ask whether to add a comment to it instead. Otherwise create the track by hand as `newTrack` describes, with `**Track Kind**: feature`, a short title and the need and the wanted outcome in my words, using the feature form in `ops/tracks.md` and `setup/templates.md` (The need, Who it is for, Wanted outcome, Acceptance criteria, Out of scope).\n'
-    + '2. Report the number and folder. Do not start planning it unless I ask.',
+    + `1. ${REUSE('the request')} The track you create is made by hand as \`newTrack\` describes, with \`**Track Kind**: feature\`, a short title and the need and the wanted outcome in my words, using the feature form in \`ops/tracks.md\` and \`setup/templates.md\` (The need, Who it is for, Wanted outcome, Acceptance criteria, Out of scope).\n`
+    + '2. Report the number and folder of the track you updated or created. Do not start planning it unless I ask.',
   status: 'Show status for: {{track}} (nothing given means every track not done). Read only; change nothing. The procedure is the skill file `ops/tracks.md` (`status`).\n\n'
     + '1. With a track number or title: read its `index.md` and the end of `conversation.md`, and report lane, lane status, progress, phase, summary and the last conversation entries, and whether a human comment is waiting for a reply.\n'
     + '2. With nothing: read every track\'s `index.md` under `conductor/tracks/` and print the tracks grouped by lane, one line each (id, title, lane status, progress).',

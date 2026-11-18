@@ -2,9 +2,18 @@
 
 With the parallel add-on installed, use its connector tools (`create_track`, `update_track`, `append_conversation`): they refuse a write when someone edited first. The file edits below always work, with or without the add-on.
 
+## Search first: the default is update, not create
+
+Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you deciding on your own that "this needs a track"), look for one that already holds the work. Creating is the exception, never the default.
+
+1. **Search.** List the tracks by the key words of the request, in every lane including the `backlog` and `done`. With the add-on, `list_tracks` with `include_done` and a `query` (one key word per call; repeat with two or three words). Without it, read `conductor/tracks-summary.md` (every track by lane), or the `index.md` of each folder under `conductor/tracks/` (title, lane, summary). Read the best matches.
+2. **If one fits,** say so and ask: "Update track N (title, lane) with this? [default: yes]". On yes, or no answer to a default-yes question, extend that track (its `spec.md` or `plan.md`, and a comment in `conversation.md`) and create nothing. A track in `done` is reopened (moved back to a working lane) only on the person's explicit yes.
+3. **If the person says no, or nothing fits,** create the track, and say which tracks you looked at and why none fit. With the add-on, `create_track` answers with `similar_tracks` (up to 5 by title and summary words, any lane) and a warning on a strong match; it never blocks, so it is a second look, not a replacement for step 1.
+4. **Several small gaps in one session** go into one fitting track, an epic or one `backlog` track, not one track each.
+
 ## newTrack `[name] [description]`
 
-With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
+Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
 markers). By hand:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
@@ -109,9 +118,11 @@ Valid keys per lane: `parallel_limit`, `max_retries`, `primary_model`, `auto_act
 
 `updateTrack [id] [msg]` adds work, a bug or a feature to an existing track and returns it to backlog;
 `reportaBug [desc]` and `featureRequest [desc]` each update a matching track or create a new bug / feature
-track. The procedure (with the add-on, `create_track` and `update_track` do the writes): search `conductor/tracks/*/index.md` for a
-matching track; if one exists append the new detail to its `conversation.md` and `move NNN backlog`,
-otherwise create one with newTrack and set `**Track Kind**: bug` or `feature`.
+track, update first: follow "Search first" above (list every lane including backlog and done, ask
+"Update track N (title, lane) with this? [default: yes]", create only on a no or when nothing fits). With the add-on, `create_track` and
+`update_track` do the writes; without it, append the new detail to the matching track's `conversation.md`
+(or its `spec.md`) and `move NNN backlog` (a done track only on the person's yes), otherwise create one
+with newTrack and set `**Track Kind**: bug` or `feature`.
 
 A new bug or feature track is a form, not the generic skeleton. A bug `spec.md` has, after
 `## Problem Statement`: `## Symptom`, `## Steps to reproduce`, `## Expected result`,

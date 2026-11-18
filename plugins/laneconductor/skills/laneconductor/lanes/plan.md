@@ -23,7 +23,10 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions,
    `INITIALS-NNN-slug` and bare `NNN-slug`). If a folder exists, that is the track: go to Refine.
    Go to Scaffold only when neither form finds a folder anywhere.
-2. **Scaffold (only when step 1 found nothing).** Scaffolding over an existing track number
+2. **Scaffold (only when step 1 found nothing).** Before scaffolding a track for new work, follow
+   "Search first: the default is update, not create" in [ops/tracks.md](../ops/tracks.md): list the tracks by the key
+   words (every lane, the backlog and done too) and, if one fits, ask "Update track N (title, lane) with
+   this? [default: yes]" and extend it instead. Scaffolding over an existing track number
    creates a duplicate folder beside the real one. This happened on track 10040 when a
    legacy-only scan missed `AM-10040-...`.
    - Create `conductor/tracks/INITIALS-NNN-slug/`. Initials are the first letter of each word of

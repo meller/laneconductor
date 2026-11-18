@@ -4,8 +4,8 @@ Goal of the lane: turn a request into documents only (spec.md, plan.md, test.md)
 
 What has worked:
 1. Read the project context first (get_context, then the files it points at: product, tech-stack, workflow). Specs that skip this tend to contradict a fundamentals doc.
-2. Reuse before creating: call list_tracks with a query for the feature's words. A near-duplicate track is more useful extended than duplicated.
-3. New work: create_track (it makes all five files and a valid index.md). Existing track: get_track, then update_track with the `base` you were given.
+2. Search first, the default is update, not create: call list_tracks with include_done and a query of one key word of the request (repeat with two or three words) so every lane is searched, backlog and done too. If a track fits, ask "Update track N (title, lane) with this? [default: yes]" and extend it; a done track is reopened only on a yes.
+3. Create only if the person says no or nothing fits, and say which tracks you looked at: create_track (it makes all five files and a valid index.md; it returns similar_tracks, look at them). Several small gaps go into one fitting track, an epic or one backlog track. Existing track: get_track, then update_track with the `base` you were given.
 4. spec.md: problem, requirements (numbered), acceptance criteria that can be observed. Name what is out of scope. plan.md: phases, each with a problem, a solution and checkbox tasks small enough to verify one at a time. test.md: exact commands and one test case per requirement, written so a different session could run them.
 5. Mark facts you checked versus things you assume; put each assumption in the plan as a task that tests it.
 6. Questions for the human go in conversation.md through append_conversation, and set `Waiting for reply` to `yes` with update_track.

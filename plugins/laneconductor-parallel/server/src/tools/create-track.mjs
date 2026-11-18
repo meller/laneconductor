@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
-import { baseMarkers, projectField, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
-import { buildTrackFiles, defaultInitials, nextNumber } from '../tracks.mjs';
+import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
+import { buildTrackFiles, defaultInitials, nextNumber, similarTracks } from '../tracks.mjs';
+import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
 import { nearestLane } from '../vocabulary.mjs';
 
@@ -20,7 +21,7 @@ const input = z.object({
 export const createTrack = {
   name: 'create_track',
   title: 'Create a track',
-  description: 'Create a new track folder (index.md, spec.md, plan.md, test.md, conversation.md) in the plan lane, queued, and commit it. Allocates the next number. Search with list_tracks first so you extend an existing track instead of duplicating it. Returns a `base` usable directly with update_track.\nExample: "flag a bug: export fails" -> create_track {title: "Export fails", problem: "...", track_kind: "bug"}',
+  description: 'Create a new track folder (index.md, spec.md, plan.md, test.md, conversation.md) in the plan lane, queued, and commit it. Allocates the next number. Search with list_tracks first and update a fitting track instead (default yes). Returns `similar_tracks` and a `base` usable directly with update_track.\nExample: "flag a bug: export fails" -> create_track {title: "Export fails", problem: "...", track_kind: "bug"}',
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   input,
   async run({ store, ctx, args }) {
@@ -31,6 +32,7 @@ export const createTrack = {
       const res = await store.transaction(async (tx) => {
         const dirs = (await tx.listDir(TRACKS_DIR)).filter((e) => e.type === 'dir').map((e) => e.name);
         // A project that names its planning lane otherwise (otralingo: `planning`) gets that name, not `plan`.
+        const similar = similarTracks((await readEntries(tx)).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
         const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
         const number = nextNumber(dirs, await tx.upstreamDirs?.(TRACKS_DIR) ?? []);
         const t = buildTrackFiles({
@@ -43,7 +45,7 @@ export const createTrack = {
         if (sum) changes.push(sum);
         const msg = `chore(track-${number}): create_track ${changes.map((c) => c.path.split('/').pop()).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
         const r = await tx.commitFiles({ preconditions, changes, message: msg });
-        return { r, t, number, msg, lane: initialLane };
+        return { r, t, number, msg, lane: initialLane, similar };
       });
       if (!res.r.ok) {
         lastConflict = res.r.conflict;
@@ -53,9 +55,12 @@ export const createTrack = {
       const warnings = [];
       if (res.r.commitError) warnings.push(`Files were written but not committed: ${res.r.commitError}`);
       else if (res.r.ignored?.length) warnings.push(`Not committed (gitignored, decision D5): ${res.r.ignored.map((p) => p.split('/').pop()).join(', ')}.`);
+      const { similar, strong } = res.similar;
+      if (strong) warnings.push(`Similar track${similar.length > 1 ? 's' : ''} already exist${similar.length > 1 ? '' : 's'}: ${similar.map((x) => `${x.id} (${x.lane})`).join(', ')}. If this duplicates one, ask the person "Update track N? [default: yes]" and move the content there.`);
       return {
         data: {
           track: trackIdentity(res.t.folder, res.t.files.index),
+          similar_tracks: similar,
           files_created: FILE_NAMES.map((n) => trackPath(res.t.folder, n)),
           commit: res.r.commit ? { sha: res.r.commit, message: res.msg.split('\n')[0] } : null,
           ...(res.r.commitError ? { commit_error: res.r.commitError } : {}),

@@ -44,7 +44,7 @@ wrap or bundle them.
 | `review` | [lanes/review.md](lanes/review.md) | yes |
 | `qualityGate`, `quality-gate` | [lanes/quality-gate.md](lanes/quality-gate.md) | yes |
 | `merge`, `done` | [lanes/merge.md](lanes/merge.md) (the `done` lane's action) | yes |
-| `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (with the parallel add-on use its `create_track` and `update_track`; otherwise edit the files as that file says) | yes |
+| `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (search first: the default is update, not create; with the parallel add-on use its `create_track` and `update_track`; otherwise edit the files as that file says) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) (lanes, statuses and transitions: [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md)) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |

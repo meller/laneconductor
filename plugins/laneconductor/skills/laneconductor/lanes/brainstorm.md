@@ -16,6 +16,8 @@ An optional deepening step before implement: ask the human clarifying questions 
 3. Set `**Waiting for reply**: yes` in `index.md`, then stop and wait for the human's reply in
    `conversation.md` (or the UI inbox).
 4. On a reply, ask the next question. Repeat.
+   If the outcome is work no track holds yet, do not open a track by reflex: search first, the default is
+   update, not create (see "Search first" in [ops/tracks.md](../ops/tracks.md)).
 5. When the requirements are unambiguous, the acceptance criteria are clear and every phase
    implies at least one test case (or the human says "go ahead"), run the plan lane on the
    track: it reads `conversation.md` and updates `spec.md`, `plan.md` and `test.md` from the dialogue.

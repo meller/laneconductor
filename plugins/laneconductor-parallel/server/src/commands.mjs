@@ -24,6 +24,12 @@ const LANE = (lane, file, extra = '') => (
   + `2. Work through the guide.${extra}`
   + (['plan', 'quality-gate'].includes(lane) ? `\n3. ${FINISH}` : '')
 );
+// Track AM-10143 (owner rule): search first, the default is update, not create. One step shared by `new`, `bug` and `feature`.
+const REUSE = (what) => (
+  `Search first; update is the default, create is the fallback. Call \`list_tracks\` with \`include_done\` and a \`query\` of one key word of ${what} (repeat with two or three other words), so every lane is searched: the backlog and done too. Read the best matches. `
+  + 'If one fits, say so and ask me "Update track N (title, lane) with this? [default: yes]". On yes, or no answer, extend that track (its spec or plan, through `update_track` with the `base` from `get_track`, and a comment) and do NOT create a track; a done track is reopened only on my explicit yes. '
+  + 'Only if I say no, or nothing fits, call `create_track`, and say which tracks you looked at and why none fit. Several small gaps from one session go into one fitting track, an epic or one backlog track, not one track each. If `create_track` answers with `similar_tracks`, show them and offer to move the new content into one of them.'
+);
 const WORKTREE = 'RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding.';
 const LANE_WORK = (lane, dispatch) => (
   `1. Call \`get_context\` with lane \`${lane}\` and \`get_track\` for the track.\n`
@@ -110,8 +116,8 @@ export const COMMANDS = [
     example: 'new track: export the report as CSV',
     args: [{ name: 'title', hint: 'title: what and why', description: 'The title and the problem, in your words.', required: true }], connector: true,
     procedure: 'Create a track for: {{title}}. The procedure is the skill file `ops/tracks.md` (`newTrack`).\n\n'
-      + '1. Call `list_tracks` with a `query` from the title first, so you extend an existing track instead of duplicating it; if one matches, show it and ask whether to use it. Otherwise call `create_track` with a short `title` and a `problem` in my words (add `type` only if it is not dev); it returns the track number and a `base`.\n'
-      + '2. Report the number and folder. Do not plan it unless I ask; `plan` is the next step.',
+      + `1. ${REUSE('the title')} The track you create gets a short \`title\` and a \`problem\` in my words (add \`type\` only if it is not dev); \`create_track\` returns its number and a \`base\`.\n`
+      + '2. Report the number and folder of the track you updated or created. Do not plan it unless I ask; `plan` is the next step.',
   },
   {
     name: 'bug', group: 'create and manage', title: 'File a bug',
@@ -119,8 +125,8 @@ export const COMMANDS = [
     example: 'flag a bug: the export button does nothing',
     args: [{ name: 'description', hint: 'what is broken, and how to reproduce it', description: 'What is broken, and how to reproduce it.', required: true }], connector: true,
     procedure: 'File a bug track for: {{description}}. The procedure is the skill file `ops/tracks.md` (`reportaBug`).\n\n'
-      + '1. Call `list_tracks` with a `query` from the symptom first; if a track already covers it, show it and ask whether to add to it (`append_conversation`) instead. Otherwise call `create_track` with `track_kind` set to `bug`, a short `title` and a `problem` giving the symptom, the steps to reproduce and the expected result, in my words. The connector writes the bug form (Symptom, Steps to reproduce, Expected result, Actual result, Suspected area, Environment) and a regression-test case first in test.md.\n'
-      + '2. Report the number and folder. Do not start fixing it unless I ask.',
+      + `1. ${REUSE('the symptom')} If a track covers it, add the bug to that track (a comment with \`append_conversation\`, or its spec). The track you create gets \`track_kind\` set to \`bug\`, a short \`title\` and a \`problem\` giving the symptom, the steps to reproduce and the expected result, in my words. The connector writes the bug form (Symptom, Steps to reproduce, Expected result, Actual result, Suspected area, Environment) and a regression-test case first in test.md.\n`
+      + '2. Report the number and folder of the track you updated or created. Do not start fixing it unless I ask.',
   },
   {
     name: 'feature', group: 'create and manage', title: 'File a feature request',
@@ -128,8 +134,8 @@ export const COMMANDS = [
     example: 'feature request: let me export the report as CSV',
     args: [{ name: 'description', hint: 'the feature and why it is wanted', description: 'The feature and why it is wanted.', required: true }], connector: true,
     procedure: 'File a feature track for: {{description}}. The procedure is the skill file `ops/tracks.md` (`featureRequest`).\n\n'
-      + '1. Call `list_tracks` with a `query` from the request first; if a track already covers it, show it and ask whether to add to it (`append_conversation`) instead. Otherwise call `create_track` with `track_kind` set to `feature`, a short `title` and a `problem` giving the need and the wanted outcome, in my words. The connector writes the feature form (The need, Who it is for, Wanted outcome, Acceptance criteria, Out of scope).\n'
-      + '2. Report the number and folder. Do not start planning it unless I ask.',
+      + `1. ${REUSE('the request')} The track you create gets \`track_kind\` set to \`feature\`, a short \`title\` and a \`problem\` giving the need and the wanted outcome, in my words. The connector writes the feature form (The need, Who it is for, Wanted outcome, Acceptance criteria, Out of scope).\n`
+      + '2. Report the number and folder of the track you updated or created. Do not start planning it unless I ask.',
   },
   {
     name: 'status', group: 'create and manage', title: 'Status',
