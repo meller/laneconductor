@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned 2026-11-18 (spec, plan and test cases written, 8 phases; owner decisions D1-D12 have defaults). Waiting for the owner's go, and for 10143 to merge first (both edit connector/src/commands.mjs).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -25,4 +25,4 @@ Tutorial mode: the first few times (or when asked, `next explain`) it explains t
 Open design questions: one command or also a hint at the end of every other command (the `next` field idea in track 10122); whether setup ends by saying "now run /laneconductor:next"; whether the board shows the same line; how it ranks candidates (human-waiting first, then by lane order, then by number). Depends on / uses: 10131 (valid.next), 10135 (done-lane truth), 10136 (ready to resume), 10141 (stale running); relates to 10122 (next hints) and 10124 (skill advisor offers at the moment of intent: next can point to them).
 
 Deliverable: command `next` in the command catalog (so the base, parallel and help list it), the procedure text, tests that feed fixture projects in each state and check the named step, and a walk-through on the Fiti PLUG project.
-**Summary**: Owner idea (2026-11-18): a command, `/laneconductor:next` ("what's next"), that looks at where the project stands and tells the user the single next step, and explains what that step does and why, so 
+**Summary**: A read-only command `next`, the universal front door: it reads where the project stands (files in git; the connector only adds valid.next and freshness), names the one next step with the exact command, one sentence on what and why, and teaches the lane model on the way (explain or short). With no conductor folder it offers three paths (continue an existing project, start a new one, look around); with no tracks it recommends the add-ons that fit, from the one catalog. Ships without the audit tracks 10135, 10136 and 10141, using git-only heuristics; the audit signals replace them later.
