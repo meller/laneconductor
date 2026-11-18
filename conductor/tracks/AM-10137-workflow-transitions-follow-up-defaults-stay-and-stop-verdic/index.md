@@ -1,8 +1,8 @@
 # Track AM-10137: Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: running
+**Progress**: 100%
 **Phase**: New
 **Track Kind**: feature
 **Type**: dev

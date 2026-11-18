@@ -1,8 +1,8 @@
 # Track AM-10136: Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: running
+**Progress**: 100%
 **Phase**: New
 **Track Kind**: bug
 **Type**: dev
