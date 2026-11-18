@@ -139,6 +139,7 @@ export const FIXTURES = {
   F29: { desc: { conductor: 'full', staleSkill: 'link' }, expect: { state: 'S04', command: '/laneconductor:new <title>', stale: { kind: 'link', tracked: false, remove: 'rm .claude/skills/laneconductor' } } },
   F30: { desc: { staleSkill: 'link', staleTracked: true, tracks: [T(10001, 'plan', 'queue')] }, expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), stale: { kind: 'link', tracked: true, remove: 'git rm .claude/skills/laneconductor' } } },
   F31: { desc: { staleSkill: 'folder', files: REPO_FILES, commits: 3, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:setup', stale: { kind: 'folder', tracked: false, remove: 'rm -r .claude/skills/laneconductor' } } },
+  F32: { desc: { tracks: [T(10100, 'plan', 'queue'), T(10101, 'plan', 'queue', { extra: { 'Part Of': '10100' } }), T(10102, 'done', 'success', { extra: { 'Part Of': '10100' } })] }, expect: { state: 'S18', track: 10101, command: cmd('plan', 10101), epics: [{ epic: 10100, done: 1, total: 2 }] } },
   F28: { desc: { tracks: [T(10001, 'done', 'queue', { branch: 'subject' })] }, expect: { state: 'S12', track: 10001, command: '/laneconductor:move 10001 done:success' } },
 };
 

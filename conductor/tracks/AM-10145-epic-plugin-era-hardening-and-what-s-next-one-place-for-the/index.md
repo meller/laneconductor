@@ -1,8 +1,8 @@
 # Track AM-10145: Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes)
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: running
+**Progress**: 70%
 **Phase**: New
 **Track Kind**: feature
 **Type**: dev

@@ -222,6 +222,12 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     <button class="more" id="attn-more" hidden></button>
   </section>
 
+  <section class="block" id="epic-block" hidden>
+    <h2>Epics <span class="n" id="epic-n"></span></h2>
+    <p class="hint">Each epic's children, read from the children's own files; nothing is stored in the epic.</p>
+    <div class="tablewrap"><table><thead><tr><th>Epic</th><th>Title</th><th>Children</th></tr></thead><tbody id="epic-rows"></tbody></table></div>
+  </section>
+
   <section class="block" id="done-block">
     <h2>Done <span class="n" id="done-n"></span></h2>
     <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Progress</th></tr></thead><tbody id="done-rows"></tbody></table></div>
@@ -781,7 +787,21 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     if (rows.length > PER) { more.hidden = false; more.textContent = state.backlogAll ? 'Show fewer' : 'Show all ' + rows.length; more.onclick = function () { state.backlogAll = !state.backlogAll; drawBacklog(); }; }
   }
 
-  function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawDone(); drawBacklog(); }
+  // Epics: a derived table per epic (the data comes from the children's Part Of markers), text only.
+  function drawEpics() {
+    var all = Array.isArray(D.epics) ? D.epics : []; var block = document.getElementById('epic-block');
+    block.hidden = !all.length; if (!all.length) return;
+    document.getElementById('epic-n').textContent = String(all.length);
+    var tb = document.getElementById('epic-rows'); tb.textContent = '';
+    all.forEach(function (e) {
+      var tr = document.createElement('tr'); tr.appendChild(el('td', 'mono', (e.p ? e.p + '-' : '') + e.n)); tr.appendChild(el('td', 't', e.t || '(no title)'));
+      var c = el('td'); c.appendChild(el('div', 'why', e.d + ' of ' + e.c.length + ' done'));
+      e.c.forEach(function (k) { c.appendChild(el('div', 'why', k.i + ' ' + (k.t || '') + ': ' + (k.l || '?') + ':' + (k.s || '?') + ' ' + k.g + '%')); });
+      tr.appendChild(c); tb.appendChild(tr);
+    });
+  }
+
+  function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawEpics(); drawDone(); drawBacklog(); }
   document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; state.backlogAll = false; render(); });
   render();
   document.getElementById('status').hidden = true;

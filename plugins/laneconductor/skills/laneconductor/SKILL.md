@@ -157,6 +157,7 @@ skill-only session, so re-read the file yourself.
 | `**Merge Mode**: direct\|pr` | How the done lane integrates the branch (absent means `pr`). |
 | `**PR URL**` | Written by the merge lane in pr mode. |
 | `**Verdict**: pass\|fail` | Written by review and quality-gate; cleared at claim. |
+| `**Part Of**: N` | Optional: the number of the epic this track belongs to. The epic's status table is derived from the children's own markers (`list_tracks`, `get_track`, the board); nothing about a child is ever written into the epic. |
 | `**Priority**: high\|normal\|low` | Optional; absent means `normal`. Read by `next` to rank candidates. |
 | `**Depends On**: NNN, NNN` | Tracks that must be `done:success` before this one is claimed; the connector lists the unmet ones as `blocked_by` and warns when a track claims anyway. |
 | `**Waiting On Tracks**: NNN, NNN` | See parking above. |

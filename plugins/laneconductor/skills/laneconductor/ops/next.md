@@ -30,7 +30,7 @@ way of gathering differs.
    (listed by `list_tracks` and `get_context`): use them for S09 and S10 instead of working them out. Without the add-on, work them
    out from `Waiting On Tracks` and `Depends On` as the table says.
 4. **Read these markers**, header block only, the first one wins when a marker is repeated (and the track is damaged, S21):
-   `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Merge Mode`,
+   `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Part Of`, `Merge Mode`,
    `PR URL`. Match lane names by meaning (a project may still say `planning` and `in-progress`: use `conductor/workflow.json`, or
    `valid.guide_lanes`), and write the project's own lane names in the card.
 5. **Where a finished lane goes next** is never worked out from the raw file: use `valid.next` of `get_track`, or read
@@ -54,7 +54,9 @@ way of gathering differs.
 
 Each row is one state: what the files show, what the card says and the command. Tracks in `backlog`, tracks in `done:success` and
 archived folders are never candidates, except in S19 and S20. A track that waits on an unshipped track (S10) is never the step,
-whatever its lane.
+whatever its lane. An epic (a track that other tracks name with `**Part Of**`) is not a candidate either: its children are. Add one
+line to the card for an epic that has unfinished children ("Epic N: 3 of 8 children done"), counted from the children's own markers;
+the epic's own file holds no child status.
 
 | Id | The project shows | The card names | Command |
 |----|-------------------|----------------|---------|

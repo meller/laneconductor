@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { dependencyState, readyToResume } from '../dependencies.mjs';
+import { epicsOf } from '../epics.mjs';
 import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
 import { projectField, publishable, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
 
@@ -43,6 +44,7 @@ export const listTracks = {
       warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write rewrites the file.`);
     }
     const deps = dependencyState(rows);
+    const epics = new Map(epicsOf(rows).map((e) => [e.row.number, e.table]));
     const q = args.query?.toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))
@@ -77,7 +79,7 @@ export const listTracks = {
     return {
       data: {
         // `blocked_by` (dependency numbers not yet done:success) and `ready_to_resume` appear only on tracks that have dependencies.
-        tracks: shown.map(({ source, waiting_on, ...r }) => (deps.has(r.number) ? { ...r, ...deps.get(r.number) } : r)),
+        tracks: shown.map(({ source, waiting_on, ...r }) => ({ ...r, ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children } : {}) })),
         total: matches.length,
         truncated,
         ...(readyToResume(rows).length ? { ready_to_resume: readyToResume(rows) } : {}),

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { parseMarkers } from '../markers.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
+import { epicTable } from '../epics.mjs';
 import { rowOf } from '../summary.mjs';
 import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readEntries, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
@@ -83,11 +84,13 @@ export const getTrack = {
       f.returned_chars = f.content.length;
     }
     // Track AM-10136: only a track with dependencies pays for reading the other tracks.
+    // Track AM-10145: an epic's children table is derived from the children's own files here, never stored in the epic.
     const own = rowOf(folder, index);
-    if (dependenciesOf(own).length) {
-      const state = dependencyState((await readEntries(store)).map((e) => rowOf(e.folder, e.index)));
-      if (state.has(own.number)) data.dependencies = state.get(own.number);
-    }
+    const allRows = (await readEntries(store)).map((e) => rowOf(e.folder, e.index));
+    const state = dependenciesOf(own).length ? dependencyState(allRows) : null;
+    if (state?.has(own.number)) data.dependencies = state.get(own.number);
+    const epic = epicTable(allRows, own.number);
+    if (epic) data.children = epic;
     const m = data.track.markers;
     return { data, warnings, summary: `Track ${data.track.id}: ${data.track.title} (lane ${m['Lane'] ?? '?'}, ${m['Lane Status'] ?? '?'}, ${m['Progress'] ?? '?'}).` };
   },

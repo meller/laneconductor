@@ -36,6 +36,7 @@ test('TC-24: every fixture gives the expected state, track and command', () => {
     assert.equal(got.command, e.command, `${id}: command`);
     if (e.default) assert.equal(got.default, e.default, `${id}: default path`);
     if (e.level) assert.equal(got.level, e.level, `${id}: level`);
+    if (e.epics) assert.deepEqual(got.epics, e.epics, `${id}: derived epic progress`);
     if (e.stale) assert.deepEqual(got.stale, e.stale, `${id}: stale project-level skill`);
     else assert.equal(got.stale, null, `${id}: no stale skill`);
     if (e.offers) assert.deepEqual(got.offers, e.offers, `${id}: add-on offers`);

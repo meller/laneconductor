@@ -11,6 +11,9 @@ const SOURCE_CHARS = 12;
 
 const numbersOf = (text) => (text ?? '').split(/[,\s]+/).map((s) => s.replace(/^[A-Za-z]+-/, '')).filter((s) => /^\d+$/.test(s));
 
+const PRIORITIES = ['high', 'normal', 'low'];
+const partOf = (value, own) => { const n = Number(numbersOf(value)[0]); return Number.isInteger(n) && n > 0 && n !== own ? n : null; };
+
 /** One track's row from its folder name and index.md `{ content, sha }` (null when the file is missing). */
 export function rowOf(folder, idx) {
   const ident = trackIdentity(folder, idx?.content ?? '');
@@ -32,6 +35,10 @@ export function rowOf(folder, idx) {
     depends_on: numbersOf(v['Depends On']),
     waiting_on: numbersOf(v['Waiting On Tracks']),
     source: (idx.sha ?? blobSha(idx.content)).slice(0, SOURCE_CHARS),
+    // Track AM-10145: the optional marker `**Part Of**: <epic number>` (the epic's status is derived, never stored) and `**Priority**`
+    // (read by `next`). Present only when set, so a track that uses neither is unchanged.
+    ...(partOf(v['Part Of'], ident.number) === null ? {} : { part_of: partOf(v['Part Of'], ident.number) }),
+    ...(PRIORITIES.includes((v['Priority'] ?? '').trim().toLowerCase()) ? { priority: v['Priority'].trim().toLowerCase() } : {}),
   };
 }
 

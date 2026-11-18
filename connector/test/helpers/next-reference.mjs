@@ -188,8 +188,11 @@ export function classify(dir, { installed = [], arg, now = Date.now() } = {}) {
   const byNumber = new Map(tracks.map((t) => [t.n, t]));
   const shipped = (n) => { const d = byNumber.get(n); return !d || (d.lane === 'done' && d.status === 'success'); };
 
+  const epicNumbers = new Set(tracks.map((t) => Number(nums(t.markers['Part Of'])[0])).filter((n) => n && byNumber.has(n)));
+  out.epics = [...epicNumbers].sort((a, b) => a - b).map((n) => ({ epic: n, done: tracks.filter((c) => Number(nums(c.markers['Part Of'])[0]) === n && c.lane === 'done' && c.status === 'success').length, total: tracks.filter((c) => Number(nums(c.markers['Part Of'])[0]) === n).length }));
   const candidates = [];
   for (const t of tracks) {
+    if (epicNumbers.has(t.n)) continue; // an epic is not a candidate: its children are
     if (t.damaged || !t.lane || !knownLanes.has(t.lane) || !STATUSES.includes(t.status)) { out.damaged.push(t.n); continue; }
     if (t.lane === 'backlog' || (t.lane === 'done' && t.status === 'success')) continue;
     const deps = nums(t.markers['Waiting On Tracks']).length ? nums(t.markers['Waiting On Tracks']) : nums(t.markers['Depends On']);

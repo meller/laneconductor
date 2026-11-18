@@ -4,6 +4,7 @@
 // leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
 // Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp.
 import { parseMarkers } from './markers.mjs';
+import { epicsOf } from './epics.mjs';
 import { lintTracks, rowOf } from './summary.mjs';
 import { trackNumberOfFolder } from './tracks.mjs';
 
@@ -99,6 +100,15 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     .map(({ row }) => ({ number: row.number, folder: row.folder, reasons: reasonsByFolder.get(row.folder) }))
     .sort((a, b) => b.number - a.number || a.folder.localeCompare(b.folder));
 
+  const epics = epicsOf(act.map((a) => a.row)).map(({ row, table }) => ({
+    number: row.number,
+    title: row.title,
+    folder: row.folder,
+    done: table.done,
+    total: table.total,
+    children: table.children.map((c) => ({ id: c.id, title: c.title, lane: c.lane, lane_status: c.lane_status, progress: c.progress })),
+  }));
+
   return {
     project,
     generated_at: generatedAt,
@@ -106,6 +116,8 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     tracks,
     counts: { by_lane, needs_attention: needs_attention.length, archived: arc.length },
     needs_attention,
+    // Track AM-10145: derived from the children's own markers (`Part Of`), never stored in the epic. Present only when there is one.
+    ...(epics.length ? { epics } : {}),
   };
 }
 
@@ -126,6 +138,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           d a docs file is published for this track,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
  *   attn:   n number, p prefix, t title, r reasons
+ *   epics (only when a track is named by `Part Of`): n number, p prefix, t title, d children done, c children [i id, t title, l lane, s status, g progress]
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
  * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
@@ -146,6 +159,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
     attn: board.needs_attention
       .filter((a) => titleOf.has(a.folder))
       .map((a) => ({ n: a.number, p: prefixOf(a.folder), t: titleOf.get(a.folder) ?? '', r: a.reasons })),
+    ...(board.epics?.length ? { epics: board.epics.map((e) => ({ n: e.number, p: prefixOf(e.folder), t: e.title ?? '', d: e.done, c: e.children.map((c) => ({ i: c.id, t: c.title ?? '', l: c.lane, s: c.lane_status, g: c.progress || 0 })) })) } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
 }
