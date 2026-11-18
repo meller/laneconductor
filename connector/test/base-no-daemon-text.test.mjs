@@ -54,5 +54,5 @@ test('the generated /laneconductor:setup command follows new-project; `scaffold`
   assert.match(cmd, /runs only because I named it/);
   assert.ok(!/make install|laneconductorrc/.test(cmd), 'the command carries no daemon-era install text');
   const skill = path.join(BASE, 'skills/laneconductor');
-  for (const rel of ['setup/setup.md', 'ops/new-project.md']) assert.match(fs.readFileSync(path.join(skill, rel), 'utf8'), /<!-- Starter set: reserved for the skill advisor \(track 10124\) -->/, rel);
+  for (const rel of ['setup/setup.md', 'ops/new-project.md']) assert.match(fs.readFileSync(path.join(skill, rel), 'utf8'), /<!-- Starter set: reserved for the skill advisor -->/, rel);
 });

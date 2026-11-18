@@ -101,8 +101,8 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    "Search first: the default is update, not create" in `ops/tracks.md`: list the tracks by the key
    words (every lane, the backlog and done too) and, if one fits, ask "Update track N (title, lane) with
    this? [default: yes]" and extend it instead. Scaffolding over an existing track number
-   creates a duplicate folder beside the real one. This happened on track 10040 when a
-   legacy-only scan missed `AM-10040-...`.
+   creates a duplicate folder beside the real one. This has happened when a
+   legacy-only scan missed `AM-<number>-...`.
    - Create `conductor/tracks/INITIALS-NNN-slug/`. Initials are the first letter of each word of
      `git config user.name`, up to 3, `XX` if unset. Never use the bare `NNN-slug` form for a new
      track.
@@ -308,12 +308,12 @@ commits go.
      "Phase N complete" until you have executed whatever verifies it and read the real output.
      This holds even when `test.md` has no case for the phase: if there is a CLI flag, endpoint,
      UI flow or dispatch to exercise, exercise it. A written-but-unrun test file or a plausible
-     diff is not verification. Track 1087 phase 6 shipped a "complete" phase with two new test
+     diff is not verification. One run shipped a "complete" phase with two new test
      files that were never run (one had an import error) and a hardcoded `null` that broke the
      one path that mattered.
    - **Never end a turn on a command you just backgrounded.** The harness kills background
      children when the session exits, so the work is silently lost and the run exits 0
-     mid-work (track 1102 F21; the exit handler now reports `ended_mid_work`, which is recovery,
+     mid-work (the run's exit handler now reports `ended_mid_work`, which is recovery,
      not prevention). Run long commands in the foreground and wait, or hand off explicitly with a
      note in `conversation.md` naming what is still running and what the next turn should check.
    - Update `plan.md` (tick the task) and the `**Progress**` marker in `index.md`.
@@ -388,7 +388,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      append `## ✅ REVIEWED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move (this project: `implement:queue`), add
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
-   - Write `**Verdict**` every time, PASS or FAIL (track AM-10087). The harness can tag the same
+   - Write `**Verdict**` every time, PASS or FAIL. The harness can tag the same
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
@@ -506,7 +506,7 @@ code is on `main`.
      status separately.
    - While the gate itself is executing (a full suite, a deploy), the track is
      `quality-gate:running`.
-   - Write `**Verdict**` on every PASS/FAIL (track AM-10087): the harness can tag the turn
+   - Write `**Verdict**` on every PASS/FAIL: the harness can tag the turn
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
@@ -605,7 +605,7 @@ it is missing, say so and continue. The `skills` key is optional; when it is abs
 own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
 skill's method, not its output paths.
 
-### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions (track 1020's grammar); Lane names; Manual moves win)
+### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Lane names; Manual moves win)
 
 #### The five lane statuses
 
@@ -620,7 +620,7 @@ skill's method, not its output paths.
 **`running` belongs to the lane whose action is executing.** It is never used for work that belongs to another lane. A deploy
 gate (the full suites, then the deploy) is `quality-gate:running`, not `implement:running` and not `in-progress:running`.
 
-#### Transitions (track 1020's grammar)
+#### Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 
@@ -653,7 +653,7 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 
 #### Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
+A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
 `planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
@@ -703,7 +703,7 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
 #### conversation.md format
 

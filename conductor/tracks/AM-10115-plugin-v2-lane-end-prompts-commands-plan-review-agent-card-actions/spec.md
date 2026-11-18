@@ -10,6 +10,19 @@ Wanted: (1) after a lane finishes, Claude offers the next step: update the board
 
 Out of scope here: install and migration documentation (track 10114) and the directory submission (track 10106 Phase 5e).
 
+## Owner decisions, 2026-11-18: the board is the plugin's user interface
+
+The board with its actions is the plugin's UI: the files in git stay the source of truth, and the board is how a person sees and drives them. Decided: do both card-action steps, add a Project drawer and a What's next panel, and make the board the front door of the first run. (A runner is building step 1 and step 2 below; the rest is planned here.)
+
+1. Card actions, step 1 (works everywhere): every card and every Needs-attention row shows its next step (a short label with the exact command) and a Copy button. Running work is never a page action: only the command is copied, a Claude session runs it.
+2. Card actions, step 2 (desktop app only): a Move menu on each card that appears only where the page can reach the local connector (the `mcp` capability, Claude desktop app); otherwise it is not shown. It calls `get_track` then `update_track` (conflict-checked; leaving the done lane needs an explicit confirm and `reopen`). The card moves on screen with a note that the board is a snapshot.
+3. Project drawer: one **Project** button in the board header opens a drawer with every project definition as a tab, built like the track drawer and read from the conductor folder at generation time: Overview (product.md), Tech stack (tech-stack.md), Workflow (workflow.json and workflow.md; the lanes drawn as a flow with where each lane sends success and failure, from the shared resolver), Quality gate (quality-gate.md), KPIs (kpis.md), Guidelines (product-guidelines.md, design-language.md, the code styleguides), Stories (user-stories.md). Files that do not exist are not shown. The files go through the same secret, email and phone scan as the track documents; a match is withheld with a stated reason; `board.include_docs: false` turns all documents off including these; settings shown never include tokens.
+4. What's next panel: a **What's next** button opens a panel with the one next step (command, what it does, why it comes next) and the other candidates in one line each, plus the short lane primer for newcomers. It is the board version of `/laneconductor:next` and must give the same answer: extract the ranking and the 21-state table that today live as Markdown plus a test-only reference classifier into shipped connector code, used by both the board data and the tests (one source, the same fixtures). Computed at generation time like everything else on the board.
+5. Board as the front door: on a first run (no tracks, or right after setup) `next` and setup recommend starting with the board (offering the board add-on from the one catalog, show-not-run), and the board then takes the person through everything with What's next: board, next step, board, next step. The loop is: open What's next, copy the command or press Move, run it in the Claude session, ask for a refresh, look at the board again. The page cannot run work and the text must say so plainly.
+6. Honesty and privacy: say it is a snapshot as fresh as its read time; sharing the board shares the project definitions and track documents; nothing planned is announced in the page or in shipped text.
+
+Build order: card actions (steps 1 and 2), then the Project drawer, then the What's next panel (needs the ranking extracted first), then the first-run recommendation text in `next` and setup.
+
 ## Requirements
 
 - REQ-1: A separate, opt-in extension plugin, `laneconductor-hooks` (`dependencies: ["laneconductor"]`; the main `laneconductor` plugin has no hooks), ships a small set of hooks (hooks/hooks.json plus plain shell scripts named by `${CLAUDE_PLUGIN_ROOT}/...`). Every hook is cheap (under 100 ms), silent outside a LaneConductor project (no `conductor/tracks/`), never prints secrets or file bodies, and never blocks except the pre-push privacy guard. Hooks only run in Claude Code and Cowork. The set, in priority order (full catalog and reasons in plan Phase 1):
@@ -49,3 +62,6 @@ A test parses the routing table of the generated SKILL.md and fails if a row is 
 - [ ] AC-6: The coverage test passes: no skill command exists without a plugin action or a recorded reason.
 - [ ] AC-7: `/laneconductor:run 10106` recommends the track-runner subagent in a worktree and shows the command it would run; it starts nothing without a yes.
 - [ ] AC-8: A subagent run is visible: SubagentStart and SubagentStop hooks write one line per run (track, agent, start, end, result) and the board shows "running now".
+- [ ] AC-9 (owner 2026-11-18): every card and Needs-attention row shows its next step with a Copy button; the Move menu appears only where the connector is reachable and never as an error when absent.
+- [ ] AC-10 (owner 2026-11-18): the Project button opens every definition file as a tab, scanned for secrets, withheld with a reason on a match, and off when `board.include_docs` is false.
+- [ ] AC-11 (owner 2026-11-18): the What's next panel gives the same answer as `/laneconductor:next` from one shared ranking, and first-run text recommends starting with the board.

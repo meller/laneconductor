@@ -99,7 +99,7 @@ code is on `main`.
      status separately.
    - While the gate itself is executing (a full suite, a deploy), the track is
      `quality-gate:running`.
-   - Write `**Verdict**` on every PASS/FAIL (track AM-10087): the harness can tag the turn
+   - Write `**Verdict**` on every PASS/FAIL: the harness can tag the turn
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.

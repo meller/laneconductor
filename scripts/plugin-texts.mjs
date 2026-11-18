@@ -116,6 +116,7 @@ How to offer one:
   never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
 - Say plainly what it installs, from the note under its name.
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
+- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
 
 ${list}`;
 };
@@ -187,7 +188,7 @@ ${ADDONS.map(addOnSection).join('\n')}
 // and show the install commands when it is missing. No command runs an install.
 const FIND = 'Find the track\'s folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`.';
 const EDIT_RULE = 'Change state by editing the track files directly, following the skill\'s `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.';
-// Track AM-10131: without the add-on's tools, where a finished lane goes is read with track 1020's grammar (one reference), never guessed.
+// Track AM-10131: without the add-on's tools, where a finished lane goes is read with the workflow grammar (one reference), never guessed.
 const TARGETS = 'Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.';
 const LANE = (lane, file, extra = '') => (
   `Work on track {{track}} in the ${lane} lane. The procedure is the ${lane} lane guide (skill file \`${file}\`); follow it and do not restate it here.\n\n`

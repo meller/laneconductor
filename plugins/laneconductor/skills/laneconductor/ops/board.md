@@ -25,7 +25,7 @@ shown when a track is opened. Pass `page` as `file_path` and `root` as `root` to
 and `files` as a map from each listed path to itself (`{"board.json": "board.json", "docs/1.json": "docs/1.json", ...}`; the
 sources resolve against `root`).
 
-stderr lists anything the privacy scan withheld, one line per file (`board: withheld track 10099
+stderr lists anything the privacy scan withheld, one line per file (`board: withheld track 10106
 spec.md: 2 possible secret or personal data matches (lines 3, 4); not published`), and any tracks
 left without documents because of the 200-file limit. Report each withheld file to the human by
 track number and file name (never repeat or look for the matched text). A site has at most 200 docs
