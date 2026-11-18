@@ -96,7 +96,7 @@ test('an existing repository gets the conductor files with the detected stack an
   const r = writeScaffold(dir, answers, { firstTrack: false });
   assert.equal(r.gitInit, false, 'it is already a repository');
   for (const f of ['product.md', 'tech-stack.md', 'workflow.md', 'workflow.json', 'product-guidelines.md', 'design-language.md', 'quality-gate.md', 'user-stories.md', 'kpis.md']) assert.ok(fs.existsSync(path.join(dir, 'conductor', f)), `conductor/${f}`);
-  assert.deepEqual(JSON.parse(read(dir, '.laneconductor.json')), { project: { name: 'inventory-api' }, connector: { state_branch: 'main' } });
+  assert.ok(!fs.existsSync(path.join(dir, '.laneconductor.json')), 'no settings file is created');
   const gate = read(dir, 'conductor/quality-gate.md');
   assert.match(gate, /- \[ \] Unit \+ integration tests: `npm test`/);
   assert.match(gate, /`npm run lint`/);
@@ -177,7 +177,8 @@ test('conductor/tracks from an older LaneConductor are described, never imported
   const r = writeScaffold(dir, detectProject(dir).answers, { firstTrack: false });
   const after = snapshot(dir);
   for (const [f, sha] of Object.entries(before)) assert.equal(after[f], sha, `${f} is unchanged`);
-  assert.ok(r.skipped.includes('.laneconductor.json'));
+  assert.ok(!r.skipped.includes('.laneconductor.json') && !r.created.includes('.laneconductor.json'), 'the old settings file is not touched at all');
+  assert.ok(evidence.some((e) => /settings file.*left as it is/.test(e)), 'detection says the old file is left alone');
   assert.deepEqual(fs.readdirSync(path.join(dir, 'conductor/tracks')).sort(), ['007-bare-form', 'AM-12-old-feature', 'AM-13-in-flight', 'feature_x_20260213', 'file_sync_queue.md']);
 });
 

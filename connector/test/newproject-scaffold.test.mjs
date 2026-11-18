@@ -61,13 +61,12 @@ test('quality-gate.md names only the commands the answers say exist', () => {
   assert.ok(!/- \[ \] (Syntax|Lint|Unit|Build|Coverage|Security)/.test(bare));
 });
 
-test('.laneconductor.json has a state branch and no database, mode, collector or worker content; no daemon text anywhere', () => {
+test('the scaffold writes no .laneconductor.json (the settings file is optional and personal); no database, mode, collector or worker content; no daemon text anywhere', () => {
   const files = renderScaffold(ANSWERS);
-  const cfg = JSON.parse(files.get('.laneconductor.json'));
-  assert.deepEqual(cfg, { project: { name: 'Habit Tracker' }, connector: { state_branch: 'main' } });
+  assert.ok(!files.has('.laneconductor.json'), 'no settings file is created');
+  for (const text of files.values()) assert.ok(!text.includes('.laneconductor.json'), 'no scaffold text names the settings file');
   for (const [rel, text] of files) assert.ok(!/psql|postgres|database|collector|daemon|heartbeat|\bworker\b|local-api|remote-api/i.test(text), `${rel} has no daemon or database content`);
-  assert.ok(!('recipes' in JSON.parse(files.get('.laneconductor.json'))), 'no recipes key, even when an old answers file carries recipesPath');
-  assert.ok(!('recipes' in JSON.parse(renderScaffold({ ...ANSWERS, recipesPath: '~/x' }).get('.laneconductor.json'))));
+  assert.ok(!renderScaffold({ ...ANSWERS, recipesPath: '~/x' }).has('.laneconductor.json'), 'an old answers file with recipesPath changes nothing');
 });
 
 test('.gitignore: the three entries are added once; an existing file keeps its lines', () => {
@@ -94,7 +93,8 @@ test('writeScaffold in a new empty folder: git init, all files, tracks, gitignor
   const r = writeScaffold(dir, ANSWERS);
   assert.equal(r.gitInit, true);
   assert.ok(fs.existsSync(path.join(dir, '.git')));
-  for (const rel of ['conductor/product.md', 'conductor/quality-gate.md', 'conductor/workflow.json', '.laneconductor.json', 'conductor/tracks/HT-1-walking-skeleton/index.md']) assert.ok(r.created.includes(rel), rel);
+  for (const rel of ['conductor/product.md', 'conductor/quality-gate.md', 'conductor/workflow.json', 'conductor/tracks/HT-1-walking-skeleton/index.md']) assert.ok(r.created.includes(rel), rel);
+  assert.ok(!r.created.includes('.laneconductor.json') && !fs.existsSync(path.join(dir, '.laneconductor.json')), 'no settings file');
   assert.deepEqual(r.merged, ['.gitignore']);
   assert.equal(read(dir, '.gitignore'), `${GITIGNORE_LINES.join('\n')}\n`);
   assert.equal(spawnSync('git', ['-C', dir, 'rev-list', '--all', '--count'], { encoding: 'utf8' }).stdout.trim(), '0', 'nothing is committed');

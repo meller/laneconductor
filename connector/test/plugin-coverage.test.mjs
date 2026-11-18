@@ -231,11 +231,11 @@ test('commands that use the connector name its tools only for when they are pres
   assert.ok(help.includes(helpLines('LaneConductor commands. Say one in your own words, or use it as a slash command.').join('\n')), 'help.md holds the catalog help lines');
   for (const c of CATALOG) assert.equal(help.split('\n').filter((l) => new RegExp(`^- ${c.name}( |:)`).test(l)).length, 1, `${c.name} listed once in help`);
   assert.match(help, /Works on its own: every command edits the track files directly\. Needs the laneconductor-board add-on: board \(only to refresh\) and refresh-board/);
-  // board, refresh-board: find the board script by Glob, name `lc` as the alternative, and say so + show the install commands when neither exists.
+  // board, refresh-board: find the board script by Glob, and say so + show the install commands when neither exists.
   for (const c of ['board', 'refresh-board']) {
     const t = read(`commands/${c}.md`);
     assert.ok(t.includes('**/laneconductor-board/**/bin/lc-board.mjs'), `${c}: finds the script with a Glob under ~/.claude/plugins`);
-    assert.ok(t.includes('`lc` is on PATH'), `${c}: names lc as the alternative`);
+    assert.ok(!t.includes('is on PATH'), `${c}: names no program on PATH as an alternative`);
     assert.match(t, /add-on is not installed: say so/, `${c}: says so when neither exists`);
     assert.match(t, /claude plugin install laneconductor-board@laneconductor/, `${c}: shows the install command`);
   }

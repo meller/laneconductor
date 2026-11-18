@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, BASE_HABITS, REPO,
+  buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, BASE_HABITS, REPO,
   PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND,
 } from '../../scripts/build-plugin.mjs';
 import { makeZip, readZip } from '../../scripts/make-zip.mjs';
@@ -246,7 +246,7 @@ test('skill: the parked legacy tier is not shipped and nothing points at it', ()
   const offenders = listFiles(BASE).filter((rel) => !/\.png$/.test(rel) && /(^|[^A-Za-z])legacy\//.test(fs.readFileSync(path.join(BASE, rel), 'utf8')));
   assert.deepEqual(offenders, []);
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
-  assert.ok(skill.includes(LEGACY_NOTE), 'SKILL.md carries the one honest line about the parked tier');
+  assert.ok(!/legacy\//.test(skill) && !/Postgres/i.test(skill), 'SKILL.md says nothing about the parked tier: its text is not shipped');
   for (const cmd of ['syncdb', 'remote-sync']) assert.ok(!skill.includes(`| \`${cmd}\``), `no routing row for ${cmd}`);
   // Every relative markdown link in every shipped skill file resolves (code fences skipped).
   for (const rel of shipped.filter((r) => r.endsWith('.md'))) {

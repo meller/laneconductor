@@ -51,9 +51,9 @@ test('docs/plugin-map.md says exactly that: every provided name appears in its c
     const line = deps.split('\n').find((l) => l.startsWith(`| \`${c.name}\` |`));
     assert.ok(line, `${c.name} has a row`);
     const cells = line.split(' | ');
-    const needs = c.needsLc === 'always' ? /yes \|$/ : c.needsLc === 'refreshing' ? /only to refresh \|$/ : /no \|$/;
+    const needs = c.needsBoardScript === 'always' ? /yes \|$/ : c.needsBoardScript === 'refreshing' ? /only to refresh \|$/ : /no \|$/;
     assert.match(line, needs, `${c.name}: board add-on dependency`);
-    assert.equal(cells[1].startsWith('yes'), c.needsLc !== 'always', `${c.name}: works alone`);
+    assert.equal(cells[1].startsWith('yes'), c.needsBoardScript !== 'always', `${c.name}: works alone`);
   }
   assert.ok(deps.includes('| `implement` | yes | its tools (`get_context`, `get_track`, `update_track`), the `track-runner` sub-agent | no |'));
   assert.ok(deps.includes('| `new-project` | yes | its scaffold script | no |'));

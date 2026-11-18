@@ -78,7 +78,7 @@ test('prompts/get without a required argument is an error that names the argumen
   await assert.rejects(() => s.client.getPrompt({ name: 'plan', arguments: {} }), /track/);
 });
 
-test('the help prompt and the help tool list every command exactly once, with an example phrase and the note on lc', async () => {
+test('the help prompt and the help tool list every command exactly once, with an example phrase and the note on the board script', async () => {
   const s = await open();
   const prompt = (await s.client.getPrompt({ name: 'help', arguments: {} })).messages[0].content.text;
   assert.equal(prompt, helpText());
@@ -92,7 +92,7 @@ test('the help prompt and the help tool list every command exactly once, with an
     assert.ok(tool.env.data.commands.find((x) => x.name === c.name).example === c.example);
   }
   for (const g of GROUPS) assert.ok(prompt.includes(`${g[0].toUpperCase()}${g.slice(1)}\n`), `group ${g}`);
-  assert.match(prompt, /Needs the `lc` command-line tool .* when it is missing: board \(only to refresh\), refresh-board\./);
+  assert.match(prompt, /Needs the board add-on's script: board \(only to refresh\), refresh-board\./);
   assert.match(tool.text, /Example: "what can LaneConductor do"/);
 });
 
