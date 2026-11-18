@@ -51,7 +51,8 @@ the project cannot do it.
 | Merge and deploy | Not in its README | A "finish the branch" skill | A merge lane and deploy procedures |
 | **Lanes and a board** | Not in its README | Not in its README | **Yes**: lanes, and a board of every track |
 | **Safe shared state** (writes checked against what you last read) | Not in its README | Not in its README | **Yes**, through the local connector |
-| **New-project interview, recipes, privacy scan** | Not in its README | Not in its README | **Yes** |
+| **Skills suggested per lane** (the lane guides name the skills that help; you can add your own per lane) | Not in its README | A skill system, but no lane map in its README | **Yes**, as suggestions |
+| **New-project interview and scaffold** | Setup command (greenfield and brownfield) | Not in its README | **Yes** |
 | Writing new skills | Not in its README | A skill | No |
 | Agents supported | Antigravity and Claude Code | More than fifteen | Claude Code and Cowork |
 

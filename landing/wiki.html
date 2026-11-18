@@ -352,7 +352,7 @@
                     <li><a href="#claude-skill">The plugin</a></li>
                     <li><a href="#board">The board</a></li>
                     <li><a href="#safety-privacy">Safety and privacy</a></li>
-                    <li><a href="#recipes">Recipe library</a></li>
+                    <li><a href="#lane-skills">Skills for each lane</a></li>
                 </ul>
             </div>
             <div class="sidebar-group">
@@ -585,7 +585,7 @@ claude plugin update laneconductor@laneconductor</code></pre>
                     <code>implement</code>, <code>review</code>, <code>quality-gate</code>, <code>merge</code>,
                     <code>run</code>, <code>new</code>, <code>new-project</code>, <code>bug</code>, <code>feature</code>,
                     <code>status</code>, <code>move</code>, <code>comment</code>, <code>board</code>,
-                    <code>workflow</code>, <code>recipes</code>, <code>add-recipe</code> and <code>help</code>.
+                    <code>workflow</code> and <code>help</code>.
                     <code>setup</code> and <code>deploy</code> run only when you name them.</p>
 
                 <h3>Subagents</h3>
@@ -652,11 +652,18 @@ claude plugin update laneconductor@laneconductor</code></pre>
                 </ul>
             </section>
 
-            <section id="recipes">
-                <h2>Recipe library</h2>
-                <p>A library of reusable recipes (nine so far) is packaged as its own plugin and marketplace. It is local
-                    and not published yet, and the test of whether Claude finds the right recipe on its own is still in
-                    progress.</p>
+            <section id="lane-skills">
+                <h2>Skills for each lane</h2>
+                <p>Every lane guide ends with a short section, "Skills that help here", that names skills worth using in
+                    that lane: for example brainstorming and writing plans for the plan lane, test-driven development and
+                    systematic debugging for implement, code-review skills for review, verification before completion
+                    for the quality gate, and finishing a development branch for merge. They are suggestions, in the same
+                    spirit as the rest of the guides: if a named skill is installed Claude uses it, and if it is not
+                    Claude says so and carries on.</p>
+                <p>To add your own, list skill names per lane in an optional <code>skills</code> object in
+                    <code>conductor/workflow.json</code>, for example <code>{ "skills": { "implement": ["my-skill"] } }</code>.
+                    The key is optional; without it nothing changes. LaneConductor does not keep a library of skills of
+                    its own: skills live in your own plugins and marketplaces.</p>
             </section>
 
             <section id="setup-scaffold">
@@ -860,10 +867,10 @@ claude plugin update laneconductor@laneconductor</code></pre>
 
             <section id="project-status">
                 <h2>Project Status</h2>
-                <p>The plugin is at version 0.3.0 and under active development. It is not in Anthropic's plugin
+                <p>The plugin is under active development. It is not in Anthropic's plugin
                     directory, a remote connector for claude.ai chat and mobile is not available, and the hooks
-                    extension (<code>laneconductor-hooks</code>) is planned, not available. The recipe library is local
-                    and still being tested.</p>
+                    extension (<code>laneconductor-hooks</code>) is planned, not available. Installing recommended skills for you
+                    is planned, not available.</p>
             </section>
 
             <section id="operational-safety">
