@@ -1,7 +1,7 @@
 // Board data (plan Phase 5d, Task 1): one pure function from the tracks' index.md files to a plain
 // object a dashboard can render. A snapshot, never a source of truth: it is rebuilt from the files
 // and never written back. Privacy: only titles, lanes, status, progress, phase and dependencies
-// leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
+// (and the track type, when it is not dev) leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
 // Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp.
 import { parseMarkers } from './markers.mjs';
 import { epicsOf } from './epics.mjs';
@@ -30,6 +30,13 @@ export const isArchivedFolder = (name) => ARCHIVE_RE.test(name);
 const one = (v, max = 100) => (v === null || v === undefined ? null : v.split('\n')[0].replace(/\s+/g, ' ').trim().slice(0, max));
 // Lint messages quote the offending marker value; quote only its first line.
 const safeReason = (r) => one(r.replace(/^(\*\*[A-Za-z ]+\*\*) "([\s\S]*)" (is not one of:)/, (_, name, val, rest) => `${name} "${one(val, 40)}" ${rest}`), 200);
+/** The track types a card can show (the `**Type**` marker); absence means dev. */
+export const TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
+/** The type to publish: one of the four non-dev words, or null (dev, absent, empty or unknown values all read as dev). */
+export const publishedType = (raw) => {
+  const s = one(raw ?? null, 40)?.toLowerCase() ?? '';
+  return TRACK_TYPES.includes(s) && s !== 'dev' ? s : null;
+};
 const yesNo = (v) => {
   const s = (v ?? '').trim().toLowerCase();
   return s === 'yes' ? true : s === 'no' ? false : null;
@@ -41,6 +48,7 @@ function trackOf(e, archived) {
   const r = rowOf(name, e.index);
   const v = e.index ? parseMarkers(e.index.content).values : {};
   const merge = one(v['Merge Mode'] ?? null, 40);
+  const type = publishedType(v['Type']);
   return {
     row: { ...r, folder: e.folder },
     track: {
@@ -55,6 +63,7 @@ function trackOf(e, archived) {
       auto_run: yesNo(one(v['Auto Run'] ?? null)),
       merge_mode: merge || null,
       source_hash: r.source,
+      ...(type ? { type } : {}),
       ...(archived ? { archived: true } : {}),
     },
   };
@@ -183,6 +192,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
  *           d a docs file is published for this track,
+ *           y (only when the track's `**Type**` is marketing, sales, support or other) the type; absent means dev, so an old board.json without it reads as all dev,
  *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
  *   attn:   n number, p prefix, t title, r reasons, x the next step (as on a track; only when there is one)
@@ -209,6 +219,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
     tracks: live.map((t) => ({
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
       d: withDocs.has(t.folder),
+      ...(t.type ? { y: t.type } : {}),
       ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),
