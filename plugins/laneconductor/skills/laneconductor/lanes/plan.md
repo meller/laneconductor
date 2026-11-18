@@ -7,7 +7,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
 0. **Claim the track first.** Write `**Lane**: plan` and `**Lane Status**: running` to the track's
    `index.md`. Set `**Lane**` explicitly, not just `**Lane Status**`: when plan is run directly
    (a KPI-miss replan, a manual re-run) the track may not sit in the plan lane, and the board
-   would show it running in the wrong column. The claim also stops the worker double-launching it.
+   would show it running in the wrong column. The claim also stops a second session starting the same track.
 0b. **Classify bug or feature** - only if `index.md` has neither a `**Workspace**` nor a
    `**Track Kind**` marker (an explicit `**Workspace**` always wins; skip this step). Decide from the
    title, description, `conversation.md` (create it if missing) and a quick look at the code area. Write
@@ -47,9 +47,9 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
      stub, write concrete test cases and commands for every phase in `plan.md`. The implement
      lane is test-driven and works from this file; a stub leaves it nothing to start with.
    - **Acceptance criteria describe what a user can observe, never the scaffolding.** A criterion
-     such as "the worker logs the expected 'not yet implemented' message" is satisfied by a stub,
+     such as "the service logs the expected 'not yet implemented' message" is satisfied by a stub,
      so a track can pass its own gate while the feature does not exist (this happened). Write
-     "a worker actually starts on the target machine" instead.
+     "a service actually starts on the target machine" instead.
    - **Deferring scope is fine; calling the track complete is not.** A capability left out of
      this pass (FFU) must not appear as a satisfiable acceptance criterion, and `plan.md` needs an
      explicit unchecked phase for it, so the track cannot reach `done` at 100%.
@@ -99,7 +99,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    fired, `> **system**: ⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 
-Your job ends here. Wait for the next worker cycle to pick the track up in its new lane.
+Your job ends here. The track waits in its new lane for the next step.
 
 ## Templates
 
@@ -118,7 +118,7 @@ Your job ends here. Wait for the next worker cycle to pick the track up in its n
 
 **Impact**: What will change?
 ```
-The sync worker derives the track's progress from these checkboxes, so keep them accurate.
+The track's progress is derived from these checkboxes, so keep them accurate.
 
 `spec.md`
 ```markdown

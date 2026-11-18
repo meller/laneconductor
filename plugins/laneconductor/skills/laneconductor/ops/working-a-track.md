@@ -16,10 +16,9 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 - A new track folder is untracked, so a worktree off HEAD cannot see it: commit just that folder
   to main locally first (a worktree is the only reason this is needed; pushing is not).
 - Before touching a dirty primary checkout, check for a live process using it as cwd.
-- One worker per track. If a sync daemon is running and the track has `**Auto Run**: yes`, it may
-  also claim it.
-- Do not run worker-spawning or mock-CLI test suites from inside a worktree: they can register
-  against the real primary checkout and database, and leak processes.
+- One session per track. If something else also works the track (another session, an automatic runner), stop and ask.
+- Do not run test suites that start background processes from inside a worktree: they can attach
+  to the real primary checkout and leak processes. Check for leftovers after any test run.
 - Ask before merging or pushing (it is the human's call). Never enter, echo or store secrets.
 - Append to `conversation.md` as `> **author**: text` (every line prefixed `> `); anything else
   is silently ignored by sync.

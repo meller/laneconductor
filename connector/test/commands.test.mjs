@@ -143,3 +143,25 @@ test('argumentHint reads like a usage line', () => {
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'move')), '<track number> <lane[:status]>');
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'help')), '');
 });
+
+// Track AM-10130: `setup` means "add LaneConductor to this project" and follows the new-project existing-repository path; `scaffold`
+// is the explicit action that goes straight to the files. Both stay "runs only because you named it" and announce changes first.
+test('setup: follows ops/new-project.md (the existing-repository path), scaffold goes straight to setup/scaffold.md; nothing from the old install text', () => {
+  const setup = COMMANDS.find((c) => c.name === 'setup');
+  assert.match(setup.description, /Add LaneConductor to this project/);
+  assert.match(setup.description, /runs only because you named it/);
+  const text = fillProcedure(setup, { action: '' });
+  const scaffold = fillProcedure(setup, { action: 'scaffold' });
+  for (const t of [text, scaffold]) {
+    assert.match(t, /This runs only because I named it/);
+    assert.match(t, /tell me what you are about to create or change before you write anything/);
+    assert.match(t, /`ops\/new-project\.md`/, "the procedure names the new-project file");
+    assert.match(t, /`setup\/scaffold\.md`/);
+    assert.doesNotMatch(t, /setup\/setup\.md|make install|laneconductorrc|worker|daemon|collection/i, "no stale install text");
+  }
+  assert.match(text, /existing[- ]repository path/i, "setup takes the existing-repository path");
+  assert.match(text, /ask only to confirm/i);
+  assert.match(text, /import nothing silently/i);
+  assert.match(scaffold, /`scaffold`, go straight to `setup\/scaffold\.md`/);
+  assert.match(setup.args.find((a) => a.name === 'action').description, /straight to/);
+});

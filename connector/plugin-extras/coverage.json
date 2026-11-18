@@ -18,7 +18,6 @@
     "work a track end to end": "run",
     "show the board": "show-board",
     "update the board": "refresh-board",
-    "setup collection": "setup",
     "setup scaffold": "setup",
     "setup scaffold generate": "setup",
     "setup-deploy": "deploy",

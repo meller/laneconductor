@@ -32,7 +32,7 @@ Board
 
 Setup and deploy
 - new-project [name or idea]: Start a project: a short interview, the conductor scaffold and the first tracks (runs only because you named it). Example: "start a new project: a habit tracker"
-- setup [scaffold]: Set up LaneConductor in this repository (runs only because you named it). Example: "set up LaneConductor here"
+- setup [scaffold]: Add LaneConductor to this project: read what is there, confirm the stack and commands, write the conductor/ files (runs only because you named it). Example: "add LaneConductor to this project"
 - deploy [setup]: Set up or run deployment for this project (runs only because you named it). Example: "deploy this project"
 
 Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh) and refresh-board; without it they say so and show how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.

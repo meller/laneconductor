@@ -90,12 +90,75 @@ ${installBlock('board')}
 
 Everything else in LaneConductor works without it. More: ${REPO_URL}`;
 
-export const LEGACY_NOTE = 'Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
+export const LEGACY_NOTE = 'Not in the plugin: the legacy tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
   + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
   + 'LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.';
 
+/**
+ * The base has no worker, daemon, collection step or installer, and its text must not talk as if it had (track AM-10130). The skill
+ * source still serves the daemon-era tier of the LaneConductor repository, so these edits are made to the BASE copy only; each one
+ * rewords a sentence that names the worker to say what a person or a session does instead. A missing anchor throws.
+ */
+export const DAEMON_FREE_EDITS = {
+  'SKILL.md': [
+    ["and for the worker's automated prompts", 'and for the lane prompts'],
+    ['This works with or without a running worker: the markers are the interface, a sync worker (if any)\nonly reads them.', 'The markers are the interface: a person, a session or any tool can read and write them.'],
+    [' (the worker sends `qualityGate`)', ''],
+    ["| `setup collection`, `setup install` (daemon era) | [legacy/setup-daemon.md](legacy/setup-daemon.md) | only when named |\n", ''],
+    [' using the same resolver as the sync worker (`conductor/services/track-folder.mjs`),\nis read-only,', ',\nis read-only,'],
+    ['UI/CLI-created track as pending until the worker makes its folder.', 'UI/CLI-created track as pending until its folder exists.'],
+    ["The sync worker's parser recognizes only", 'The tools that read it recognize only'],
+    ['Worker prompts start with', 'A prompt may start with'],
+    ['On `false` the worker resumed your own session', 'On `false` you resumed your own session'],
+    ["The worker's document-digest\ncheck (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers `spec.md`,\n`plan.md`, `test.md` and a few `index.md` markers, and skill-only sessions have none.", 'Nothing checks this for you in a\nskill-only session, so re-read the file yourself.'],
+    ['Whether the worker may claim the track from the queue by itself', 'Whether an automatic runner may claim the track from the queue by itself'],
+  ],
+  'lanes/plan.md': [
+    [' The claim also stops the worker double-launching it.', ' The claim also stops a second session starting the same track.'],
+    ['"the worker logs the expected', '"the service logs the expected'],
+    ['"a worker actually starts', '"a service actually starts'],
+    ['Wait for the next worker cycle to pick the track up in its new lane.', 'The track waits in its new lane for the next step.'],
+    ["The sync worker derives the track's progress from these checkboxes, so keep them accurate.", "The track's progress is derived from these checkboxes, so keep them accurate."],
+  ],
+  'lanes/merge.md': [['the repo root the\n   worker already runs from.', 'the repo root.']],
+  'lanes/quality-gate.md': [
+    [' (the daemon sends `qualityGate N`)', ''],
+    ['When the worker launched you it already checked the time; skip this.', 'When an automatic run launched you it already checked the time; skip this.'],
+    ['Workers and the API server do not hot-reload', 'Servers and long-running tools do not hot-reload'],
+    ["and the sync worker's exit\n     handler reads", "and the run's exit\n     handler reads"],
+  ],
+  'lanes/review.md': [["the sync worker's exit handler reads", "the run's exit handler reads"]],
+  'lanes/implement.md': [
+    ['A worker or runner\nnormally', 'A runner\nnormally'],
+    ['The worker sees the human\'s "done" reply and schedules the\n     quality gate.', 'The human\'s "done" reply moves the track on to the quality\n     gate.'],
+  ],
+  'ops/tracks.md': [
+    ["The daemon's conversation-reply prompt calls `comment` and `move`, so these are live commands, not\nlegacy. Where a `lc` command exists it is the recommended route: it applies the same rules as the\nworker. The file edits below are the fallback for sessions without `lc`.", 'Where a `lc` command exists it is the recommended route. The file edits below are the way for sessions without `lc`.'],
+    ['highest existing number by scanning `conductor/tracks/file_sync_queue.md` (`### Track NNN:`)\n   and every folder name', 'highest existing number by scanning every folder name'],
+    [/3\. \*\*Queue it\.\*\*[\s\S]*?`## Completed Queue`\.\n/, '3. **No queue file.** The folder you just made is the track; nothing else registers it.\n'],
+    ['5. Print `✅ Track NNN queued in file_sync_queue.md. Worker will register in DB on next cycle.`', '5. Print `✅ Track NNN created in conductor/tracks/<folder>/.`'],
+    ['(the worker picks it up)', '(it waits in that lane)'],
+    [' The sync worker notices the change and queues the work.', ''],
+    [' The sync worker pushes\nthe change to the DB.', ''],
+    ['The sync worker pushes it to the database. Use', 'Use'],
+    ['(it also checks worker health)', ''],
+    ['`index.md`: run `lc init-summary` or `node conductor/init-tracks-summary.mjs` from the LaneConductor\ninstall path (the path in `~/.laneconductorrc` leads to it). Run it manually whenever the summary looks stale.', '`index.md`. Run it whenever the summary looks stale: `lc init-summary` where that exists, otherwise write the file by hand from the track folders.'],
+  ],
+  'ops/working-a-track.md': [
+    ['- One worker per track. If a sync daemon is running and the track has `**Auto Run**: yes`, it may\n  also claim it.', '- One session per track. If something else also works the track (another session, an automatic runner), stop and ask.'],
+    ['- Do not run worker-spawning or mock-CLI test suites from inside a worktree: they can register\n  against the real primary checkout and database, and leak processes.', '- Do not run test suites that start background processes from inside a worktree: they can attach\n  to the real primary checkout and leak processes. Check for leftovers after any test run.'],
+  ],
+};
+
+/** Appends `extra` edits after `base` edits for the same file (both lists are applied in order). */
+export function mergeEdits(base, extra) {
+  const out = { ...base };
+  for (const [rel, list] of Object.entries(extra)) out[rel] = [...(out[rel] ?? []), ...list];
+  return out;
+}
+
 export function skillEdits() {
-  return {
+  const edits = {
     'SKILL.md': [
       [
         '| `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |\n'
@@ -111,15 +174,6 @@ export function skillEdits() {
       [
         'Steps are in\n[ops/board.md](ops/board.md).',
         `Steps are in\n[ops/board.md](ops/board.md); building the page needs the optional ${NAMES.board} add-on, and that file says what to show when it is missing.`,
-      ],
-    ],
-    'setup/setup.md': [
-      ["`setup/`, `deploy/` and\n`legacy/` subfolders travel with it.", '`setup/` and `deploy/`\nsubfolders travel with it.'],
-      ['## Operating modes\n', '## Operating modes (`local-api` and `remote-api` belong to the parked database tier)\n'],
-      ['## setup collection\n', '## setup collection (steps 2 and 3 apply only to the parked database tier)\n'],
-      [
-        'Create the schema with the SQL in `legacy/db-schema.md`\n   (`psql',
-        'Create the schema with the SQL of the parked tier (`db-schema.md` in the LaneConductor repository\'s skill, not shipped in this plugin)\n   (`psql',
       ],
     ],
     'ops/board.md': [[BOARD_SOURCE_LINE, BOARD_EDIT], [BOARD_LAST_RULE, BOARD_MISSING]],
@@ -159,13 +213,14 @@ export function skillEdits() {
         + 'add-on for this.',
       ],
       [
-        '`lc-scaffold` writes it.\nWhen the connector is present and the project already has its `conductor/` files, create further tracks with\n'
+        'When the connector is present and the project already has its `conductor/` files, create further tracks with\n'
         + '`create_track`; otherwise write the files as `ops/tracks.md` describes.',
-        '`lc-scaffold` writes it.\nWhen the add-on\'s connector tools are present and the project already has its `conductor/` files, create further tracks with\n'
+        'When the add-on\'s connector tools are present and the project already has its `conductor/` files, create further tracks with\n'
         + `\`${toolRef('create_track')}\`; otherwise write the files as \`ops/tracks.md\` describes.`,
       ],
     ],
   };
+  return mergeEdits(edits, DAEMON_FREE_EDITS);
 }
 
 // ---- SKILL.md: habits and the add-on pointer ----
