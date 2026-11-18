@@ -1,7 +1,7 @@
 # Track AM-10141: Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Track Kind**: feature
