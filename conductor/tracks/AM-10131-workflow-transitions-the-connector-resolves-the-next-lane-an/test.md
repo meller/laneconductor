@@ -12,6 +12,13 @@ Fixtures: (A) otralingo's real legacy workflow.json copied into the test folder 
 - [ ] TC-4 (C, custom): a custom lane resolves through the workflow's own keys; mixed formats in one file work; an unknown current lane returns an explicit error (never a guess)
 - [ ] TC-5 (names): a project that uses the guide names (plan, implement) and one that uses the old names (planning, in-progress) resolve the same logical transitions; `valid.guide_lanes` stays consistent
 
+## ONE LOGIC, TWO CALLERS (the owner's rule)
+
+- [ ] TC-16: the connector and the daemon import the SAME module (`conductor/services/workflow-transitions.mjs`); a test fails if either contains its own copy of the transition parsing (for example a grep for the bare-target defaulting code outside the shared module)
+- [ ] TC-17: PARITY: the same table (fixtures A, B, C; success and failure for every lane) run through the shared module and through each patched daemon site's helper gives identical lane and status; any case where the OLD daemon behavior differed is listed in the report and decided by the owner, never changed silently
+- [ ] TC-18: the plugin build ships the shared module inside the add-on at the same relative path and it is byte-identical to the source; the installed-layout stdio smoke test (a copy laid out like an installed plugin) still resolves the import
+- [ ] TC-19: SAFETY: no daemon process is started, no worker-spawning or mock-CLI suite is run from a worktree, and `ps aux | grep -E 'laneconductor.sync.mjs|lc-connector'` shows no process started by the implementer after the last test run
+
 ## Exposure through the connector
 
 - [ ] TC-6: `get_track` and `get_context` carry `valid.next` for the track's current lane, additive (existing fields and the envelope unchanged; the existing connector tests still pass untouched)

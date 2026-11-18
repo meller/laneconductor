@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Planned and test cases written 2026-11-18; implement lane starting (a track-runner in its own worktree, tests first, with a real read-only check against otralingo).
+**Phase**: Planned 2026-11-18 incl. the owner's rule: the daemon uses the SAME transition logic (one shared module, a different caller); implement lane starting, tests first.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
