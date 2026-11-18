@@ -298,7 +298,7 @@ Generated: 2026-11-18T15:48:35Z
 | AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18; depends on 10137. | - | 607bfb5a8b82 |
 | AM-10139 | Marker parser: first match wins, CRLF, case, and a repair_index write | review | queue | 100% | Implemented and merged to local main 2026-11-18 (461 connector tests, strict va… | - | 0343ecdf7acb |
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | review | queue | 100% | Implemented and merged to local main 2026-11-18 (461 connector tests). Lane is … | - | d917146b695b |
-| AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | plan | running | 0% | New | - | 57b5fcdde05c |
+| AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | review | queue | 90% | Implemented and merged to local main 2026-11-18 (461 connector tests): Run Star… | - | bcc05065d3c3 |
 | AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18. | - | 94bf048a8ba0 |
 | AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | implement | running | 0% | Owner said go on 2026-11-18: build the search-first, default-update rule (text … | - | a0a764978a80 |
 | AM-10144 | What's next: a state-aware command that names the next step and explains it (onboarding as a tutori… | plan | queue | 0% | Planned 2026-11-18 (spec, plan and test cases written, 8 phases; owner decision… | - | 445d6d90ae72 |
