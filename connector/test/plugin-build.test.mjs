@@ -271,10 +271,11 @@ test('skill: no database or cloud-service tooling in SKILL.md, lanes/ or ops/; s
     for (const m of text.matchAll(/https?:\/\/([^/\s:`'")>]+)/g)) assert.match(m[1], okHost, `${r}: URL host ${m[1]} is not local, an example or this project's`);
     assert.ok(!/neon\.tech|supabase\.co|\.run\.app/i.test(text), `${r} names a private service host`);
   }
+  // setup/setup.md is the short "add LaneConductor to this project" procedure (track AM-10130); the daemon-era install, operating
+  // modes and collection text live in the source skill's legacy/ folder, which the plugin does not ship.
   const setup = fs.readFileSync(path.join(skillDir, 'setup/setup.md'), 'utf8');
-  assert.match(setup, /^## Operating modes \(.*parked database tier\)$/m);
-  assert.match(setup, /^## setup collection \(steps 2 and 3 apply only to the parked database tier\)$/m);
-  assert.ok(setup.indexOf('psql') > setup.indexOf('## setup collection (steps 2'), 'the psql step sits under that heading');
+  assert.match(setup, /^# setup: add LaneConductor to this project$/m);
+  assert.ok(!/psql|Operating modes|mode.*local-api|remote-api/i.test(setup), 'no database tier in the shipped setup text');
 });
 
 test('skill transform: explicit edits, and a missing anchor fails the build', () => {

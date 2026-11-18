@@ -34,7 +34,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
    - Write `**Verdict**` every time, PASS or FAIL (track AM-10087). The harness can tag the same
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
-     a routable outcome; the sync worker's exit handler reads `**Verdict**` before that tag, so
+     a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
 
 ## Skills that help here

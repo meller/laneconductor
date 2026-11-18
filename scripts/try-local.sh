@@ -7,13 +7,17 @@
 #   1. makes the scratch repository if the path does not exist (git init, a minimal conductor/ folder, one commit);
 #   2. exports a copy of THIS repository at HEAD, renames its marketplace to laneconductor-try, and adds that copy as a LOCAL marketplace
 #   3. installs laneconductor, laneconductor-parallel and laneconductor-board (@laneconductor-try) at local scope into the scratch repository;
-#   4. prints what to type next, and how to undo it.
+#   4. disables, at LOCAL scope in the scratch repository only, any enabled plugin of the same names that comes from another marketplace
+#      (your real all-in-one laneconductor@laneconductor, for one): two plugins named alike would be two /laneconductor: namespaces and two connectors;
+#   5. prints what to type next, and how to undo it.
 #
 # Safety: it never touches a real project. The scratch path must be a git repository that is not this one and either lives under the
 # system temp folder or holds the marker file .lc-scratch (which step 1 writes); anything else is refused. Everything is declared at
 # LOCAL scope, so the declarations land in the scratch repository's .claude/settings.local.json. It does not push, merge or submit
-# anything. --dry-run prints the commands and runs none of them (a read-only `claude plugin marketplace list` is the one exception, to
-# warn about a name clash).
+# anything. The disable of step 4 is `claude plugin disable <id> --scope local`, run inside the scratch repository: it writes only the
+# scratch repository's .claude/settings.local.json, never your user settings, and it goes away when the scratch repository is deleted.
+# --dry-run prints the commands and runs none of them (the read-only `claude plugin marketplace list` and `claude plugin list --json`
+# are the exceptions: the first warns about a name clash, the second finds what step 4 would disable).
 #
 # THE REAL MARKETPLACE IS NEVER TOUCHED. This repository's marketplace is named `laneconductor`, and you probably have a marketplace of that
 # name configured from GitHub (meller/laneconductor). So step 2 exports a COPY of this repository at HEAD (git archive) into a temp folder,
@@ -29,7 +33,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) dry=1 ;;
     --allow-name-clash) clash_ok=1 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) if [ -n "$scratch" ]; then echo "only one scratch path, got a second: $1" >&2; exit 2; fi; scratch="$1" ;;
   esac
@@ -138,9 +142,44 @@ in_scratch claude plugin install "laneconductor-parallel@$try_name" --scope loca
 in_scratch claude plugin install "laneconductor-board@$try_name" --scope local
 echo
 
-# ---- 4. what to type ----
+# ---- 4. disable same-named plugins from other marketplaces, in the scratch repository only ----
+# The owner's real laneconductor@laneconductor (user scope) stays enabled in every project, and next to the base installed above it would be the same
+# plugin name twice: two /laneconductor: namespaces and two connectors. `claude plugin disable <id> --scope local`, run INSIDE the scratch
+# repository, records the disable in the scratch repository's .claude/settings.local.json only. User settings are never written.
+echo "# 4. disable the same-named plugins of other marketplaces, at local scope in the scratch repository only"
+list_dir="$scratch"; [ -d "$list_dir" ] || list_dir="$tmproot"
+clash_ids=""
+if plugin_json="$(cd "$list_dir" && claude plugin list --json 2>/dev/null)" && [ -n "$plugin_json" ]; then
+  if clash_ids="$(printf '%s' "$plugin_json" | node -e '
+    let d = ""; process.stdin.on("data", (c) => { d += c; }).on("end", () => {
+      let list; try { list = JSON.parse(d); } catch { process.exit(3); }
+      const names = new Set(["laneconductor", "laneconductor-parallel", "laneconductor-board"]);
+      const ids = new Set();
+      for (const p of list) {
+        const [name, market] = String(p.id).split("@");
+        if (!names.has(name) || !market || market === process.argv[1] || p.enabled !== true) continue;
+        if (p.scope === "user" || p.projectPath === process.argv[2]) ids.add(p.id);
+      }
+      console.log([...ids].sort().join("\n"));
+    });' "$try_name" "$scratch" 2>/dev/null)"; then
+    :
+  else
+    clash_ids=""; echo "WARNING: could not read the output of claude plugin list --json; disable any other enabled laneconductor plugin yourself:  claude plugin disable laneconductor@<marketplace> --scope local   (run inside $scratch)"
+  fi
+else
+  echo "WARNING: claude plugin list --json failed; disable any other enabled laneconductor plugin yourself:  claude plugin disable laneconductor@<marketplace> --scope local   (run inside $scratch)"
+fi
+disabled_any=0
+for id in $clash_ids; do
+  in_scratch claude plugin disable "$id" --scope local
+  disabled_any=1
+done
+[ "$disabled_any" -eq 1 ] || echo "no other enabled plugin named laneconductor, laneconductor-parallel or laneconductor-board was found; nothing to disable"
+echo
+
+# ---- 5. what to type ----
 cat <<EOF
-# 4. what to type
+# 5. what to type
   cd $scratch
   claude                                  # start a NEW session (a running session keeps old plugin processes); /reload-plugins also works
 In the session:
@@ -152,6 +191,9 @@ In the session:
   /laneconductor:board                    builds the board with the board add-on's script and offers to publish it (say no unless you want an artifact)
   with all three installed the base recommends nothing; to see the funnel, uninstall an add-on, start a new session, and ask for the board:
     claude plugin uninstall laneconductor-board@$try_name --scope local
+The disable of your own laneconductor plugin (step 4, if any was needed) is recorded only in $scratch/.claude/settings.local.json. It applies to the
+scratch repository alone; your user settings were not written, and the plugin stays enabled everywhere else. Deleting the scratch repository (the last
+command below) undoes it, so nothing needs to be enabled again.
 Undo (commands to run yourself; the script never runs them):
   claude plugin uninstall laneconductor-board@$try_name --scope local
   claude plugin uninstall laneconductor-parallel@$try_name --scope local
