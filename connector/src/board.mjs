@@ -1,7 +1,7 @@
 // Board data (plan Phase 5d, Task 1): one pure function from the tracks' index.md files to a plain
 // object a dashboard can render. A snapshot, never a source of truth: it is rebuilt from the files
 // and never written back. Privacy: only titles, lanes, status, progress, phase and dependencies
-// (and the track type, when it is not dev) leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
+// (and the track type when it is not dev, and the priority when it is not normal) leave the index.md header; no other file (conversation, spec, plan, test) is read, and the
 // Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp.
 import { parseMarkers } from './markers.mjs';
 import { epicsOf } from './epics.mjs';
@@ -64,6 +64,8 @@ function trackOf(e, archived) {
       merge_mode: merge || null,
       source_hash: r.source,
       ...(type ? { type } : {}),
+      // `**Priority**` is read by the same row reader `next` uses (first marker wins, case-insensitive, anything else is absent); only high and low are published.
+      ...(r.priority === 'high' || r.priority === 'low' ? { priority: r.priority } : {}),
       ...(archived ? { archived: true } : {}),
     },
   };
@@ -192,6 +194,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
  *           d a docs file is published for this track,
+ *           pr (only when the track's `**Priority**` is high or low) the priority; absent means normal. The page sorts each lane and the backlog high, normal, low (stable, newest first inside a priority),
  *           y (only when the track's `**Type**` is marketing, sales, support or other) the type; absent means dev, so an old board.json without it reads as all dev,
  *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
@@ -220,6 +223,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
       d: withDocs.has(t.folder),
       ...(t.type ? { y: t.type } : {}),
+      ...(t.priority ? { pr: t.priority } : {}),
       ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),

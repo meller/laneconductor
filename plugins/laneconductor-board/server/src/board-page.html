@@ -89,6 +89,12 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 
 
 .typetag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
 .idg { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.pritag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; border-radius: 4px; padding: 1px 6px; white-space: nowrap; border: 1px solid var(--line); color: var(--ink); }
+.pritag.high { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.pritag.low { color: var(--muted); }
+.typectl { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.typectl .cap { color: var(--muted); font-size: 12.5px; padding-top: 6px; white-space: nowrap; }
+.typectl .chips { flex: 1 1 0; min-width: 0; }
 .nomatch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .nomatch button { font: inherit; font-size: 12.5px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; cursor: pointer; }
 .banner { margin: 0; padding: 9px 12px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
@@ -275,7 +281,7 @@ td .act { border-top: 0; padding-top: 0; }
   <div class="controls">
     <input type="search" id="q" placeholder="Find a track by number or title" aria-label="Find a track by number or title" autocomplete="off">
     <div class="chips" id="chips" role="group" aria-label="Filter by lane status"></div>
-    <div class="chips" id="type-chips" role="group" aria-label="Filter by track type" hidden></div>
+    <div class="typectl" id="type-ctl" hidden><span class="cap" id="type-cap">Type</span><div class="chips" id="type-chips" role="group" aria-label="Filter by track type" hidden></div></div>
   </div>
 
   <p class="banner" id="filter-banner" role="status" aria-live="polite" hidden></p>
@@ -320,7 +326,7 @@ td .act { border-top: 0; padding-top: 0; }
   <div class="detail-back" id="detail-back"></div>
   <section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">
     <div class="d-head">
-      <div class="d-top"><span class="id" id="d-id"></span><span class="lanetag" id="d-lane"></span><span class="typetag" id="d-type" hidden></span><span id="d-pill"></span><span class="grow"></span><button type="button" class="close" id="d-close">Close</button></div>
+      <div class="d-top"><span class="id" id="d-id"></span><span class="lanetag" id="d-lane"></span><span class="typetag" id="d-type" hidden></span><span class="pritag" id="d-pri" hidden></span><span id="d-pill"></span><span class="grow"></span><button type="button" class="close" id="d-close">Close</button></div>
       <h2 id="d-title"></h2>
       <div class="d-prog" id="d-prog"><div class="bar" id="d-bar"></div><span class="mono" id="d-pct"></span></div>
       <div class="phase" id="d-phase"></div>
@@ -568,6 +574,10 @@ td .act { border-top: 0; padding-top: 0; }
   var TYPE_LABEL = { all: 'All', dev: 'Dev', marketing: 'Marketing', sales: 'Sales', support: 'Support', other: 'Other' };
   function typeOf(t) { return t && typeof t.y === 'string' && TYPES.indexOf(t.y) > 0 ? t.y : 'dev'; }
   function typeTag(t) { var k = typeOf(t); return k === 'dev' ? null : el('span', 'typetag', k); }
+  // Priority (board.json `pr`, written only for high and low; anything else, or absent, is normal). Lanes and the backlog list high first.
+  function prioOf(t) { return t && (t.pr === 'high' || t.pr === 'low') ? t.pr : 'normal'; }
+  var PRIO_RANK = { high: 0, normal: 1, low: 2 };
+  function prioTag(t) { var k = prioOf(t); if (k === 'normal') return null; var e = el('span', 'pritag ' + k, k); e.setAttribute('title', 'Priority: ' + k); return e; }
   var presentTypes = TYPES.filter(function (k) { return D.tracks.some(function (t) { return typeOf(t) === k; }); });
   var typeFilterOn = presentTypes.some(function (k) { return k !== 'dev'; });
   if (typeFilterOn) {
@@ -787,7 +797,8 @@ td .act { border-top: 0; padding-top: 0; }
   function regroup() {
     byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
     live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
-    Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
+    // Newest first, as before; then a stable pass by priority (high, normal, low) in every list but Done, which stays newest first.
+    Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); if (l !== 'done') byLane[l].sort(function (a, b) { return PRIO_RANK[prioOf(a)] - PRIO_RANK[prioOf(b)]; }); });
   }
   regroup();
   var planned = LANES.length ? byLane[LANES[0]].length : 0; // the first column is where tracks are planned
@@ -891,7 +902,7 @@ td .act { border-top: 0; padding-top: 0; }
 
   function drawTypeChips() {
     var host = document.getElementById('type-chips'); host.textContent = '';
-    host.hidden = !typeFilterOn;
+    host.hidden = !typeFilterOn; document.getElementById('type-ctl').hidden = !typeFilterOn;
     if (!typeFilterOn) return;
     ['all'].concat(presentTypes).forEach(function (k) {
       var n = k === 'all' ? live.length : live.filter(function (t) { return typeOf(t) === k; }).length;
@@ -1050,6 +1061,7 @@ td .act { border-top: 0; padding-top: 0; }
     $('d-lane').hidden = false; $('d-prog').hidden = false; $('d-note').hidden = true; $('d-note').textContent = '';
     $('d-id').textContent = idOf(t);
     var dt = $('d-type'), dk = typeOf(t); dt.textContent = dk === 'dev' ? '' : dk; dt.hidden = dk === 'dev';
+    var dp = $('d-pri'), pk = prioOf(t); dp.textContent = pk === 'normal' ? '' : pk; dp.hidden = pk === 'normal'; dp.className = 'pritag' + (pk === 'normal' ? '' : ' ' + pk); if (pk !== 'normal') dp.setAttribute('title', 'Priority: ' + pk);
     drawHead();
     $('d-title').textContent = t.t || '(no title)';
     var bar = $('d-bar'); bar.textContent = ''; var f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g || 0)) + '%'; bar.appendChild(f);
@@ -1171,7 +1183,7 @@ td .act { border-top: 0; padding-top: 0; }
     if (!PD.length) return;
     seq++;
     cur = { project: true, kind: 'project', tab: PD[0].k, seq: seq };
-    $('d-id').textContent = 'PROJECT'; $('d-type').hidden = true;
+    $('d-id').textContent = 'PROJECT'; $('d-type').hidden = true; $('d-pri').hidden = true;
     $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
     $('d-title').textContent = D.project || 'Project definition';
     $('d-note').textContent = 'A snapshot of the project definition files, read at the same time as this board (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. To refresh it, press Refresh board at the bottom of the page.';
@@ -1255,7 +1267,7 @@ td .act { border-top: 0; padding-top: 0; }
     if (!NX) return;
     seq++;
     cur = { next: true, kind: 'next', tab: 'next', seq: seq };
-    $('d-id').textContent = 'WHAT\'S NEXT'; $('d-type').hidden = true;
+    $('d-id').textContent = 'WHAT\'S NEXT'; $('d-type').hidden = true; $('d-pri').hidden = true;
     $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
     $('d-title').textContent = NX.head;
     $('d-note').textContent = 'Worked out when this board was read (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. It is the same answer the next command gives.';
@@ -1282,8 +1294,8 @@ td .act { border-top: 0; padding-top: 0; }
 
   function card(t) {
     var c = el('div', 'card' + (t.a ? ' flag' : ''));
-    var top = el('div', 'top'), tt = typeTag(t);
-    if (tt) { var idg = el('span', 'idg'); idg.appendChild(el('span', 'id', idOf(t))); idg.appendChild(tt); top.appendChild(idg); } else top.appendChild(el('span', 'id', idOf(t)));
+    var top = el('div', 'top'), tags = [typeTag(t), prioTag(t)].filter(Boolean);
+    if (tags.length) { var idg = el('span', 'idg'); idg.appendChild(el('span', 'id', idOf(t))); tags.forEach(function (g) { idg.appendChild(g); }); top.appendChild(idg); } else top.appendChild(el('span', 'id', idOf(t)));
     top.appendChild(pill(t.s)); c.appendChild(top);
     c.appendChild(el('div', 'title', t.t));
     if (t.g > 0 || t.l !== 'backlog') { var b = el('div', 'bar'), f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g)) + '%'; b.appendChild(f); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-valuenow', String(t.g)); b.setAttribute('aria-label', 'Progress'); c.appendChild(b); }
