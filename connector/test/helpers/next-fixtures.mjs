@@ -2,7 +2,7 @@
 // and one commit on `main`, so it can never resolve to an enclosing checkout. A fixture is a compact description:
 //   { git: true, files: {}, commits: 1, conductor: 'full' | 'no-workflow' | 'none', workflow: 'default' | 'old', settings: '<json text>',
 //     tracks: [{ n, lane, status, extra: { Marker: value }, plan: 'real' | 'realistic' | 'stub' | 'missing', comment: 'human' | 'system', branch: 'merged' | 'unmerged' | 'subject',
-//                ageHours, slug, dup: true }] }
+//                ageHours, slug, dup: true, connectorCommits: true }] }
 // and carries `expect` (state id, track, command) for the reference classifier and the tests.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -115,7 +115,8 @@ export function buildFixture(desc, { now = Date.now() } = {}) {
       write(dir, `${f}/test.md`, t.plan === 'stub' ? STUB_TEST : t.plan === 'realistic' ? REALISTIC_TEST : REAL_TEST);
     }
     if (t.comment) write(dir, `${f}/conversation.md`, t.comment === 'human' ? '> **human**: please decide\n' : '> **human**: please decide\n\n> **system**: done\n');
-    commit(`chore(track-${t.n}): add the track`, t.ageHours ?? 1);
+    commit(`chore(track-${t.n}): create_track index.md spec.md plan.md test.md via lc-connector`, t.ageHours ?? 1);
+    if (t.connectorCommits) { commit(`chore(track-${t.n}): update_track index.md via lc-connector`, 0.9); commit(`chore(track-${t.n}): append_conversation via lc-connector`, 0.8); }
   }
   if (desc.staleSkill && !desc.staleTracked) staleSkill();
   for (const t of desc.tracks ?? []) {
@@ -183,6 +184,14 @@ export const FIXTURES = {
   F30: { desc: { staleSkill: 'link', staleTracked: true, tracks: [T(10001, 'plan', 'queue')] }, expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), stale: { kind: 'link', tracked: true, remove: 'git rm .claude/skills/laneconductor' } } },
   F31: { desc: { staleSkill: 'folder', files: REPO_FILES, commits: 3, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:setup', stale: { kind: 'folder', tracked: false, remove: 'rm -r .claude/skills/laneconductor' } } },
   F32: { desc: { tracks: [T(10100, 'plan', 'queue'), T(10101, 'plan', 'queue', { extra: { 'Part Of': '10100' } }), T(10102, 'done', 'success', { extra: { 'Part Of': '10100' } })] }, expect: { state: 'S18', track: 10101, command: cmd('plan', 10101), epics: [{ epic: 10100, done: 1, total: 2 }] } },
+  // The connector's own commits (create_track, update_track, append_conversation) are state, not shipped work: a done:queue track in direct mode
+  // whose only commits on the default branch are those is still to be merged (S11), not "looks merged" (S12).
+  F33: { desc: { tracks: [T(10001, 'done', 'queue', { connectorCommits: true })] }, expect: { state: 'S11', track: 10001, command: cmd('merge', 10001) } },
+  // Blocked is never the step, whatever the status: a queue track whose Depends On is unshipped is S10 (blocked), and the step is the other track.
+  F34: { desc: { tracks: [T(10001, 'plan', 'queue'), T(10002, 'implement', 'queue', { extra: { 'Depends On': '10001' } })] }, expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), blocked: [10002] } },
+  // What a failure recommends (S06): implement retries implement; plan, review and quality-gate replan.
+  F06c: { desc: { tracks: [T(10001, 'review', 'failure')] }, expect: { state: 'S06', track: 10001, command: cmd('plan', 10001) } },
+  F06d: { desc: { tracks: [T(10001, 'plan', 'failure')] }, expect: { state: 'S06', track: 10001, command: cmd('plan', 10001) } },
   F28: { desc: { tracks: [T(10001, 'done', 'queue', { branch: 'subject' })] }, expect: { state: 'S12', track: 10001, command: '/laneconductor:move 10001 done:success' } },
 };
 
