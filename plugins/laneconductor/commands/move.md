@@ -40,7 +40,7 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 `pulse` does not write `**Status**` any more (it is a legacy marker the parser only reads when
 `**Lane**` is missing).
 
-### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions (track 1020's grammar); Manual moves win)
+### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Manual moves win)
 
 #### The five lane statuses
 
@@ -55,7 +55,7 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 **`running` belongs to the lane whose action is executing.** It is never used for work that belongs to another lane. A deploy
 gate (the full suites, then the deploy) is `quality-gate:running`, not `implement:running` and not `in-progress:running`.
 
-#### Transitions (track 1020's grammar)
+#### Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 

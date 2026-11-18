@@ -1,7 +1,7 @@
 # Lanes, lane statuses and transitions: the one reference
 
 Read this when you move a track, finish a lane action, or meet a `workflow.json` you did not write. It is the single current
-description; where an older text disagrees with it (for example the three-status list of track 1016, `queue`, `success`,
+description; where an older text disagrees with it (for example the old three-status list, `queue`, `success`,
 `failure`), this file is right and the older text is superseded.
 
 ## The model
@@ -36,7 +36,7 @@ pull request that is open. Only `done:success` is quiet. With the connector, `li
 when there is no such branch, because the files cannot tell merged-and-deleted from never branched). The board lists `done:queue`,
 `done:failure` and `done:waiting` under Needs attention, each with its reason.
 
-## Transitions (track 1020's grammar)
+## Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 
@@ -79,7 +79,7 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 
 ## Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
+A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
 `planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write

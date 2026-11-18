@@ -113,8 +113,7 @@ With a track number as the argument ("what's next for N"), give the same card re
 ## The card
 
 Always: the step with its command; one sentence on what the command will do (and, in one clause, where the track goes when it
-finishes); one sentence on why it comes next; the other candidates in one line (left out when there are none); one link to
-[lanes-and-statuses.md](lanes-and-statuses.md); and the closing offer "Say go and I will run it here". The card never names a
+finishes); one sentence on why it comes next; the other candidates in one line (left out when there are none); one pointer to the lane statuses and transitions, named in words (never a file path the person cannot open); and the closing offer "Say go and I will run it here". The card never names a
 track number outside the track it is about, and never mentions work that does not exist yet.
 
 The explain form of the card (the step, then what and why in full):
@@ -123,7 +122,7 @@ The explain form of the card (the step, then what and why in full):
 > **What it does:** the plan lane writes the spec, the plan and the test cases for this track, and no code; when it finishes
 > the track waits at `plan:success`.
 > **Why now:** nothing is built before the work is agreed and testable, and this is the oldest track still waiting.
-> Also waiting: N2 (implement), N3 (review). More on the lanes: [lanes-and-statuses.md](lanes-and-statuses.md). Say go and I will run it here.
+> Also waiting: N2 (implement), N3 (review). More on the lanes: `/laneconductor:workflow` shows the lane statuses and where each lane sends a track. Say go and I will run it here.
 
 The short form keeps only the step, the command, a six-word why and the other candidates:
 

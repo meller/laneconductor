@@ -103,7 +103,7 @@ scaffold?". On yes, `git add` the created paths by name (never `git add -A`) and
 `chore: add the LaneConductor scaffold`. Do not push, and do not offer to; if they ask, say what would be pushed and
 ask again.
 
-<!-- Starter set: reserved for the skill advisor (track 10124) -->
+<!-- Starter set: reserved for the skill advisor -->
 
 ## Rules
 

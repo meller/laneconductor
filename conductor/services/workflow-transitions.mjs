@@ -3,7 +3,7 @@
 // same file: the connector (local, the plugin) and the daemon (remote, the experimental, currently unmaintained tier). There is no second copy of this
 // grammar anywhere; a test fails if one appears. The plugin generator ships this file inside the add-on at the same relative path.
 //
-// THE GRAMMAR is track 1020's, exactly. A lane's `on_success` / `on_failure` is one of:
+// THE GRAMMAR is the workflow grammar, exactly. A lane's `on_success` / `on_failure` is one of:
 //   `lane:status`  explicit: used as written (`review:queue`, `plan:success`, `implement:failure`);
 //   `lane`         bare. A bare target naming a DIFFERENT lane defaults to status `queue`; a bare target naming the SAME lane
 //                  defaults to `success` (on_success) or `failure` (on_failure). A bare `done` from another lane is therefore

@@ -62,7 +62,7 @@ Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you 
 3. **If the person says no, or nothing fits,** create the track, and say which tracks you looked at and why none fit. With the add-on, `create_track` answers with `similar_tracks` (up to 5 by title and summary words, any lane) and a warning on a strong match; it never blocks, so it is a second look, not a replacement for step 1.
 4. **Several small gaps in one session** go into one fitting track, an epic or one `backlog` track, not one track each.
 
-### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions (track 1020's grammar); Lane names; Manual moves win)
+### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Lane names; Manual moves win)
 
 #### The five lane statuses
 
@@ -77,7 +77,7 @@ Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you 
 **`running` belongs to the lane whose action is executing.** It is never used for work that belongs to another lane. A deploy
 gate (the full suites, then the deploy) is `quality-gate:running`, not `implement:running` and not `in-progress:running`.
 
-#### Transitions (track 1020's grammar)
+#### Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 
@@ -110,7 +110,7 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 
 #### Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
+A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
 `planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
@@ -160,7 +160,7 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
 #### conversation.md format
 

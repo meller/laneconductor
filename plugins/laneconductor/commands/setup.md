@@ -84,7 +84,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 `/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow the scaffold text under "Reference: scaffold" at the end (`setup/scaffold.md`, templates in `setup/templates.md`) and skip the interview. Use it when the person already
 knows what they want, or another tool has already scanned the project.
 
-<!-- Starter set: reserved for the skill advisor (track 10124) -->
+<!-- Starter set: reserved for the skill advisor -->
 
 ## The path in detail
 

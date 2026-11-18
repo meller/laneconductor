@@ -79,4 +79,4 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 [scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview. Use it when the person already
 knows what they want, or another tool has already scanned the project.
 
-<!-- Starter set: reserved for the skill advisor (track 10124) -->
+<!-- Starter set: reserved for the skill advisor -->

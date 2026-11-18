@@ -65,4 +65,4 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.

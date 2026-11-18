@@ -27,8 +27,8 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    "Search first: the default is update, not create" in [ops/tracks.md](../ops/tracks.md): list the tracks by the key
    words (every lane, the backlog and done too) and, if one fits, ask "Update track N (title, lane) with
    this? [default: yes]" and extend it instead. Scaffolding over an existing track number
-   creates a duplicate folder beside the real one. This happened on track 10040 when a
-   legacy-only scan missed `AM-10040-...`.
+   creates a duplicate folder beside the real one. This has happened when a
+   legacy-only scan missed `AM-<number>-...`.
    - Create `conductor/tracks/INITIALS-NNN-slug/`. Initials are the first letter of each word of
      `git config user.name`, up to 3, `XX` if unset. Never use the bare `NNN-slug` form for a new
      track.

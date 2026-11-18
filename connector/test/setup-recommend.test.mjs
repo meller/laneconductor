@@ -8,7 +8,7 @@ import { REPO, RELS, RECOMMENDED, ADDONS, NAMES, buildPlugin, installCommands, i
 
 const BASE = path.join(REPO, RELS.base, 'skills/laneconductor');
 const read = (rel) => fs.readFileSync(path.join(BASE, rel), 'utf8');
-const HOOK = '<!-- Starter set: reserved for the skill advisor (track 10124) -->';
+const HOOK = '<!-- Starter set: reserved for the skill advisor -->';
 const bashFences = (text) => [...text.matchAll(/```bash\n([\s\S]*?)\n```/g)].map((m) => m[1]);
 
 test('TC-15 every catalog entry has a one-line setup_fit of 10 to 200 characters', () => {

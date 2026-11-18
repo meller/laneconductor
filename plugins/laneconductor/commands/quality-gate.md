@@ -116,7 +116,7 @@ code is on `main`.
      status separately.
    - While the gate itself is executing (a full suite, a deploy), the track is
      `quality-gate:running`.
-   - Write `**Verdict**` on every PASS/FAIL (track AM-10087): the harness can tag the turn
+   - Write `**Verdict**` on every PASS/FAIL: the harness can tag the turn
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
@@ -133,7 +133,7 @@ it is missing, say so and continue. The `skills` key is optional; when it is abs
 own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
 skill's method, not its output paths.
 
-### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions (track 1020's grammar); Lane names; Manual moves win)
+### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Lane names; Manual moves win)
 
 #### The five lane statuses
 
@@ -148,7 +148,7 @@ skill's method, not its output paths.
 **`running` belongs to the lane whose action is executing.** It is never used for work that belongs to another lane. A deploy
 gate (the full suites, then the deploy) is `quality-gate:running`, not `implement:running` and not `in-progress:running`.
 
-#### Transitions (track 1020's grammar)
+#### Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 
@@ -181,7 +181,7 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 
 #### Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
+A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
 `planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
@@ -231,7 +231,7 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
 #### conversation.md format
 

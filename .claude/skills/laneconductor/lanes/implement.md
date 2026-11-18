@@ -68,12 +68,12 @@ commits go.
      "Phase N complete" until you have executed whatever verifies it and read the real output.
      This holds even when `test.md` has no case for the phase: if there is a CLI flag, endpoint,
      UI flow or dispatch to exercise, exercise it. A written-but-unrun test file or a plausible
-     diff is not verification. Track 1087 phase 6 shipped a "complete" phase with two new test
+     diff is not verification. One run shipped a "complete" phase with two new test
      files that were never run (one had an import error) and a hardcoded `null` that broke the
      one path that mattered.
    - **Never end a turn on a command you just backgrounded.** The harness kills background
      children when the session exits, so the work is silently lost and the run exits 0
-     mid-work (track 1102 F21; the exit handler now reports `ended_mid_work`, which is recovery,
+     mid-work (the run's exit handler now reports `ended_mid_work`, which is recovery,
      not prevention). Run long commands in the foreground and wait, or hand off explicitly with a
      note in `conversation.md` naming what is still running and what the next turn should check.
    - Update `plan.md` (tick the task) and the `**Progress**` marker in `index.md`.
