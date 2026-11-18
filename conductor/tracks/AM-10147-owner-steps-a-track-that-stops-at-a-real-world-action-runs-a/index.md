@@ -1,9 +1,9 @@
 # Track AM-10147: Owner steps: a track that stops at a real-world action, runs a window, and closes with a result
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: Decisions confirmed and plan reviewed 2026-11-18; the spec was rewritten to reuse the existing KPI block, Draft, KPI Check After and quality-gate KPI step. Next: build Phases 2 and 3 (markers, the connector, next), then the board and the lane guides.
+**Progress**: 70%
+**Phase**: Phases 2 to 5 built and released in plugins 1.9.0 (markers, date flags and lints, next states S22 and S23, the board, lane guides, the comment command applies the owner's reply); 769 connector tests pass. Open: review, Phase 6 (the campaign template, channel kit and readout format as skills in the owner's library) and Phase 7 (a real marketing run: owner).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
