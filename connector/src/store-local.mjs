@@ -248,8 +248,28 @@ export class LocalGitStore {
     const names = listed.code === 0 ? listed.stdout.split('\n').map((n) => n.trim()).filter((n) => /^[A-Za-z0-9._\/-]+$/.test(n) && !n.startsWith('-')) : [];
     const ref = (await this._git(['rev-parse', '--verify', '-q', `refs/heads/${this.stateBranch}`])).code === 0 ? `refs/heads/${this.stateBranch}` : 'HEAD';
     const out = new Map();
-    for (const n of names) out.set(n, (await this._git(['merge-base', '--is-ancestor', `refs/heads/${n}`, ref])).code === 0);
+    for (const n of names) out.set(n, await this._branchMerged(`refs/heads/${n}`, ref));
     return out;
+  }
+
+  /**
+   * Is `branch` merged into `ref`? An ancestor is merged. A squash merge or a merge on GitHub leaves the branch commits unreachable, so two
+   * more read-only checks count: every commit of the branch has a patch-equivalent one in `ref` (`git cherry`, a rebase or cherry-pick
+   * merge), or `ref` already holds the branch's exact content for every file the branch changed (a squash merge). The content check
+   * says "not merged" again once `ref` changes one of those files afterwards; that limit is accepted (it only ever under-reports).
+   */
+  async _branchMerged(branch, ref) {
+    if ((await this._git(['merge-base', '--is-ancestor', branch, ref])).code === 0) return true;
+    const cherry = await this._git(['cherry', ref, branch]);
+    const lines = cherry.code === 0 ? cherry.stdout.split('\n').filter(Boolean) : [];
+    if (lines.length && lines.every((l) => l.startsWith('-'))) return true;
+    const base = await this._git(['merge-base', ref, branch]);
+    if (base.code !== 0) return false;
+    const changed = await this._git(['diff', '--name-only', '-z', base.stdout.trim(), branch]);
+    const files = changed.code === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
+    if (!files.length) return false;
+    const same = await this._git(['diff', '--quiet', '--pathspec-from-file=-', '--pathspec-file-nul', ref, branch], { input: files.map((f) => `:(literal)${f}`).join('\0') });
+    return same.code === 0;
   }
 
   // ---- path safety -------------------------------------------------------------------------
