@@ -9,20 +9,32 @@ import path from 'node:path';
 export const INLINED_COMMANDS = ['setup', 'next', 'new-project'];
 
 const levelOf = (line) => line.match(/^(#+) /)?.[1].length ?? 0;
+/** The heading level of each line; a `#` line inside a code fence (the templates hold many) is not a heading. */
+function levels(lines) {
+  let fenced = false;
+  return lines.map((l) => {
+    if (/^\s*```/.test(l)) { fenced = !fenced; return 0; }
+    return fenced ? 0 : levelOf(l);
+  });
+}
 
 /** The lines of the section that starts at the exact heading line, up to (not including) the next heading of the same or a higher level. */
 export function section(text, heading) {
   const lines = text.split('\n');
-  const start = lines.findIndex((l) => l === heading);
+  const lv = levels(lines);
+  const start = lines.findIndex((l, i) => l === heading && lv[i] > 0);
   if (start < 0) throw new Error(`inline: heading not found (update scripts/plugin-inline.mjs): ${JSON.stringify(heading)}`);
-  const level = levelOf(heading);
   let end = start + 1;
-  while (end < lines.length && !(levelOf(lines[end]) > 0 && levelOf(lines[end]) <= level)) end += 1;
+  while (end < lines.length && !(lv[end] > 0 && lv[end] <= lv[start])) end += 1;
   return lines.slice(start, end).join('\n').replace(/\s+$/, '');
 }
 
-/** Moves every heading of a block down by n levels. */
-const shift = (text, n) => text.replace(/^(#+) /gm, (_, h) => `${'#'.repeat(h.length + n)} `);
+/** Moves every heading of a block down by n levels (headings only, never a `#` line inside a code fence). */
+export const shift = (text, n) => {
+  const lines = text.split('\n');
+  const lv = levels(lines);
+  return lines.map((l, i) => (lv[i] > 0 ? `${'#'.repeat(lv[i] + n)}${l.slice(lv[i])}` : l)).join('\n');
+};
 
 /** A Markdown link to another skill file becomes the skill-relative path in code (a link relative to the skill folder would not resolve from a command). */
 export function relink(text, fromRel) {
@@ -50,7 +62,7 @@ function newProjectText(text) {
       'Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.'],
     [/Record the answers as you go, as the JSON that\nthe scaffold script reads: /, 'Record the answers as you go: '],
     [/Run `node <path to the scaffold script>[\s\S]*?apply these rules over them:/,
-      'Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are\nin the skill files [../setup/scaffold.md](../setup/scaffold.md) and [../setup/templates.md](../setup/templates.md); apply these rules over them:'],
+      'Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are\nin "Reference: scaffold" at the end of this command (from the skill files [../setup/scaffold.md](../setup/scaffold.md) and [../setup/templates.md](../setup/templates.md)); apply these rules over them:'],
     ['The scaffold script writes it.', 'Create it by hand as [tracks.md](tracks.md) describes.'],
   ]);
 }
@@ -79,6 +91,7 @@ export function inlineBody(name, readSkill) {
     const main = edit(relink(readSkill('setup/setup.md'), 'setup/setup.md').replace(/^# .*\n+/, ''), 'setup/setup.md', [
       [/Follow `ops\/new-project\.md`, its existing-repository path \(the folder has a `\.git`, or files other than\n`conductor\/`\), and when the folder is empty its new-project path\. In short:/,
         'Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`); when the folder is empty, the new-project\npath of `ops/new-project.md` applies and `/laneconductor:new-project` is the command for it. In short:'],
+      [/follow\n`setup\/scaffold\.md` \(templates in `setup\/templates\.md`\)/, 'follow the scaffold text under "Reference: scaffold" at the end (`setup/scaffold.md`, templates in `setup/templates.md`)'],
     ]);
     return [
       'Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it. Look for no program other than `git`, and read no settings file.',

@@ -44,8 +44,11 @@ way of gathering differs.
 7. **Comments.** `conversation.md` is not committed, so read it only when it exists on this machine and never rely on it. The
    committed signal for a reply that waits is the marker `Waiting for reply: yes`. When the file exists and its last entry is the
    human's (`> **human**:`) with no later `system` or agent entry, the track counts as waiting for a reply even if the marker says no.
-8. **Stub files.** A `plan.md` is a stub when it contains the placeholder "Plan to be written in the plan lane" or no checkbox. A
-   `test.md` is a stub when it contains "(Test cases to be added)" or no test case line.
+8. **Stub files.** A `plan.md` is a stub when the file is missing (a track made by hand holds only its `index.md`), or contains the
+   placeholder "Plan to be written in the plan lane", or has no checkbox. A `test.md` is a stub when the file is missing, or contains
+   "(Test cases to be added)", or has no test case line. A plan or test file with real content (phases, checkbox tasks, `TC-` lines,
+   with or without ticks and prose around them) is NOT a stub, whatever else is in it; look for the checkbox and the `TC-` line, not
+   for completeness.
 9. **A project summary** (`conductor/tracks-summary.md`) may preselect tracks in a very large project (about 100 tracks or more),
    but every track the card names is confirmed from its own `index.md` first. Its "Needs attention" list is a lint list, not advice;
    never quote it.
@@ -76,7 +79,7 @@ the epic's own file holds no child status.
 | S14 | `quality-gate:queue`, or `review:success` when the workflow does not move on by itself | Run the quality gate: it evaluates and never fixes | `/laneconductor:quality-gate N` |
 | S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. When the parallel add-on is installed, recommend one sub-agent per track in its own worktree | `/laneconductor:review N` |
 | S16 | `implement:queue`, or `plan:success` (plan done, parked) with a real plan and real test cases | Implement it from its plan. When the parallel add-on is installed, recommend one sub-agent per track in its own worktree (isolation, parallel tracks, no collisions); without it, in this session or by hand in a worktree | `/laneconductor:implement N` |
-| S17 | `implement:queue` or `plan:success`, but `plan.md` or `test.md` is still the empty stub from track creation | Plan it first: there is nothing to implement from. This overrides S16 | `/laneconductor:plan N` |
+| S17 | `implement:queue` or `plan:success`, but `plan.md` or `test.md` is missing or still the empty stub from track creation | Plan it first: there is nothing to implement from. This overrides S16 | `/laneconductor:plan N` |
 | S18 | `plan:queue` | Plan it: the plan lane writes the spec, the plan and the test cases, and no code; plan before code so the work is agreed and testable first | `/laneconductor:plan N` |
 | S19 | The only tracks that are not shipped are in `backlog` | Pick one to start: show up to three, recommend the oldest, and say that moving it to `plan:queue` starts it | `/laneconductor:move N plan:queue` |
 | S20 | Every track is `done:success`, or none is ready | Nothing waits. Offer `new` for something new, `board` to look at the whole project, `status` for the list | `/laneconductor:new <title>` |

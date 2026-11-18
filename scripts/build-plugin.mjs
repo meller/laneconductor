@@ -50,6 +50,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, argumentHint, helpLines } from '../connector/src/commands.mjs';
 import { INLINED_COMMANDS, inlineBody } from './plugin-inline.mjs';
+import { REFERENCES, REFERENCE_COMMANDS, BOARD_SCRIPT_COMMANDS, referenceBlock, withNotice } from './plugin-references.mjs';
 import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
   DISPLAY, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
@@ -192,7 +193,7 @@ function yamlValue(v) {
   return /^[\[{*&!|>'"%@`#-]|: | #/.test(v) ? JSON.stringify(v) : v;
 }
 
-export { INLINED_COMMANDS };
+export { INLINED_COMMANDS, REFERENCES, REFERENCE_COMMANDS, BOARD_SCRIPT_COMMANDS };
 
 /**
  * The base's command file for one catalog entry. Deterministic. `readSkill` (the shipped text of a skill file, by path inside the skill)
@@ -214,8 +215,10 @@ export function renderBaseCommand(cmd, readSkill = null) {
     const names = cmd.args.map((a) => a.hint ?? a.name).join(', then ');
     body = `Arguments: \`$ARGUMENTS\` (${names}).\n\n${procedure.replace(/\{\{(\w+)\}\}/g, '<$1>')}`;
   }
+  const ref = readSkill ? referenceBlock(cmd.name, readSkill) : null;
+  if (ref && !INLINED_COMMANDS.includes(cmd.name)) body = withNotice(body);
   const line = connectorLine(readSkill && INLINED_COMMANDS.includes(cmd.name) ? { ...cmd, procedure: `${cmd.procedure ?? ''}\n${[...body.matchAll(new RegExp(`${CONNECTOR_TOOL_PREFIX}(\\w+)`, 'g'))].map((m) => `\`${m[1]}\``).join(' ')}` } : cmd);
-  const parts = [body, ...(BASE_EXTRAS[cmd.name] ?? []), ...(line ? [line] : [])];
+  const parts = [body, ...(BASE_EXTRAS[cmd.name] ?? []), ...(line ? [line] : []), ...(ref ? [ref] : [])];
   return `${front.join('\n')}\n${parts.join('\n\n')}\n`;
 }
 

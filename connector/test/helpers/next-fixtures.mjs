@@ -1,7 +1,7 @@
 // Fixture projects for the `next` command (track AM-10144, Phase 6). Every fixture is built in a temporary directory with its OWN `git init`
 // and one commit on `main`, so it can never resolve to an enclosing checkout. A fixture is a compact description:
 //   { git: true, files: {}, commits: 1, conductor: 'full' | 'no-workflow' | 'none', workflow: 'default' | 'old', settings: '<json text>',
-//     tracks: [{ n, lane, status, extra: { Marker: value }, plan: 'real' | 'stub', comment: 'human' | 'system', branch: 'merged' | 'unmerged' | 'subject',
+//     tracks: [{ n, lane, status, extra: { Marker: value }, plan: 'real' | 'realistic' | 'stub' | 'missing', comment: 'human' | 'system', branch: 'merged' | 'unmerged' | 'subject',
 //                ageHours, slug, dup: true }] }
 // and carries `expect` (state id, track, command) for the reference classifier and the tests.
 import fs from 'node:fs';
@@ -20,6 +20,42 @@ const REAL_PLAN = '# Plan\n\n## Phase 1\n\n- [ ] Task 1.1: do the thing\n';
 const STUB_PLAN = '# Plan\n\nPlan to be written in the plan lane.\n';
 const REAL_TEST = '# Tests\n\n- [ ] TC-1: the thing works - expected: it does\n';
 const STUB_TEST = '# Tests\n\n(Test cases to be added)\n';
+// Track AM-10132: what a plan the plan lane really wrote looks like (phases, checked and unchecked tasks, prose around them), and the
+// state a track made by newTrack is in (index.md only: no plan.md, no test.md).
+const REALISTIC_PLAN = `# Track 10001: Add the export button
+
+Written in the plan lane. Build the smallest slice first.
+
+## Phase 1: The endpoint
+
+- [x] Task 1.1: Add GET /export returning the rows as CSV
+- [ ] Task 1.2: Page the result so a large table does not time out
+  - [ ] Sub-task: cap the page size at 1000
+
+## Phase 2: The button
+
+- [ ] Task 2.1: Add the button to the table toolbar
+- [ ] Task 2.2: Show a spinner while the file is prepared
+
+## Notes
+
+Use the existing CSV helper; do not add a dependency.
+`;
+const REALISTIC_TEST = `# Tests: Track 10001 - Add the export button
+
+Test command: \`npm test\`
+
+## Test Cases
+
+### Phase 1: The endpoint
+
+- [x] TC-1: GET /export returns a header row and one line per row - expected: 200 and text/csv
+- [ ] TC-2: a table of 5000 rows is returned in pages - expected: no timeout
+
+### Phase 2: The button
+
+- [ ] TC-3: the button downloads the file - expected: a .csv with the visible columns
+`;
 
 export const pad = (n) => String(n);
 export const folderOf = (t) => `AM-${t.n}-${t.slug ?? 'a-track'}`;
@@ -74,8 +110,10 @@ export function buildFixture(desc, { now = Date.now() } = {}) {
     const f = `conductor/tracks/${folderOf(t)}`;
     write(dir, `${f}/index.md`, indexText(t));
     write(dir, `${f}/spec.md`, '# Spec\n\nSomething.\n');
-    write(dir, `${f}/plan.md`, t.plan === 'stub' ? STUB_PLAN : REAL_PLAN);
-    write(dir, `${f}/test.md`, t.plan === 'stub' ? STUB_TEST : REAL_TEST);
+    if (t.plan !== 'missing') {
+      write(dir, `${f}/plan.md`, t.plan === 'stub' ? STUB_PLAN : t.plan === 'realistic' ? REALISTIC_PLAN : REAL_PLAN);
+      write(dir, `${f}/test.md`, t.plan === 'stub' ? STUB_TEST : t.plan === 'realistic' ? REALISTIC_TEST : REAL_TEST);
+    }
     if (t.comment) write(dir, `${f}/conversation.md`, t.comment === 'human' ? '> **human**: please decide\n' : '> **human**: please decide\n\n> **system**: done\n');
     commit(`chore(track-${t.n}): add the track`, t.ageHours ?? 1);
   }
@@ -122,6 +160,11 @@ export const FIXTURES = {
   F16a: { desc: { tracks: [T(10001, 'implement', 'queue')] }, expect: { state: 'S16', track: 10001, command: cmd('implement', 10001) } },
   F16b: { desc: { tracks: [T(10001, 'plan', 'success')] }, expect: { state: 'S16', track: 10001, command: cmd('implement', 10001) } },
   F17: { desc: { tracks: [T(10001, 'implement', 'queue', { plan: 'stub' })] }, expect: { state: 'S17', track: 10001, command: cmd('plan', 10001) } },
+  // The scratch-project case of 2026-11-18: a real plan.md and test.md (phases, checkboxes, prose) is NOT a stub, so the step is implement (S16); a track
+  // that has only its index.md (what newTrack leaves) has nothing to implement from, so the step is plan (S17).
+  F16c: { desc: { tracks: [T(10002, 'implement', 'queue', { plan: 'realistic' })] }, expect: { state: 'S16', track: 10002, command: cmd('implement', 10002) } },
+  F16d: { desc: { tracks: [T(10002, 'plan', 'success', { plan: 'realistic' })] }, expect: { state: 'S16', track: 10002, command: cmd('implement', 10002) } },
+  F17b: { desc: { tracks: [T(10001, 'plan', 'queue'), T(10002, 'implement', 'queue', { plan: 'missing' })] }, expect: { state: 'S17', track: 10002, command: cmd('plan', 10002) } },
   F18: { desc: { tracks: [T(10001, 'plan', 'queue')] }, expect: { state: 'S18', track: 10001, command: cmd('plan', 10001), level: 'explain' } },
   F19: { desc: { tracks: [T(10001, 'backlog', 'queue'), T(10002, 'backlog', 'queue'), T(10003, 'done', 'success')] }, expect: { state: 'S19', track: 10001, command: '/laneconductor:move 10001 plan:queue' } },
   F20: { desc: { tracks: [T(10001, 'done', 'success'), T(10002, 'done', 'success')] }, expect: { state: 'S20', command: '/laneconductor:new <title>' } },
