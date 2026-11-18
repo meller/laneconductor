@@ -181,9 +181,16 @@ test('page: renders 5 lane columns, the done list and the attention list from a 
   assert.equal(urls[0], 'board.json');
   assert.equal(ids.status.hidden, true, 'the loading state is gone');
   assert.equal(ids.board.hidden, false);
-  assert.equal(ids.lanes.children.length, 5);
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['backlog', 'plan', 'implement', 'review', 'quality-gate']);
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1, 1]);
+  assert.equal(ids.lanes.children.length, 4, 'backlog is not one of the lane columns');
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['plan', 'implement', 'review', 'quality-gate']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1]);
+  // The backlog is the last section and starts collapsed.
+  assert.equal(ids['backlog-block'].hidden, false);
+  assert.equal(ids['backlog-n'].textContent, '1');
+  assert.equal(ids['backlog-toggle'].textContent, 'Show');
+  assert.equal(ids['backlog-toggle'].attrs['aria-expanded'], 'false');
+  assert.equal(ids['backlog-cards'].hidden, true);
+  assert.equal(ids['backlog-cards'].children.length, 0, 'no backlog cards are built while collapsed');
   assert.equal(ids['done-rows'].children.length, 2);
   assert.equal(ids['done-n'].textContent, '2');
   assert.equal(ids['attn-rows'].children.length, 2);
@@ -193,9 +200,9 @@ test('page: renders 5 lane columns, the done list and the attention list from a 
   assert.ok(ids['attn-rows'].textContent.includes('waiting for a human reply'));
   // The search box filters; clearing it restores every card.
   ids.q.handlers.input({ target: { value: 'quokka' } });
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [0, 1, 0, 0, 0]);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 0, 0, 0]);
   ids.q.handlers.input({ target: { value: '' } });
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1, 1]);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1]);
 });
 
 test('page: a failed fetch (network error, HTTP error, bad format) shows the error state and no board', async () => {
@@ -268,9 +275,9 @@ test('page: a status filter whose matches are all in Done explains where they ar
   assert.equal(first[2].children[0].className, 'pill failure');
   // Lane columns say "None here" and the banner explains where the matches are.
   const cols = ids.lanes.children;
-  assert.equal(cols.length, 5);
+  assert.equal(cols.length, 4);
   // Only the implement column holds a track (it does not match): it says "None here"; the others are plainly empty.
-  assert.deepEqual(cols.map((c) => c.children[2]?._text), ['Empty.', 'Empty.', 'None here', 'Empty.', 'Empty.']);
+  assert.deepEqual(cols.map((c) => c.children[2]?._text), ['Empty.', 'None here', 'Empty.', 'Empty.']);
   assert.ok(!ids.lanes.textContent.includes('Nothing matches the filter'));
 
   // A lane match is counted separately: "running" matches one card in a lane and no Done row.
@@ -332,7 +339,13 @@ function siteFor(repo) {
   };
   return { site, data, calls, fetchStub };
 }
-const cardOf = (ids, lane, i = 0) => ids.lanes.children[['backlog', 'plan', 'implement', 'review', 'quality-gate'].indexOf(lane)].children[1].children[i];
+const cardOf = (ids, lane, i = 0) => {
+  if (lane === 'backlog') {
+    if (ids['backlog-cards'].hidden) ids['backlog-toggle'].onclick();
+    return ids['backlog-cards'].children[i];
+  }
+  return ids.lanes.children[['plan', 'implement', 'review', 'quality-gate'].indexOf(lane)].children[1].children[i];
+};
 const tabNames = (ids) => ids['d-tabs'].children.map((b) => b._text);
 const tabBy = (ids, name) => ids['d-tabs'].children.find((b) => b._text === name);
 
@@ -720,4 +733,42 @@ test('page markup: a dialog with a labelled title, tabs container, the privacy f
   assert.match(html, /@media \(prefers-color-scheme: dark\)/);
   assert.match(html, /:root\[data-theme="dark"\]/);
   assert.ok(!/https?:\/\/(?!fonts\.g)[^"' )]*\.(?:js|css)\b/.test(html), 'no external script or stylesheet beyond the fonts');
+});
+
+test('backlog: last, collapsed by default, Show and Hide work and are remembered; a search or a matching status filter opens it', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const store = {};
+  globalThis.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  try {
+    const ids = await runPage(fetchStub);
+    assert.equal(ids['backlog-cards'].hidden, true);
+    assert.equal(ids['backlog-toggle'].textContent, 'Show');
+    ids['backlog-toggle'].onclick();
+    assert.equal(ids['backlog-cards'].hidden, false);
+    assert.equal(ids['backlog-toggle'].textContent, 'Hide');
+    assert.equal(ids['backlog-toggle'].attrs['aria-expanded'], 'true');
+    assert.equal(ids['backlog-cards'].children.length, 1);
+    assert.equal(store['lc-board-backlog'], '1', 'the choice is remembered');
+    ids['backlog-toggle'].onclick();
+    assert.equal(ids['backlog-cards'].hidden, true);
+    assert.equal(store['lc-board-backlog'], '0');
+    // A search that matches a backlog track opens it for that view only.
+    ids.q.handlers.input({ target: { value: 'Parked' } });
+    assert.equal(ids['backlog-cards'].hidden, false);
+    assert.equal(ids['backlog-cards'].children.length, 1);
+    ids.q.handlers.input({ target: { value: '' } });
+    assert.equal(ids['backlog-cards'].hidden, true, 'closed again once the search is cleared');
+    // A search with no backlog match leaves it collapsed.
+    ids.q.handlers.input({ target: { value: 'zzzz-nothing' } });
+    assert.equal(ids['backlog-cards'].hidden, true);
+  } finally { delete globalThis.localStorage; }
+});
+
+test('backlog: the section is hidden when there are no backlog tracks, and the summary lists backlog last', async () => {
+  const { data } = siteFor(detailFixture());
+  const noBacklog = { ...data, tracks: data.tracks.filter((t) => t.l !== 'backlog') };
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => noBacklog }));
+  assert.equal(ids['backlog-block'].hidden, true);
+  const labels = (await runPage(async () => ({ ok: true, status: 200, json: async () => data }))).summary.children.map((c) => c.children[1]._text);
+  assert.equal(labels[labels.length - 1], 'in backlog');
 });

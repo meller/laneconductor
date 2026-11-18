@@ -98,6 +98,9 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 
 .pill.none { background: var(--line); color: var(--muted); }
 .more { font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: 0; padding: 6px 4px; cursor: pointer; text-align: left; }
 .empty { color: var(--muted); font-size: 12.5px; padding: 6px 4px; }
+.backlogcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+.toggle { font: inherit; font-size: 12.5px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; cursor: pointer; }
+.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 section.block { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 section.block > h2 { margin: 0; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -223,6 +226,13 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     <h2>Done <span class="n" id="done-n"></span></h2>
     <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Progress</th></tr></thead><tbody id="done-rows"></tbody></table></div>
     <button class="more" id="done-more" hidden></button>
+  </section>
+
+  <section class="block" id="backlog-block" hidden>
+    <h2>Backlog <span class="n" id="backlog-n"></span> <button type="button" class="toggle" id="backlog-toggle" aria-expanded="false" aria-controls="backlog-cards">Show</button></h2>
+    <p class="hint">Parked work, kept out of the way. Show it when you want to see it; searching or filtering opens it when it has matches.</p>
+    <div class="backlogcards" id="backlog-cards" hidden></div>
+    <button class="more" id="backlog-more" hidden></button>
   </section>
   </div>
 
@@ -463,9 +473,10 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
       .catch(function (e) { fail(String(e && e.message || e)); });
   }
   function start(D) {
-  var LANES = ['backlog', 'plan', 'implement', 'review', 'quality-gate'];
+  var LANES = ['plan', 'implement', 'review', 'quality-gate'];
   var STATUSES = ['queue', 'running', 'success', 'failure', 'waiting'];
-  var state = { q: '', status: 'all', cause: 'all', open: {}, attnAll: false, doneAll: false };
+  var state = { q: '', status: 'all', cause: 'all', open: {}, attnAll: false, doneAll: false, backlogOpen: false, backlogAll: false };
+  try { state.backlogOpen = localStorage.getItem('lc-board-backlog') === '1'; } catch (e) { /* storage can be unavailable */ }
   var PER = 8;
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -495,7 +506,7 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   var live = D.tracks;
   var statusByKey = {}, byKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; byKey[idOf(t)] = t; });
   var DONE_CAP = 12, FILTER_CAP = 40;
-  var byLane = {}; LANES.concat(['done']).forEach(function (l) { byLane[l] = []; });
+  var byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
   live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
   Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
   var inflight = byLane.implement.length + byLane.review.length + byLane['quality-gate'].length;
@@ -507,12 +518,12 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   st.appendChild(el('div', null, ago(D.generated_at)));
 
   var sm = document.getElementById('summary');
-  [['flight', inflight, 'in progress'], ['', byLane.plan.length, 'being planned'], ['', byLane.backlog.length, 'in backlog'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done']].forEach(function (x) {
+  [['flight', inflight, 'in progress'], ['', byLane.plan.length, 'being planned'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
     var s = el('div', 'stat ' + x[0]); s.appendChild(el('span', 'n', String(x[1]))); s.appendChild(el('span', 'l', x[2])); sm.appendChild(s);
   });
 
   var flow = document.getElementById('flow'), key = document.getElementById('flowkey');
-  LANES.concat(['done']).forEach(function (l) {
+  LANES.concat(['done', 'backlog']).forEach(function (l) {
     var n = byLane[l].length; if (!n) return;
     var i = document.createElement('i'); i.dataset.l = l; i.style.flex = String(n); i.title = l + ': ' + n; flow.appendChild(i);
     var k = el('span', null, l + ' ' + n); k.dataset.l = l; key.appendChild(k);
@@ -535,8 +546,8 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     var b = document.getElementById('filter-banner');
     b.textContent = '';
     if (state.status === 'all') { b.hidden = true; return; }
-    var inLanes = 0, inDone = 0;
-    live.filter(match).forEach(function (t) { if (t.l === 'done') inDone++; else if (byLane[t.l]) inLanes++; });
+    var inLanes = 0, inDone = 0, inBack = 0;
+    live.filter(match).forEach(function (t) { if (t.l === 'done') inDone++; else if (t.l === 'backlog') inBack++; else if (byLane[t.l]) inLanes++; });
     var total = live.filter(match).length;
     var inAttn = D.attn.filter(attnMatch).length;
     b.hidden = false;
@@ -544,6 +555,7 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     var parts = [];
     if (inLanes) parts.push(el('span', null, inLanes + ' in lanes'));
     if (inDone) { var d = link('#done-block', inDone + ' in Done'); parts.push(d); }
+    if (inBack) { var bk = link('#backlog-block', inBack + ' in Backlog'); parts.push(bk); }
     if (inAttn) { var a = link('#attn-block', inAttn + ' in Needs attention'); parts.push(a); }
     parts.forEach(function (n, i) { if (i) b.appendChild(el('span', null, ', ')); b.appendChild(n); });
   }
@@ -737,8 +749,32 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
     m.onclick = function () { state.doneAll = !state.doneAll; drawDone(); };
   }
 
-  function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawDone(); }
-  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; render(); });
+  // Backlog sits last and is collapsed by default (it is not what a phone should open on). Searching, or a status
+  // filter that matches backlog tracks, opens it for that view; the person's own Show/Hide is remembered.
+  function drawBacklog() {
+    var all = byLane.backlog, rows = all.filter(match), block = document.getElementById('backlog-block');
+    block.hidden = !all.length;
+    if (!all.length) return;
+    var forced = (state.q !== '' || state.status !== 'all') && rows.length > 0;
+    var open = state.backlogOpen || forced;
+    document.getElementById('backlog-n').textContent = rows.length === all.length ? String(all.length) : rows.length + ' of ' + all.length;
+    var tg = document.getElementById('backlog-toggle');
+    tg.textContent = open ? 'Hide' : 'Show'; tg.setAttribute('aria-expanded', String(open));
+    tg.onclick = function () {
+      state.backlogOpen = !open;
+      try { localStorage.setItem('lc-board-backlog', state.backlogOpen ? '1' : '0'); } catch (e) { /* ignore */ }
+      drawBacklog();
+    };
+    var host = document.getElementById('backlog-cards'); host.textContent = ''; host.hidden = !open;
+    var more = document.getElementById('backlog-more'); more.hidden = true;
+    if (!open) return;
+    (state.backlogAll ? rows : rows.slice(0, PER)).forEach(function (t) { host.appendChild(card(t)); });
+    if (!rows.length) host.appendChild(el('div', 'empty', 'None here'));
+    if (rows.length > PER) { more.hidden = false; more.textContent = state.backlogAll ? 'Show fewer' : 'Show all ' + rows.length; more.onclick = function () { state.backlogAll = !state.backlogAll; drawBacklog(); }; }
+  }
+
+  function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawDone(); drawBacklog(); }
+  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; state.backlogAll = false; render(); });
   render();
   document.getElementById('status').hidden = true;
   document.getElementById('board').hidden = false;
