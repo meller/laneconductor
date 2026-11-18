@@ -300,6 +300,6 @@ Generated: 2026-11-18T15:48:35Z
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | review | queue | 100% | Implemented and merged to local main 2026-11-18 (461 connector tests). Lane is … | - | d917146b695b |
 | AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | review | queue | 90% | Implemented and merged to local main 2026-11-18 (461 connector tests): Run Star… | - | bcc05065d3c3 |
 | AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18. | - | 94bf048a8ba0 |
-| AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | implement | running | 0% | Owner said go on 2026-11-18: build the search-first, default-update rule (text … | - | a0a764978a80 |
+| AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | review | queue | 90% | Search-first rule released in 1.1.1; allocation across branches, the duplicate-… | - | d0d8349f7566 |
 | AM-10144 | What's next: a state-aware command that names the next step and explains it (onboarding as a tutori… | plan | queue | 0% | Planned 2026-11-18 (spec, plan and test cases written, 8 phases; owner decision… | - | 445d6d90ae72 |
 | AM-10145 | Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes) | plan | queue | 0% | New | - | 44fde2004972 |

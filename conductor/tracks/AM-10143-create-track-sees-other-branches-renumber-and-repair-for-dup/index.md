@@ -1,9 +1,9 @@
 # Track AM-10143: create_track sees other branches; renumber and repair for duplicate track numbers
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Owner said go on 2026-11-18: build the search-first, default-update rule (text in all plugins plus similar_tracks in create_track) and release as a patch. Number allocation and duplicate repair stay for later.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 90%
+**Phase**: Search-first rule released in 1.1.1; allocation across branches, the duplicate-number warning and the repair-duplicates command merged to local main 2026-11-18 (461 connector tests). Left open: the possibly_stale noise when the repo is only ahead of upstream. Next: release as 1.2.0.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
