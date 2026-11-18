@@ -206,6 +206,18 @@ td .act { border-top: 0; padding-top: 0; }
 .wfarr { align-self: center; color: var(--muted); }
 .wfprimer { margin: 0; color: var(--muted); font-size: 12.5px; max-width: 78ch; }
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* What's next: the one next step, its command, what and why, the others, and the lane primer, in the same drawer. */
+.nx { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 78ch; }
+.nx .nxl { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+.nx p { margin: 0; overflow-wrap: anywhere; }
+.nx .act { border-top: 0; padding-top: 0; }
+.nx .nxcan { color: var(--muted); font-size: 12.5px; }
+.nx ul.nxlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.nx li.nxrow { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.nx .nxopen { font: inherit; font-size: 13px; text-align: left; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; overflow-wrap: anywhere; max-width: 100%; text-decoration: underline; text-underline-offset: 2px; }
+.nx .nxopen:focus-visible, .nx .toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nx .nxw { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.nx ul.nxprimer { margin: 6px 0 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; color: var(--ink); font-size: 13px; }
 @media (max-width: 700px) {
   .detail { justify-content: stretch; }
   .drawer { width: 100%; border-left: 0; box-shadow: none; }
@@ -220,6 +232,7 @@ td .act { border-top: 0; padding-top: 0; }
       <h1>LaneConductor Board</h1>
     </div>
     <div class="hright">
+      <button type="button" class="projbtn" id="next-btn" aria-haspopup="dialog" hidden>What's next</button>
       <button type="button" class="projbtn" id="proj-btn" aria-haspopup="dialog" hidden>Project</button>
       <div class="stamp" id="stamp"></div>
     </div>
@@ -878,7 +891,7 @@ td .act { border-top: 0; padding-top: 0; }
   var headAct = null;
   function drawHeadAction() {
     var host = $('d-act'); host.textContent = ''; headAct = null;
-    if (!cur || cur.project) return;
+    if (!cur || cur.project || cur.next) return;
     headAct = actionLine(cur.t, 'drawer'); if (headAct) host.appendChild(headAct);
   }
   function drawHead() {
@@ -907,7 +920,7 @@ td .act { border-top: 0; padding-top: 0; }
   }
   function closeDetail() {
     if (!cur) return;
-    var back = cur.project ? $('proj-btn') : focusEls[cur.kind + ':' + idOf(cur.t)];
+    var back = cur.project ? $('proj-btn') : cur.kind === 'next' ? $('next-btn') : focusEls[cur.kind + ':' + idOf(cur.t)];
     cur = null; seq++; headAct = null;
     $('detail').hidden = true;
     $('wrap').removeAttribute('inert');
@@ -1024,6 +1037,92 @@ td .act { border-top: 0; padding-top: 0; }
     showProjectTab(cur.tab);
     $('d-close').focus();
   }
+  // ---- What's next: the board version of `/laneconductor:next`. board.json `next` ({ s state, head, cmd the exact command or null, what,
+  // why, n track number or null, others [{ n, cmd, w }] at most 5, primer [bullets] }) was worked out when the board was read, by the same
+  // code as the command. The page never runs work: it shows the command and a Copy button, and a Claude session runs it. Safe DOM only.
+  var NX = (function () {
+    var n = D.next;
+    if (!n || typeof n !== 'object' || typeof n.head !== 'string' || !n.head) return null;
+    var str = function (v) { return typeof v === 'string' ? v : ''; };
+    return {
+      head: str(n.head), cmd: typeof n.cmd === 'string' && n.cmd ? n.cmd : null, what: str(n.what), why: str(n.why),
+      more: Number.isInteger(n.more) && n.more > 0 ? n.more : 0,
+      others: (Array.isArray(n.others) ? n.others : []).filter(function (o) { return o && Number.isInteger(o.n); }).slice(0, 5)
+        .map(function (o) { return { n: o.n, cmd: typeof o.cmd === 'string' && o.cmd ? o.cmd : null, w: str(o.w) }; }),
+      primer: (Array.isArray(n.primer) ? n.primer : []).filter(function (x) { return typeof x === 'string' && x; }).slice(0, 6),
+    };
+  })();
+  function trackByNumber(n) { return live.filter(function (t) { return t.n === n; })[0] || null; }
+  // A command in monospace with its Copy button (the same copy behaviour and fallback as the card actions); returns the button.
+  function copyRow(cmd, label, host) {
+    var row = el('div', 'actrow'), code = el('code', 'actc', cmd), note = el('span', 'copied');
+    note.setAttribute('role', 'status');
+    var b = el('button', 'copy', 'Copy'); b.type = 'button'; b.setAttribute('aria-label', 'Copy the command' + (label ? ' for ' + label : '') + ': ' + cmd);
+    b.addEventListener('click', function (e) { e.stopPropagation(); copyText(cmd, code, note); });
+    row.appendChild(code); row.appendChild(b); row.appendChild(note); host.appendChild(row);
+    return b;
+  }
+  function drawNext(b) {
+    var box = el('div', 'nx'), sec;
+    if (NX.cmd) {
+      sec = el('div'); sec.appendChild(el('div', 'nxl', 'Run this in your Claude session'));
+      var act = el('div', 'act'); bodyLinks.push(copyRow(NX.cmd, '', act)); sec.appendChild(act);
+      sec.appendChild(el('p', 'nxcan', 'This page cannot run work. Copy the command into your Claude session, then ask Claude to refresh the board.'));
+      box.appendChild(sec);
+    } else {
+      sec = el('div', 'notice plain'); sec.appendChild(el('div', null, 'Nothing to run right now.'));
+      if (NX.what) sec.appendChild(el('div', 'hint', NX.what));
+      sec.appendChild(el('div', 'nxcan', 'This page cannot run work. When something changes, ask Claude to refresh the board.'));
+      box.appendChild(sec);
+    }
+    if (NX.cmd && NX.what) { sec = el('div'); sec.appendChild(el('div', 'nxl', 'What it does')); sec.appendChild(el('p', null, NX.what)); box.appendChild(sec); }
+    if (NX.why) { sec = el('div'); sec.appendChild(el('div', 'nxl', NX.cmd ? 'Why it comes next' : 'Why')); sec.appendChild(el('p', null, NX.why)); box.appendChild(sec); }
+    if (NX.others.length) {
+      sec = el('div'); sec.appendChild(el('div', 'nxl', 'Also waiting'));
+      var list = el('ul', 'nxlist');
+      NX.others.forEach(function (o) {
+        var li = el('li', 'nxrow'), t = trackByNumber(o.n), id = t ? idOf(t) : String(o.n);
+        if (t) {
+          var open = el('button', 'nxopen', id + ' ' + (t.t || '(no title)')); open.type = 'button'; open.setAttribute('aria-label', 'Open ' + id + ': ' + (t.t || '(no title)'));
+          open.addEventListener('click', function () { openDetail(t, 'next'); });
+          li.appendChild(open); bodyLinks.push(open);
+        } else li.appendChild(el('span', 'nxopen', 'Track ' + id));
+        if (o.w) li.appendChild(el('span', 'nxw', o.w));
+        if (o.cmd) { var a2 = el('div', 'act'); bodyLinks.push(copyRow(o.cmd, id, a2)); li.appendChild(a2); }
+        list.appendChild(li);
+      });
+      sec.appendChild(list);
+      if (NX.more) sec.appendChild(el('p', 'nxcan', 'and ' + NX.more + ' more'));
+      box.appendChild(sec);
+    }
+    if (NX.primer.length) {
+      sec = el('div');
+      var tg = el('button', 'toggle', 'How lanes and statuses work'); tg.type = 'button'; tg.setAttribute('aria-expanded', 'false'); tg.setAttribute('aria-controls', 'nx-primer');
+      var pl = el('ul', 'nxprimer'); pl.id = 'nx-primer'; pl.hidden = true;
+      NX.primer.forEach(function (x) { pl.appendChild(el('li', null, x)); });
+      tg.addEventListener('click', function () { var opening = pl.hidden; pl.hidden = !opening; tg.setAttribute('aria-expanded', String(opening)); });
+      sec.appendChild(tg); sec.appendChild(pl); box.appendChild(sec); bodyLinks.push(tg);
+    }
+    b.appendChild(box);
+  }
+  function openNext() {
+    if (!NX) return;
+    seq++;
+    cur = { next: true, kind: 'next', tab: 'next', seq: seq };
+    $('d-id').textContent = 'WHAT\'S NEXT';
+    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
+    $('d-title').textContent = NX.head;
+    $('d-note').textContent = 'Worked out when this board was read (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. It is the same answer the next command gives.';
+    $('d-note').hidden = false;
+    drawHeadAction();
+    $('detail').hidden = false;
+    $('wrap').setAttribute('inert', '');
+    var tabs = $('d-tabs'); tabs.textContent = ''; tabEls = []; tabs.hidden = true;
+    var b = setBody(); drawNext(b); b.scrollTop = 0;
+    $('d-close').focus();
+  }
+  $('next-btn').hidden = !NX;
+  $('next-btn').addEventListener('click', openNext);
   $('proj-btn').hidden = !PD.length;
   $('proj-btn').addEventListener('click', openProject);
 

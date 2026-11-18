@@ -1,5 +1,5 @@
 // The `next` ranking and its 21 states, as shipped code (track AM-10115, the What's next panel). One implementation, two users: the
-// board (`lc-board.mjs` puts the answer into board.json) and the tests (the 34 fixtures of test/helpers/next-fixtures.mjs). The
+// board (`lc-board.mjs` puts the answer into board.json) and the tests (the 34 fixtures of the next test). The
 // procedure an agent follows is `ops/next.md`; this file is that table and that ranking as a function, so the board gives the same
 // answer as `/laneconductor:next`.
 //
@@ -302,13 +302,13 @@ const TEXT = {
     ? ['Start a new project', 'A short interview, then the scaffold and a first track.', 'The folder is empty, so the interview gives it a shape before any track exists.']
     : ['Set LaneConductor up around this project', 'Setup reads the stack that is here, asks you to confirm, and writes the conductor files without overwriting anything.', 'There is no conductor folder yet, so there is nothing to plan or build against.']),
   S03: () => ['Finish the setup', 'Setup runs again and skips what already exists, adding only what is missing.', 'The conductor folder is only partly there: the workflow or the tracks folder is missing.'],
-  S04: () => ['Create the first track', 'Creates a track: a folder with its markers, in the plan lane, ready to be planned.', 'The project is set up and has no tracks, and all work starts from a track.'],
+  S04: () => ['Create the first track', 'Creates a track: a folder with its markers, in the plan lane, waiting for its plan.', 'The project is set up and has no tracks, and all work starts from a track.'],
   S05: (id) => [`Answer track ${id}`, 'Adds your answer to the track\'s conversation; then moving the track on lets work resume.', 'A track waiting for a human reply comes before everything else: it cannot go on without one.'],
   S06: (id, r, c) => (c.guide === 'implement'
     ? [`Look at the failed track ${id}`, 'Runs the implement lane again, after you read the last comment.', 'A failure comes first: it will not move on by itself, and the build failed.']
     : c.guide === 'done'
       ? [`Look at the failed merge of ${id}`, 'Merges the track again once the cause is fixed.', 'A failure comes first: the merge did not go through.']
-      : [`Look at the failed track ${id}`, FAILED_PLAN, 'A failure comes first: it will not move on by itself, and a failed lane is replanned.']),
+      : [`Look at the failed track ${id}`, FAILED_PLAN, 'A failure comes first: it will not move on by itself, and a failed lane starts over from its plan.']),
   S07: (id) => [`Check whether ${id} is still running`, 'Releases the claim, setting the status back to queue; do it only if nothing is still working on it.', 'The track says it is running, but nothing has been committed for hours.'],
   S09: (id) => [`Resume track ${id}`, 'Sets the track back to queue so its lane can run.', 'Everything it waited on has shipped.'],
   S11: (id) => [`Merge track ${id}`, 'Merges the track\'s branch into the main branch; the merge command asks before any merge or push.', 'It passed the quality gate and is not shipped yet.'],
