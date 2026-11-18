@@ -70,7 +70,9 @@ workflow.md, kpis.md, quality-gate.md}` and `conductor/workflow.json` (the defau
   ```
   `conversation.md` and `.json` hold comment threads that are per machine and noisy to review; `.worktrees/` holds git worktree
   checkouts, which must never be tracked in the main tree (without this rule they end up committed as submodule-style gitlinks).
-  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking.
+  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking. The same holds for
+  `history.md`, the run log of a track: it is tracked, so it is never ignored. Every track the scaffold creates gets an empty
+  `history.md` (one header line, `# History: Track INITIALS-NNN`) beside its other files.
 
 ## Older tracks
 

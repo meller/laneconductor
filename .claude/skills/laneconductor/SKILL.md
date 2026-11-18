@@ -83,9 +83,19 @@ form silently misses every folder of the other). If neither finds it, `conductor
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
 fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
+## What goes in each track file
+
+`index.md` is the overview and the markers, `spec.md` the detailed design, `plan.md` the task tracker (phases and tasks as checkboxes),
+`test.md` the test plan, `history.md` the tracked run log (one dated line per event), `conversation.md` the untracked
+dialogue. Status, releases, incidents and any dated entry never go into `plan.md` or `spec.md`: they are one dated line in
+`history.md`. The table, the line format and the procedure for splitting a plan that already holds a log are in
+[ops/tracks.md](ops/tracks.md), "What goes in each track file".
+
 ## conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >
@@ -129,9 +139,10 @@ skill-only session, so re-read the file yourself.
 - **A human's manual move wins.** Before writing any transition, re-read `**Lane**` in `index.md`.
   If it is no longer your lane, leave `**Lane**` and `**Lane Status**` alone and say so in your
   completion comment.
-- **Completion comment.** Every lane action ends with exactly one comment in `conversation.md`:
-  `> **system**: <emoji> <one-line summary>.` The emoji is the very first character of the body
-  (the Inbox classifies on it): `✅` success, no action needed; `⚠️` a human should look; `❌` failed.
+- **Completion comment.** Every lane action ends with exactly one line in `history.md`:
+  `- <YYYY-MM-DD HH:MMZ> <emoji> <one-line summary>.` The emoji is the very first character after the date:
+  `✅` success, no action needed; `⚠️` a human should look; `❌` failed. With the connector, call `append_conversation`
+  with author `system` and the text `<emoji> <one-line summary>`; it adds the date and says which file got the line.
   If an earlier step already posted a `⚠️`/`❌` comment for the outcome, that one is enough.
 - **Parking on other tracks.** To wait for tracks that have not shipped, set `**Lane Status**: waiting`,
   `**Waiting On Tracks**: NNN, NNN` and a one-line `**Waiting Reason**` saying what unblocks it (a

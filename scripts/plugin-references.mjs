@@ -10,6 +10,7 @@ const T = (file, ...heads) => ({ file, heads });
 const PARTS = (file, from, to) => ({ file, from, to });
 const ADDON = { title: 'The add-on\'s install commands', text: () => `Show these as written when the add-on is missing and I ask for parallel work or isolation; never run them.\n\n${installBlock('parallel')}` };
 const TRACKS_SEARCH = T('ops/tracks.md', '## Search first: the default is update, not create');
+const TRACK_FILES = T('ops/tracks.md', '## What goes in each track file', '## Splitting a plan that holds a log');
 const NEWTRACK = '## newTrack `[name] [description]`';
 const UPDATE = '## updateTrack, reportaBug, featureRequest';
 const STATUSES = '## The five lane statuses';
@@ -29,18 +30,18 @@ export const REFERENCES = {
     W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**')] },
   'new-project': { why: 'new-project writes the conductor files from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
     W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**'), T('ops/tracks.md', NEWTRACK), W('lanes/brainstorm.md')] },
-  plan: lane('plan'),
+  plan: lane('plan', [TRACK_FILES]),
   brainstorm: lane('brainstorm', [TRACKS_SEARCH]),
   implement: lane('implement', [W('ops/working-a-track.md'), ADDON]),
   review: lane('review', [W('ops/working-a-track.md'), ADDON]),
   'quality-gate': lane('quality-gate'),
   merge: lane('merge'),
   run: { why: 'run works any lane, so it carries the five lane guides and the working-a-track guardrails it used to read from the plugin install folder', refs: [
-    W('ops/working-a-track.md'), ADDON, W('lanes/plan.md'), W('lanes/implement.md'), W('lanes/review.md'), W('lanes/quality-gate.md'), W('lanes/merge.md'), ...LANES_COMMON] },
-  new: { why: 'the command names ops/tracks.md (search first, newTrack); the two sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK)] },
+    W('ops/working-a-track.md'), ADDON, TRACK_FILES, W('lanes/plan.md'), W('lanes/implement.md'), W('lanes/review.md'), W('lanes/quality-gate.md'), W('lanes/merge.md'), ...LANES_COMMON] },
+  new: { why: 'the command names ops/tracks.md (search first, newTrack, the track files); the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK), TRACK_FILES] },
   bug: { why: 'the command names ops/tracks.md and the bug form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },
   feature: { why: 'the command names ops/tracks.md and the feature form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },
-  comment: { why: 'the command names ops/tracks.md (comment) and the conversation format; both are copied in', refs: [T('ops/tracks.md', '## comment `[track-number] [body]`'), T('SKILL.md', '## conversation.md format')] },
+  comment: { why: 'the command names ops/tracks.md (comment) and the conversation format; both are copied in', refs: [T('ops/tracks.md', '## What goes in each track file', '## comment `[track-number] [body]`'), T('SKILL.md', '## conversation.md format')] },
   move: { why: 'the command names ops/tracks.md and the transition grammar; the sections are copied in', refs: [
     T('ops/tracks.md', '## move `[track-number] [lane:status]`', '## pulse `[track-number] [status] [progress%] [summary?]`'), T('ops/lanes-and-statuses.md', STATUSES, TRANSITIONS, '## Manual moves win')] },
   status: { why: 'the command names ops/tracks.md (status); the section is copied in', refs: [T('ops/tracks.md', '## status')] },

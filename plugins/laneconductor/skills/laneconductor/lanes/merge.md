@@ -56,11 +56,12 @@ Markers this lane reads and writes:
    and merge or rebase `origin/main` into `track-NNN`, resolve any real conflict in-session as in
    step 4b, and push (force-push only after a yes, and only if you rebased) before looking for
    the open PR. Pushing first is what makes the existing PR pick up the new commits.
-7. **Post the completion comment**, authored `system`, emoji first:
-   - direct success: `> **system**: ✅ Merged track-NNN to main.`
-   - pr mode: `> **system**: ⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
+7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, the
+   commit hashes and any incident are dated lines there, never in `plan.md` or `spec.md`):
+   - direct success: `✅ Merged track-NNN to main.`
+   - pr mode: `⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
      action, not because anything failed)
-   - unresolved conflict: `> **system**: ❌ Merge conflict could not be resolved automatically - see details above.`
+   - unresolved conflict: `❌ Merge conflict could not be resolved automatically - see details above.`
 
 Boundary: this lane only merges or opens a PR for code that already passed review and
 quality-gate. Write no feature code here; the only code changes it should make are those needed

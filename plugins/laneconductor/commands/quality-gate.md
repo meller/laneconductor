@@ -88,10 +88,10 @@ code is on `main`.
    you may. Before the fix: write a failing test that reproduces the bug, then fix, then re-run
    to see it pass. Commit test and fix together as `fix(quality-gate): [description]`, and post a
    comment in `conversation.md` saying what failed and what you changed.
-4. **Post the result** as one comment in `conversation.md`, authored `system`, emoji first:
-   `> **system**: ✅ QUALITY GATE PASSED`, or `> **system**: ❌ QUALITY GATE FAILED` (use `⚠️` when
-   it needs human judgment rather than a plain retry). Put the full write-up in `>`-prefixed
-   continuation lines under that same comment, not a second one.
+4. **Post the result** as one dated line in `history.md`, emoji first:
+   `- <YYYY-MM-DD HH:MMZ> ✅ QUALITY GATE PASSED`, or `- <YYYY-MM-DD HH:MMZ> ❌ QUALITY GATE FAILED` (use `⚠️` when
+   it needs human judgment rather than a plain retry). Put the full write-up in one comment in `conversation.md`
+   (authored `claude`, `>`-prefixed continuation lines), not a second one; no status goes into `plan.md` or `spec.md`.
 5. **Transition.**
    - Re-read `index.md`'s `**Lane**`. If it is no longer `quality-gate` (a human moved the card),
      leave `**Lane**` and `**Lane Status**` alone, keep the step 4 comment, and note there that
@@ -217,9 +217,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 #### comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
@@ -235,7 +236,9 @@ fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number
 
 #### conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >

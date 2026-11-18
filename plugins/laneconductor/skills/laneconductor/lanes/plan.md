@@ -16,9 +16,8 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    feeds the default (bug -> `main`, feature -> `branch`). If plan wrote `**Workspace**`, an
    inferred guess would look like a human choice and defeat the auto-queue check that keeps an
    unconfirmed bug classification from running unattended on main. Record it so a wrong guess is
-   visible and overridable: append
-   `> **system**: Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.` to
-   `conversation.md`.
+   visible and overridable: add one dated line to `history.md`:
+   `- <YYYY-MM-DD HH:MMZ> ℹ️ Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.`
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
    `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions,
    `INITIALS-NNN-slug` and bare `NNN-slug`). If a folder exists, that is the track: go to Refine.
@@ -90,20 +89,31 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    block planning; a human decides whether the doc or the track changes.
 6. **Transition.** First re-read `index.md`'s `**Lane**`. If it is no longer `plan` (a human
    dragged the card elsewhere while you worked), leave `**Lane**` and `**Lane Status**` exactly as
-   they are and append
-   `> **system**: ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
-   instead of the completion comment: a manual move always wins over this run's stale intent.
+   they are and add the history line
+   `ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
+   instead of the completion line: a manual move always wins over this run's stale intent.
    Otherwise apply the workflow's success move for the plan lane: with the connector, call
    `update_track` with `outcome: "success"` (the target is `valid.next.success` in `get_track`);
    without it, read `lanes.plan.on_success` in `conductor/workflow.json` with the grammar in
    [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md). This project's `plan:success`
    means `**Lane**: plan` and `**Lane Status**: success`; do not assume the next lane is implement.
-   Then append the completion comment:
-   `> **system**: ✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
-   fired, `> **system**: ⚠️ Plan complete with a fundamentals conflict - see conversation above.`
+   Then add the completion line to `history.md` (one dated line, `- <YYYY-MM-DD HH:MMZ> <emoji> <text>`; with the connector,
+   `append_conversation` with author `system` writes it):
+   `✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
+   fired, `⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 
 Your job ends here. The track waits in its new lane for the next step.
+
+## Where things go
+
+`spec.md` is the detailed design, `plan.md` the task tracker (phases and the tasks as checkboxes, ticked as work proceeds), `test.md` the test
+plan, `history.md` the tracked run log, `conversation.md` the dialogue. When you write or refine a plan, keep it that
+way: status, releases, incidents and any dated entry never go into `plan.md` or `spec.md`; they are one dated line in
+`history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <one line>`), and a design decision goes into `spec.md` with its date and its
+reason. Write the acceptance criteria in `spec.md` as checkboxes (review and the quality gate tick them), and give each plan task the requirement it serves when it helps (`REQ-3`); the implementing agent ticks the tasks. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
+"Splitting a plan that holds a log" in [../ops/tracks.md](../ops/tracks.md)). The full table is "What goes in each
+track file" in the same file.
 
 ## Templates
 

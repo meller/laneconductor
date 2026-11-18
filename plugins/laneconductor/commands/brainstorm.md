@@ -25,7 +25,7 @@ An optional deepening step before implement: ask the human clarifying questions 
    human reply; every question-answer round after the first is normally a resumed session).
    Otherwise read `conductor/product.md`, `tech-stack.md`, `deployment-stack.md` (if present), and
    the track's `spec.md`, `plan.md`, `test.md` and `conversation.md`.
-2. **Ask one question**, appended to `conversation.md`:
+2. **Ask one question**, appended to `conversation.md` (the dialogue file; run events are dated lines in `history.md`, never in `plan.md` or `spec.md`):
    ```
    > **system**: Brainstorm requested. [Your question here]
    ```
@@ -146,9 +146,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 #### comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
@@ -164,7 +165,9 @@ fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number
 
 #### conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >

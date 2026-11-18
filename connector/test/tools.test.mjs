@@ -200,7 +200,7 @@ test('create_track makes XX-NNN-slug with five files, valid markers, one commit,
   const d = c.env.data;
   assert.equal(d.track.folder, 'XX-1-add-csv-export');
   const folder = path.join(dir, 'conductor/tracks', d.track.folder);
-  assert.deepEqual(fs.readdirSync(folder).sort(), ['conversation.md', 'index.md', 'plan.md', 'spec.md', 'test.md']);
+  assert.deepEqual(fs.readdirSync(folder).sort(), ['conversation.md', 'history.md', 'index.md', 'plan.md', 'spec.md', 'test.md']);
   const m = parseMarkers(fs.readFileSync(path.join(folder, 'index.md'), 'utf8')).values;
   assert.equal(m['Lane'], 'plan');
   assert.equal(m['Lane Status'], 'queue');

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
-import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity, workflowLanes } from './common.mjs';
+import { baseMarkers, projectField, readEntries, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, CREATED_FILES, trackIdentity, workflowLanes } from './common.mjs';
 import { buildTrackFiles, defaultInitials, duplicateNumbers, nextNumber, similarTracks, trackNumberOfFolder } from '../tracks.mjs';
 import { rowOf } from '../summary.mjs';
 import { blobSha } from '../blob.mjs';
@@ -8,28 +8,37 @@ import { nearestLane } from '../vocabulary.mjs';
 
 const REF_TIP_CAP = 100;
 
-/** The softer note: a number of this branch that an unmerged branch names differently. One line, at most 200 characters, final period kept. */
-function elsewhereNote(here, entries) {
+/** A branch whose tip is older than this is old work (a leftover), not a number in flight. */
+export const RECENT_BRANCH_DAYS = 60;
+
+/**
+ * The softer note: a number of the state branch that a recent unmerged branch names differently. Only numbers that exist on the state
+ * branch count, and only branches whose tip is newer than RECENT_BRANCH_DAYS (old track-* branches would otherwise list hundreds). At
+ * most 3 numbers are shown, each with its newest branch, then "+N more" and the repair-duplicates pointer. One line, at most 200
+ * characters, final period kept.
+ */
+export function elsewhereNote(here, entries, nowMs = Date.now()) {
   const byNumber = new Map();
   for (const n of here) {
     const v = trackNumberOfFolder(n);
     if (v !== null) byNumber.set(v, (byNumber.get(v) ?? new Set()).add(n));
   }
-  const seen = new Set();
-  const found = [];
+  const oldest = nowMs - RECENT_BRANCH_DAYS * 24 * 3600 * 1000;
+  const found = new Map(); // number -> the newest branch that names it differently (entries come newest first)
   for (const e of entries) {
     if (e.merged) continue;
+    if (Number.isFinite(e.tipTime) && e.tipTime < oldest) continue;
     const v = trackNumberOfFolder(e.name);
     const names = v === null ? null : byNumber.get(v);
-    if (!names || names.has(e.name) || seen.has(`${v}/${e.ref}`)) continue;
-    seen.add(`${v}/${e.ref}`);
-    found.push(`${v} also named differently on branch ${e.ref.length > 50 ? `${e.ref.slice(0, 49)}…` : e.ref}`);
+    if (!names || names.has(e.name) || found.has(v)) continue;
+    found.set(v, e.ref.length > 30 ? `${e.ref.slice(0, 29)}…` : e.ref);
   }
-  if (!found.length) return null;
-  const tail = ' (not merged yet). Merge or delete that branch, or ask which one keeps it.';
+  if (!found.size) return null;
+  const items = [...found].map(([v, ref], i) => (i === 0 ? `${v} also named differently on branch ${ref}` : `${v} on ${ref}`));
+  const tail = ' (not merged). Merge or delete the branch, or run repair-duplicates.';
   let text = '';
-  for (let shown = Math.min(found.length, 3); shown >= 1; shown--) {
-    text = `Track number ${found.slice(0, shown).join('; ')}${found.length > shown ? `; +${found.length - shown} more` : ''}${tail}`;
+  for (let shown = Math.min(items.length, 3); shown >= 1; shown--) {
+    text = `Track number ${items.slice(0, shown).join('; ')}${items.length > shown ? `; +${items.length - shown} more` : ''}${tail}`;
     if (text.length <= 200) break;
   }
   return text;
@@ -71,7 +80,7 @@ export const createTrack = {
         // A number is DUPLICATED when two different folder names carry it on the state branch (this checkout) or its upstream. A folder
         // that only an unmerged branch carries is a softer note, and goes away when that branch is merged or deleted.
         const duplicates = duplicateNumbers(dirs, upstreamNames).slice(0, 5);
-        const elsewhere = elsewhereNote([...dirs, ...upstreamNames], others.entries);
+        const elsewhere = elsewhereNote([...dirs, ...upstreamNames], others.entries, new Date(ctx.now()).getTime());
         const capped = others.capped;
         // Track AM-10136: a dependency on a track that does not exist can never be met, so it is refused instead of parked forever.
         const known = new Set([...dirs, ...upstream].map(trackNumberOfFolder).filter((n) => n !== null).map(String));
@@ -81,7 +90,7 @@ export const createTrack = {
           number, initials: defaultInitials(dirs, args.author_initials), title: args.title, problem: args.problem,
           type: args.type ?? 'dev', trackKind: args.track_kind, lane: initialLane, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,
         });
-        const changes = FILE_NAMES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
+        const changes = CREATED_FILES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
         const preconditions = changes.map((c) => ({ path: c.path, sha: null }));
         const sum = await summaryChange(tx, ctx.now(), new Map([[t.folder, t.files.index]]));
         if (sum) changes.push(sum);
@@ -106,7 +115,7 @@ export const createTrack = {
         data: {
           track: trackIdentity(res.t.folder, res.t.files.index),
           similar_tracks: similar,
-          files_created: FILE_NAMES.map((n) => trackPath(res.t.folder, n)),
+          files_created: CREATED_FILES.map((n) => trackPath(res.t.folder, n)),
           commit: res.r.commit ? { sha: res.r.commit, message: res.msg.split('\n')[0] } : null,
           ...(res.r.commitError ? { commit_error: res.r.commitError } : {}),
           base: {

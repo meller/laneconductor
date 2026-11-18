@@ -91,8 +91,9 @@ commits go.
      `**Lane Status**` from it, a bare target is `queue`. If a deploy or post-deploy check is still
      to run, that is `quality-gate:running`, not `implement:running`.
    - Append `## ✅ COMPLETE` to `plan.md`.
-   - Append the completion comment to `conversation.md`:
-     `> **system**: ✅ Implementation complete - moved to <lane>.`
+   - Add the completion line to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`; status, commit hashes and
+     incidents of this run go there as dated lines, never into `plan.md` or `spec.md`):
+     `✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md), never by feel. On exit, `**Lane Status**`

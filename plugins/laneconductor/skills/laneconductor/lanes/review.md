@@ -19,10 +19,10 @@ the implement lane's retry loop, so write them up as gaps instead.
    - Secrets: no hardcoded secrets or secrets in logs; ADC / Secret Manager used as
      `deployment-stack.md` specifies.
    - If `test.md` exists, run its test commands. A failing test case makes the verdict FAIL.
-3. **Post the review** as one comment in `conversation.md`, authored `system`, with the emoji as
-   the first character of the body: `> **system**: ✅ REVIEW PASSED` or
-   `> **system**: ⚠️ REVIEW FAILED`. Put the write-up (test summary, gaps) in `>`-prefixed
-   continuation lines under that same comment, not a second one.
+3. **Post the review** as one dated verdict line in `history.md`, emoji first:
+   `- <YYYY-MM-DD HH:MMZ> ✅ REVIEW PASSED` or `- <YYYY-MM-DD HH:MMZ> ⚠️ REVIEW FAILED`. Put the write-up (test summary,
+   gaps) in one comment in `conversation.md` (authored `claude`, `>`-prefixed continuation lines), not a second one;
+   the history line stays one line, and no status goes into `plan.md` or `spec.md`.
 4. **Transition.**
    - Re-read `index.md`'s `**Lane**`. If it is no longer `review` (a human moved the card), leave
      `**Lane**` and `**Lane Status**` alone, keep the step 3 comment (the review is still valid),

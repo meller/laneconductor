@@ -14,6 +14,9 @@ import { describeNext, resolveNext } from '../../../conductor/services/workflow-
 export const TRACKS_DIR = 'conductor/tracks';
 export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
 export const WRITABLE_FILES = ['index', 'spec', 'plan', 'test'];
+// Track AM-10146: history.md (the tracked run log) is created with every track and written by append_conversation; it is not in
+// FILE_NAMES because that list is the get_track `files` enum (tool schema text, which is at its size budget).
+export const CREATED_FILES = [...FILE_NAMES, 'history'];
 export const trackPath = (folder, name) => `${TRACKS_DIR}/${folder}/${name}.md`;
 
 export const projectField = z.string().optional().describe('Repo path; default: the server\'s repo.');
@@ -115,12 +118,14 @@ export function conversationSummary(content, tail) {
  * takes, plus `tracked`: whether that index.md is in git at HEAD. A track that is not in git yet (an
  * unpublished draft) is `tracked: false`; stores without `trackedFiles` count every track as tracked.
  */
-export async function readEntries(store, { tracked: wantTracked = true } = {}) {
+export async function readEntries(store, { tracked: wantTracked = true, withPlan = false } = {}) {
   const dirs = await trackDirNames(store);
   const got = await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/index.md`));
+  // Track AM-10146: the plan_has_log lint reads each plan.md; callers that only need the rows leave it off.
+  const plans = withPlan ? await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/plan.md`)) : null;
   // Callers that only need the rows (get_track, create_track) skip the `git ls-tree` that answers `tracked`; every entry then counts as tracked.
   const tracked = wantTracked && store.trackedFiles ? await store.trackedFiles(TRACKS_DIR) : null;
-  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
+  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, ...(plans ? { plan: plans.get(`${TRACKS_DIR}/${folder}/plan.md`) ?? null } : {}), tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
 }
 
 /** The entries a COMMITTED summary may list: tracked ones, plus the folders in `include` (the write's own track). */
@@ -132,13 +137,18 @@ export const publishable = (entries, include = []) => entries.filter((e) => e.tr
  * so it carries no precondition (a hand edit is simply replaced). Untracked draft tracks are left out
  * unless `includeUntracked` (only the summary script's `--include-untracked`, which writes a file but commits nothing).
  */
-export async function summaryChange(tx, nowMs, pending, { includeUntracked = false } = {}) {
-  let entries = await readEntries(tx);
+export async function summaryChange(tx, nowMs, pending, { includeUntracked = false, plans = new Map() } = {}) {
+  let entries = await readEntries(tx, { withPlan: true });
   for (const [folder, content] of pending) {
-    const e = { folder, index: { content, sha: blobSha(content) }, tracked: true };
     const i = entries.findIndex((x) => x.folder === folder);
+    const e = { folder, index: { content, sha: blobSha(content) }, ...(i === -1 ? {} : { plan: entries[i].plan }), tracked: true };
     if (i === -1) entries.push(e);
     else entries[i] = e;
+  }
+  // The plan.md this very write produces counts for the plan_has_log lint, not the one still on disk (`plans`: folder -> new text).
+  for (const [folder, content] of plans) {
+    const i = entries.findIndex((x) => x.folder === folder);
+    if (i !== -1) entries[i] = { ...entries[i], plan: { content, sha: blobSha(content) } };
   }
   // Privacy: only tracks whose index.md is in git, or is written by this very commit (pending), may appear in a committed file.
   if (!includeUntracked) entries = publishable(entries, [...pending.keys()]);

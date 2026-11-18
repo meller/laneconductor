@@ -111,8 +111,9 @@ commits go.
      `**Lane Status**` from it, a bare target is `queue`. If a deploy or post-deploy check is still
      to run, that is `quality-gate:running`, not `implement:running`.
    - Append `## ✅ COMPLETE` to `plan.md`.
-   - Append the completion comment to `conversation.md`:
-     `> **system**: ✅ Implementation complete - moved to <lane>.`
+   - Add the completion line to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`; status, commit hashes and
+     incidents of this run go there as dated lines, never into `plan.md` or `spec.md`):
+     `✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in `ops/lanes-and-statuses.md`, never by feel. On exit, `**Lane Status**`
@@ -267,9 +268,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 #### comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
@@ -285,7 +287,9 @@ fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number
 
 #### conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >

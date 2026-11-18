@@ -374,8 +374,33 @@
             color: var(--green);
         }
 
-        #install-box {
+        #install-box,
+        #install-full-box {
             max-width: 620px;
+        }
+
+        #install-full-box {
+            margin-bottom: 0;
+        }
+
+        #copy-full-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--ink-muted);
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s;
+            flex-shrink: 0;
+        }
+
+        #copy-full-btn:hover {
+            color: var(--purple);
+        }
+
+        #copy-full-btn.copied {
+            color: var(--green);
         }
 
         .hero-install-cmd.multi {
@@ -1809,15 +1834,17 @@
             <div class="hero-content">
                 <div class="hero-badge">
                     <div class="hero-badge-dot"></div>
-                    Claude plus git plus a connector
+                    A Claude plugin, plain files in git
                 </div>
                 <h1>
-                    Your plans live in git.<br />
-                    <span class="word-conductor">Claude runs them.</span>
+                    Build your project.<br />
+                    <span class="word-conductor">Ask what's next.</span>
                 </h1>
                 <p class="hero-sub">
-                    LaneConductor is a Claude plugin. Each piece of work is a track: plain files in your repository
-                    that Claude plans, implements, reviews and merges, one lane at a time. No database, no daemon.
+                    LaneConductor takes you through a project the way good teams work: a spec, a plan, test cases,
+                    a review and a quality gate, all kept as plain files in your repository. Type
+                    <code>/laneconductor:next</code> and Claude names the one step to take, explains it, and does it
+                    with you. No database, no background service.
                 </p>
 
                 <div style="display:flex;justify-content:center;margin-bottom:36px;">
@@ -1835,7 +1862,23 @@ claude plugin install laneconductor@laneconductor</span>
                     </div>
                 </div>
 
+                <p class="hero-install-note"><strong>Then, in Claude, type</strong> <code>/laneconductor:next</code>. Every command comes with the base plugin, and what's next is built from your project's own files.</p>
                 <p class="hero-install-note">For Claude Code or Cowork, with Node.js 20 or newer. Add <code>--scope local</code> to install for one project, then run <code>/reload-plugins</code>.</p>
+
+                <div style="display:flex;justify-content:center;margin:18px 0 8px;">
+                    <div class="hero-install" id="install-full-box">
+                        <span class="hero-install-label">$</span>
+                        <span class="hero-install-cmd multi" id="install-full-cmd">claude plugin install laneconductor-board@laneconductor
+claude plugin install laneconductor-parallel@laneconductor</span>
+                        <button id="copy-full-btn" title="Copy the two extra install commands" onclick="copyFull()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="hero-install-note"><strong>The full version, two extras:</strong> the board, a private view of every track inside Claude where each card shows its next step, and parallel, sub-agents that work several tracks side by side, each in its own git worktree.</p>
 
                 <div class="hero-actions" style="flex-direction:column;gap:12px;align-items:center;">
                     <div style="display:flex;gap:16px;justify-content:center;">
@@ -2126,7 +2169,6 @@ Account managers copy the numbers from the reports page into a spreadsheet by ha
                         <li>quality-gate</li>
                         <li>done</li>
                     </ul>
-                    <p class="wc-planned"><strong>Planned, not built yet:</strong> a skill advisor that recommends and installs skills for a project.</p>
                 </div>
             </div>
 
@@ -2285,17 +2327,17 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
                         <span style="font-size:11px;font-weight:600;color:var(--ink-faint);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 7px;letter-spacing:0.05em;">NOT YET AVAILABLE</span>
                     </div>
                     <div class="mode-title">Chat and mobile connector</div>
-                    <p class="mode-desc">A remote connector would let claude.ai chat and mobile reach your tracks. It
-                        does not exist yet. The plugin is also not in Anthropic's plugin directory yet.</p>
+                    <p class="mode-desc">There is no remote connector for claude.ai chat and mobile: the plugin runs
+                        in Claude Code and Cowork. It is also not in Anthropic's plugin directory yet.</p>
                     <div class="mode-facts">
                         <div class="mode-fact"><span class="dot"></span>Install from the marketplace for now</div>
-                        <div class="mode-fact"><span class="dot"></span>Hooks are planned as a separate extension</div>
+                        <div class="mode-fact"><span class="dot"></span>Works in Claude Code and Cowork</div>
                     </div>
                 </div>
 
                 <div class="mode-card mode-local fade-in" style="transition-delay:0.2s;opacity:0.75;">
-                    <span class="mode-badge">legacy</span>
-                    <div class="mode-title">The earlier stack, parked</div>
+                    <span class="mode-badge">experimental</span>
+                    <div class="mode-title">The earlier stack: experimental, currently unmaintained</div>
                     <p class="mode-desc">The Postgres dashboard, the sync daemon, workers and dispatch, the cloud
                         collector and federated hubs are kept at the <code
                             style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">v1-legacy</code> git
@@ -2438,9 +2480,8 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.5s;">
                     <div class="adv-title">Honest limits</div>
-                    <p class="adv-desc">No remote connector for chat and mobile yet, no listing in Anthropic's plugin
-                        directory, and the hooks extension is planned, not available. We say so here so you do not find
-                        out later.</p>
+                    <p class="adv-desc">No remote connector for chat and mobile, and no listing in Anthropic's plugin
+                        directory yet. We say so here so you do not find out later.</p>
                 </div>
             </div>
         </div>
@@ -2670,6 +2711,18 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
 
     <script>
         // Copy install command
+        function copyFull() {
+            const cmd = document.getElementById('install-full-cmd').textContent;
+            const btn = document.getElementById('copy-full-btn');
+            const done = () => {
+                btn.classList.add('copied');
+                setTimeout(() => btn.classList.remove('copied'), 2000);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(cmd).then(done, () => {});
+            }
+        }
+
         function copyInstall() {
             const cmd = document.getElementById('install-cmd').textContent;
             const btn = document.getElementById('copy-btn');

@@ -8,7 +8,7 @@ An optional deepening step before implement: ask the human clarifying questions 
    human reply; every question-answer round after the first is normally a resumed session).
    Otherwise read `conductor/product.md`, `tech-stack.md`, `deployment-stack.md` (if present), and
    the track's `spec.md`, `plan.md`, `test.md` and `conversation.md`.
-2. **Ask one question**, appended to `conversation.md`:
+2. **Ask one question**, appended to `conversation.md` (the dialogue file; run events are dated lines in `history.md`, never in `plan.md` or `spec.md`):
    ```
    > **system**: Brainstorm requested. [Your question here]
    ```
