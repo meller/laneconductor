@@ -1,9 +1,9 @@
 # Track AM-10132: Plugin reads its own files without a confusing permission prompt
 
-**Lane**: quality-gate
-**Lane Status**: waiting
-**Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): setup, next, new-project and the lane commands carry their text, so none reads outside the project. Open: TC-5 real session on 1.2.2; TC-6 only if a prompt still shows.
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Reviewed (pass), shipped and released (plugins 1.2.1 and later; 1.9.1 current). Every test case is checked: TC-5 headlessly on a scratch copy of a real project (no read-outside denial; one chained Bash denial in next fixed in 1.9.1); TC-6 not needed because no prompt shows.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -23,4 +23,3 @@ Also fix the wording of the setup interview in the same pass if it is still uncl
 **Summary**: When a user runs `/laneconductor:setup` (or any command that reads a file from the plugin's own install folder, `~/.claude/plugins/cache/...`), Claude Code asks "Allow this read outside the working di
 **Part Of**: 10145
 **Verdict**: pass
-**Waiting Reason**: TC-5: run setup and next in a real fiti-plug session on 1.2.2; TC-6 allowed-tools only if a prompt still shows (owner).
