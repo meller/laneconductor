@@ -54,5 +54,6 @@ Owner decision 2026-11-18 (design in spec.md, section "One command for the full 
 - [ ] Task 6 (8.6): Decide on removing `status` (`board` and `next` cover it) and record the decision
 - [ ] Task 7 (8.7): Trim the size of the carried command text (the `run` command is about 51 KB)
 - [ ] Task 8 (8.8): Ask the directory reviewer at submission whether 300 to 700 lines per command is acceptable, and record the answer
+- [ ] Task 9 (8.9): Hide the skill from the slash menu: the base skill shows as `/laneconductor:laneconductor` next to the real commands, which is confusing; set `user-invocable: false` in its frontmatter (Claude still loads it from its description; the commands carry their own text); check the strict validation, the directory rules and that no command or test relies on invoking the skill by name
 
 **Impact**: People find the base in the directory and get the full plan-first process; the add-ons give parallel worktrees with safe shared state and the board, and everything works together.
