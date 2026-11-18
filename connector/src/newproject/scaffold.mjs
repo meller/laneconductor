@@ -199,10 +199,11 @@ export function mergeGitignore(current) {
 
 /**
  * Writes the scaffold and the first tracks into `dir`. Existing files are skipped and reported, never overwritten
- * (an existing repository gets only what is missing). `dryRun` writes nothing and reports what it would do.
+ * (an existing repository gets only what is missing). `dryRun` writes nothing and reports what it would do. `firstTrack: false` skips
+ * the walking-skeleton track, which belongs to a new project: an existing one has its own history to plan from.
  * @returns {{ created: string[], skipped: string[], merged: string[], gitInit: boolean }}
  */
-export function writeScaffold(dir, answers, { dryRun = false, gitInit = true } = {}) {
+export function writeScaffold(dir, answers, { dryRun = false, gitInit = true, firstTrack = true } = {}) {
   const root = path.resolve(dir);
   const created = [];
   const skipped = [];
@@ -215,11 +216,14 @@ export function writeScaffold(dir, answers, { dryRun = false, gitInit = true } =
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content);
   };
-  for (const [rel, content] of renderScaffold(answers)) put(rel, content);
   const trackRoot = path.join(root, 'conductor/tracks');
   const existing = fs.existsSync(trackRoot) ? fs.readdirSync(trackRoot) : [];
+  for (const [rel, content] of renderScaffold(answers)) {
+    if (rel === 'conductor/tracks/.gitkeep' && existing.length) { skipped.push(rel); continue; } // a folder that already holds tracks needs no placeholder
+    put(rel, content);
+  }
   const slugOf = (folder) => folder.replace(/^(?:[A-Za-z]+-)?\d+-/, '');
-  for (const t of firstTracks(answers, existing)) {
+  for (const t of firstTrack ? firstTracks(answers, existing) : []) {
     if (existing.some((d) => slugOf(d) === slugOf(t.folder))) { skipped.push(`conductor/tracks/${t.folder}`); continue; } // a re-run adds no duplicate track
     const base = `conductor/tracks/${t.folder}`;
     put(`${base}/index.md`, t.files.index);
