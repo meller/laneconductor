@@ -1493,6 +1493,40 @@ td .act { border-top: 0; padding-top: 0; }
     });
   }
 
+  // ---- A newer board (owner, 2026-11-19). While the tab is visible the page reads the tiny index version.json (the board's generated time, about
+  // 60 bytes, never the board itself) every 15 seconds and when the tab becomes visible again. A later generated time than the one this page loaded
+  // means Claude published a newer board. With nothing open (no drawer, no search text) the page reloads itself; otherwise it shows a button, so a
+  // refresh never closes what you are reading. One automatic reload per two minutes (kept in sessionStorage; if that is unavailable there is no
+  // automatic reload at all) stops any loop. A board published before this index existed has none (HTTP 404): the page stops asking.
+  var POLL_MS = 15000, polling = false, noIndex = false;
+  var newerEl = el('button', 'fbtn', 'A newer board is available: show it');
+  newerEl.type = 'button'; newerEl.hidden = true;
+  newerEl.addEventListener('click', function () { if (typeof location !== 'undefined' && location && location.reload) location.reload(); });
+  freshEl.appendChild(newerEl);
+  function nothingOpen() { return document.getElementById('detail').hidden && !state.q; }
+  function autoReloadAllowed() {
+    try {
+      var last = Number(sessionStorage.getItem('lc-board-auto') || 0);
+      if (Date.now() - last <= 120000) return false;
+      sessionStorage.setItem('lc-board-auto', String(Date.now()));
+      return true;
+    } catch (e) { return false; }
+  }
+  function checkNewer() {
+    if (polling || noIndex || document.hidden) return;
+    polling = true;
+    var p; try { p = fetch('version.json', { cache: 'no-cache' }); } catch (e) { polling = false; return; }
+    p.then(function (r) { if (r.status === 404) { noIndex = true; return null; } if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (V) {
+        var t = V && typeof V.generated_at === 'string' ? new Date(V.generated_at).getTime() : NaN, mine = new Date(D.generated_at).getTime();
+        if (isNaN(t) || isNaN(mine) || t <= mine) return;
+        if (nothingOpen() && typeof location !== 'undefined' && location && location.reload && autoReloadAllowed()) { location.reload(); return; }
+        newerEl.hidden = false;
+      }).catch(function () { /* a failed check changes nothing */ }).then(function () { polling = false; });
+  }
+  if (typeof setInterval === 'function') { var pollTimer = setInterval(checkNewer, POLL_MS); if (pollTimer && pollTimer.unref) pollTimer.unref(); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkNewer(); });
+
   function render() { drawChips(); drawTypeChips(); drawBanner(); drawNoMatch(); drawLanes(); drawAttn(); drawEpics(); drawDone(); drawBacklog(); }
   document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; state.backlogAll = false; render(); });
   render();

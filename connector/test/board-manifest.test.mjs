@@ -64,7 +64,7 @@ test('the default output is unchanged: { page, root, files } with no partial-pub
   assert.deepEqual(Object.keys(a.out), ['page', 'root', 'files']);
   assert.ok(a.out.files.includes('board.json') && a.out.files.includes('docs/401.json') && a.out.files.includes('docs/402.json'));
   assert.ok(!a.out.files.includes('docs/403.json'), 'a done track has no document');
-  assert.ok(!a.out.files.includes('manifest.json'), 'the manifest is not listed in files');
+  assert.ok(!a.out.files.includes('manifest.json') && !a.out.files.includes('version.json'), 'neither the manifest nor the version index is listed in files');
   const m = readJson(a.manifest);
   assert.equal(m.version, MANIFEST_VERSION);
   assert.deepEqual(Object.keys(m.files).sort(), [...a.out.files].sort(), 'it hashes exactly the listed files');
@@ -76,7 +76,7 @@ test('the default output is unchanged: { page, root, files } with no partial-pub
   assert.deepEqual(Object.keys(p.out), ['page', 'root', 'files', 'mode', 'changed', 'removed', 'pageChanged', 'publish']);
 });
 
-test('an unchanged board: only board.json (its generated time) and manifest.json are sent; the page is unchanged', () => {
+test('an unchanged board: only board.json (its generated time), manifest.json and version.json are sent; the page is unchanged', () => {
   const repo = fixture();
   const first = board(repo, { now: T1 });
   const prev = saved(first);
@@ -85,17 +85,17 @@ test('an unchanged board: only board.json (its generated time) and manifest.json
   assert.deepEqual(second.out.changed, ['board.json']);
   assert.deepEqual(second.out.removed, []);
   assert.equal(second.out.pageChanged, false);
-  assert.deepEqual(second.out.publish, { 'board.json': 'board.json', 'manifest.json': 'manifest.json' });
+  assert.deepEqual(second.out.publish, { 'board.json': 'board.json', 'manifest.json': 'manifest.json', 'version.json': 'version.json' });
 });
 
-test('one track edited: board.json, that track\'s document and manifest.json, nothing else', () => {
+test('one track edited: board.json, that track\'s document, manifest.json and version.json, nothing else', () => {
   const repo = fixture();
   const prev = saved(board(repo, { now: T1 }));
   edit(repo, 401, 'plan.md', '# Plan 401\n\n- [x] task for 401\n- [ ] one more\n');
   const r = board(repo, { now: T2, previous: prev.manifest, liveBoard: prev.board });
   assert.equal(r.out.mode, 'partial');
   assert.deepEqual(r.out.changed, ['board.json', 'docs/401.json']);
-  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs/401.json': 'docs/401.json', 'manifest.json': 'manifest.json' });
+  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs/401.json': 'docs/401.json', 'manifest.json': 'manifest.json', 'version.json': 'version.json' });
   assert.deepEqual(r.out.removed, []);
   // The files not named are the unchanged ones: their hashes in the new manifest equal the old ones.
   const was = readJson(prev.manifest).files;
@@ -113,7 +113,7 @@ test('a track that became done: its document is removed with null, and board.jso
   const r = board(repo, { now: T2, previous: prev.manifest });
   assert.equal(r.out.mode, 'partial');
   assert.deepEqual(r.out.removed, ['docs/402.json']);
-  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs/402.json': null, 'manifest.json': 'manifest.json' });
+  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs/402.json': null, 'manifest.json': 'manifest.json', 'version.json': 'version.json' });
   assert.ok(!('docs/402.json' in readJson(r.manifest).files));
 });
 
@@ -157,7 +157,7 @@ test('no previous manifest, a missing, corrupt, wrong-version or foreign one: mo
     assert.deepEqual(r.out.changed, r.out.files, `${name}: the full list`);
     assert.deepEqual(r.out.removed, [], name);
     assert.equal(r.out.pageChanged, true, name);
-    assert.deepEqual(Object.keys(r.out.publish).sort(), [...r.out.files, 'manifest.json'].sort(), `${name}: everything plus the manifest`);
+    assert.deepEqual(Object.keys(r.out.publish).sort(), [...r.out.files, 'manifest.json', 'version.json'].sort(), `${name}: everything plus the manifest and the version index`);
     assert.ok(Object.values(r.out.publish).every((v) => typeof v === 'string'), `${name}: nothing removed`);
     assert.equal(r.out.reason, 'no-previous-manifest', name);
   }
@@ -222,4 +222,15 @@ test('unit: buildManifest leaves withheld files out; parseManifest checks versio
   assert.equal(gone.publish['docs/1.json'], null);
   assert.equal(planPublish({ current: m, allFiles: all, previous: m, liveBoardSha: 'f'.repeat(64) }).mode, 'full');
   assert.equal(planPublish({ current: m, allFiles: all, previous: m, liveBoardSha: m.files['board.json'] }).mode, 'partial');
+});
+
+test('version.json: a tiny index with the board\'s generated time, written with every site, equal to board.json\'s generated_at and never listed in files', () => {
+  const r = board(fixture());
+  const v = JSON.parse(fs.readFileSync(path.join(r.site, 'version.json'), 'utf8'));
+  const b = JSON.parse(fs.readFileSync(path.join(r.site, 'board.json'), 'utf8'));
+  assert.deepEqual(Object.keys(v).sort(), ['generated_at', 'version']);
+  assert.equal(v.version, 1);
+  assert.equal(v.generated_at, b.generated_at);
+  assert.ok(fs.statSync(path.join(r.site, 'version.json')).size < 200, 'a few dozen bytes: polling it is cheap');
+  assert.ok(!r.out.files.includes('version.json'));
 });

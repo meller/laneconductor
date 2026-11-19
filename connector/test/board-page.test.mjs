@@ -49,7 +49,7 @@ test('--site writes board.html, board.json and docs/, prints their absolute path
   const r = run(repo, '--site', site);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `${path.join(site, 'board.html')}\n${path.join(site, 'board.json')}\n`);
-  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs', 'manifest.json']);
+  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs', 'manifest.json', 'version.json']);
   assert.ok(!fs.readdirSync(repo).includes('board.json'), 'nothing is written into the repo');
 });
 
@@ -1437,4 +1437,107 @@ test('project drawer: markup and CSS: a header button, theme variables only, wra
   const footer = html.slice(html.indexOf('<footer>'), html.indexOf('</footer>'));
   assert.match(footer, /Sharing the board shares these documents, including the project definition files\./);
   assert.ok(!/coming soon|planned|roadmap|will be/i.test(footer), 'nothing planned is announced');
+});
+
+// --- a newer board: the open page polls the tiny index version.json (owner, 2026-11-19) -------------------
+
+/** Stubs the timer, location and sessionStorage the page uses for the newer-board check; returns what the page did with them. */
+function pollEnv({ storage = true } = {}) {
+  const had = { setInterval: globalThis.setInterval, location: globalThis.location, sessionStorage: globalThis.sessionStorage };
+  const timers = []; const store = new Map(); let reloads = 0; let unrefd = false;
+  globalThis.setInterval = (fn, ms) => { timers.push({ fn, ms }); return { unref() { unrefd = true; } }; };
+  globalThis.location = { reload() { reloads += 1; } };
+  if (storage) globalThis.sessionStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  else delete globalThis.sessionStorage;
+  const restoreEnv = () => {
+    for (const [k, v] of Object.entries(had)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
+  };
+  return { timers, store, reloads: () => reloads, unrefd: () => unrefd, restoreEnv };
+}
+const withVersion = (stub, generatedAt, status = 200) => async (u) => {
+  if (u !== 'version.json') return stub(u);
+  return status === 200 ? { ok: true, status, json: async () => ({ version: 1, generated_at: generatedAt }) } : { ok: false, status, json: async () => ({}) };
+};
+const later = (iso, ms = 60000) => new Date(Date.parse(iso) + ms).toISOString();
+
+test('newer board: the page asks version.json every 15 seconds on an unref\'d timer, never board.json again, and does nothing while the time is the same', async () => {
+  const env = pollEnv();
+  try {
+    const { data, calls, fetchStub } = siteFor(detailFixture());
+    const ids = await runPage(withVersion(fetchStub, data.generated_at));
+    assert.equal(env.timers.length, 1);
+    assert.equal(env.timers[0].ms, 15000);
+    assert.ok(env.unrefd(), 'the timer never keeps a process alive');
+    await env.timers[0].fn(); await flush();
+    assert.ok(!calls.slice(1).includes('board.json'), 'a check never loads the board itself');
+    assert.equal(env.reloads(), 0);
+    assert.equal(ids.__doc.created.length > 0, true);
+  } finally { env.restoreEnv(); }
+});
+
+test('newer board: a later generated time with nothing open reloads the page once; a second newer board within two minutes shows the button instead (reload guard)', async () => {
+  const env = pollEnv();
+  try {
+    const { data, fetchStub } = siteFor(detailFixture());
+    const ids = await runPage(withVersion(fetchStub, later(data.generated_at)));
+    ids.__doc.getElementById('detail').hidden = true; // the real markup starts with the drawer closed; the fake DOM does not
+    await env.timers[0].fn(); await flush();
+    assert.equal(env.reloads(), 1);
+    assert.ok(env.store.has('lc-board-auto'));
+    await env.timers[0].fn(); await flush();
+    assert.equal(env.reloads(), 1, 'no second automatic reload inside two minutes');
+  } finally { env.restoreEnv(); }
+});
+
+test('newer board: with a search typed or a track open the page does not reload; it shows "A newer board is available" and the button reloads', async () => {
+  const env = pollEnv();
+  try {
+    const { data, fetchStub } = siteFor(detailFixture());
+    const ids = await runPage(withVersion(fetchStub, later(data.generated_at)));
+    ids.q.handlers.input({ target: { value: 'csv' } }); await flush();
+    await env.timers[0].fn(); await flush();
+    assert.equal(env.reloads(), 0, 'a search is in progress: never reload under the reader');
+    const btn = ids.fresh?.children?.find?.((c) => /newer board/.test(c.textContent));
+    const found = [];
+    const walk = (n) => { if (!n) return; if (n.textContent && /A newer board is available/.test(n._text ?? '')) found.push(n); (n.children || []).forEach(walk); };
+    walk(ids.stamp);
+    assert.equal(found.length, 1, 'the button is in the freshness area');
+    assert.equal(found[0].hidden, false);
+    found[0].handlers.click();
+    assert.equal(env.reloads(), 1, 'the button reloads');
+    void btn;
+  } finally { env.restoreEnv(); }
+});
+
+test('newer board: an older or unreadable generated time changes nothing; a 404 (a board published before the index existed) stops the asking; a hidden tab asks nothing; no sessionStorage means no automatic reload', async () => {
+  const env = pollEnv();
+  try {
+    const { data, calls, fetchStub } = siteFor(detailFixture());
+    let ids = await runPage(withVersion(fetchStub, later(data.generated_at, -60000)));
+    await env.timers.at(-1).fn(); await flush();
+    assert.equal(env.reloads(), 0, 'an older time is ignored');
+    ids = await runPage(withVersion(fetchStub, 'not a date'));
+    await env.timers.at(-1).fn(); await flush();
+    assert.equal(env.reloads(), 0, 'a bad time is ignored');
+    const stub404 = withVersion(fetchStub, '', 404); const c0 = calls.length;
+    ids = await runPage(async (u) => { calls.push(`404:${u}`); return stub404(u); });
+    await env.timers.at(-1).fn(); await flush();
+    const asked = calls.filter((u) => u === '404:version.json').length;
+    await env.timers.at(-1).fn(); await flush();
+    assert.equal(calls.filter((u) => u === '404:version.json').length, asked, 'after a 404 it never asks again');
+    void c0;
+    ids = await runPage(withVersion(fetchStub, later(data.generated_at)));
+    ids.__doc.hidden = true;
+    const before = calls.length;
+    await env.timers.at(-1).fn(); await flush();
+    assert.equal(calls.length, before, 'a hidden tab makes no request');
+    ids.__doc.hidden = false;
+  } finally { env.restoreEnv(); }
+  const env2 = pollEnv({ storage: false });
+  try {
+    const { data, fetchStub } = siteFor(detailFixture());
+    await runPage(withVersion(fetchStub, later(data.generated_at)));
+    await env2.timers[0].fn(); await flush();
+    assert.equal(env2.reloads(), 0, 'without sessionStorage the loop guard cannot work, so there is no automatic reload');
+  } finally { env2.restoreEnv(); }
 });

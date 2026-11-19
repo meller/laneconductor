@@ -6,6 +6,8 @@
 import crypto from 'node:crypto';
 
 export const MANIFEST_FILE = 'manifest.json';
+// A tiny index the open page polls (about 60 bytes: the board's generated time). Written with every board, always published, never hashed.
+export const VERSION_FILE = 'version.json';
 export const MANIFEST_VERSION = 1;
 // The only paths a board site can hold. A manifest that names anything else is not ours (it is read back from a place others may edit).
 const SITE_PATH = /^(board\.json|docs\/\d+\.json|ctx\/[a-z-]+\.json)$/;
@@ -66,5 +68,6 @@ function publishMap(changed, removed) {
   for (const p of changed) publish[p] = p;
   for (const p of removed) publish[p] = null;
   publish[MANIFEST_FILE] = MANIFEST_FILE;
+  publish[VERSION_FILE] = VERSION_FILE;
   return publish;
 }

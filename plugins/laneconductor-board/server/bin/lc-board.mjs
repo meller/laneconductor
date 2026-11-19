@@ -18,7 +18,7 @@
 // line, and nothing else on stdout; with --json it prints one JSON object instead,
 // { page, root, files } (files are relative to root: board.json and every docs file), ready to pass to
 // the Artifact tool. Files the privacy scan withheld are named on stderr (never their content).
-// --site also writes manifest.json (a sha256 per file; src/board-manifest.mjs), which is published with the board but is not in `files`.
+// --site also writes manifest.json (a sha256 per file; src/board-manifest.mjs) and version.json (the generated time, polled by an open page); both are published with the board but are not in `files`.
 // Partial publish (track AM-10115 Phase 0): with --json --previous <the manifest.json read from the live artifact>, the object also carries
 // mode ("partial" | "full"), changed, removed, pageChanged and publish ({ path: path | null }: only the changed files, null for removed ones,
 // and manifest.json). A previous manifest that is missing (pass `none`), unreadable, malformed or of another version gives mode "full" and
@@ -37,7 +37,7 @@ import { outcomeCandidate } from '../src/owner-steps.mjs';
 import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
-import { MANIFEST_FILE, buildManifest, parseManifest, planPublish, sha256 } from '../src/board-manifest.mjs';
+import { MANIFEST_FILE, VERSION_FILE, buildManifest, parseManifest, planPublish, sha256 } from '../src/board-manifest.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -144,6 +144,9 @@ if (siteDir) {
   const bytes = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await fs.readFile(path.join(dir, f))])));
   const manifest = buildManifest({ pageBytes, files: bytes });
   await fs.writeFile(path.join(dir, MANIFEST_FILE), `${JSON.stringify(manifest)}\n`, 'utf8');
+  // The index an open page polls every few seconds: just the generated time of the board.json written above, so a check never loads the board.
+  const generatedAt = JSON.parse(await fs.readFile(data, 'utf8')).generated_at;
+  await fs.writeFile(path.join(dir, VERSION_FILE), `${JSON.stringify({ version: 1, generated_at: generatedAt })}\n`, 'utf8');
   const result = { page, root: dir, files };
   const previousArg = opt('--previous');
   if (previousArg !== undefined) {

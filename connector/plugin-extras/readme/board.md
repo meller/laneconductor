@@ -21,6 +21,7 @@ dependency on the base plugin or on the connector: it is one script and one page
 - two hooks (`hooks/hooks.json`, one script, `hooks/lc-board-hook.mjs`) that note when a track changed (Edit or Write of a track file, the connector's `create_track` and
   `update_track`) in the plugin's data directory, never in your project. By default, when Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run the refresh command; set `board.auto_update: false` in `.laneconductor.json` to turn that off. With no stored board they do nothing at all.
   The hooks make no network request, run no other program and print no file text.
+- an open board refreshes its own view: while its tab is visible the page reads a tiny index, `version.json` (the board's generated time, about 60 bytes), every 15 seconds and never the board itself. When a newer board was published it reloads itself, unless you have a track open or a search typed; then it shows a "newer board" button instead. One automatic reload per two minutes at most.
 
 The base plugin's commands are unchanged: it adds no other slash commands. You can also run the script yourself:
 `node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json` and one documents file per track that
