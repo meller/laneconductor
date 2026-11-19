@@ -2,8 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: queue
+**Priority**: high
 **Progress**: 60%
-**Phase**: Board card actions, Project drawer, What's next panel, freshness and Refresh, one board command shipped in plugins 1.3.0 to 1.6.0 (654 connector tests). Open: Phase 1 hooks extension, review-plan button, real desktop-app and phone checks.
+**Phase**: FIRST IN THE QUEUE (owner, 2026-11-19): Phase 0, board auto-update with partial publishes. Earlier: Board card actions, Project drawer, What's next panel, freshness and Refresh, one board command shipped in plugins 1.3.0 to 1.6.0 (654 connector tests). Open: Phase 1 hooks extension, review-plan button, real desktop-app and phone checks.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
