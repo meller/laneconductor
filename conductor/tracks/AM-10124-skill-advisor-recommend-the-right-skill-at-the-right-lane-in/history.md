@@ -1,0 +1,1 @@
+- 2026-11-19 13:35Z ℹ️ Real-use checks run through the CLI: a bug track and a Firebase project recommend correctly; the declined list could not be written inside .git (client protection); moved to Phase 7.

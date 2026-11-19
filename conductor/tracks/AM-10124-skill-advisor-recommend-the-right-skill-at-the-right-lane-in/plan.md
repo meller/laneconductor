@@ -58,8 +58,15 @@ Packaging of our own generic skills (decision pending, see track 10129): either 
 
 ## Phase 6: Real use (HUMAN)
 
-- [ ] Task 1: In a real session, open a bug track: the advisor recommends a debugging skill with a reason; say yes and confirm it installs and loads; say no on another and confirm it is not offered again
-- [ ] Task 2: In a project with firebase.json, the advisor recommends the matching pack from the stack, once
+- [ ] Task 1: In a real session, open a bug track: the advisor recommends a debugging skill with a reason; say yes and confirm it installs and loads; say no on another and confirm it is not offered again. Run through the real client headlessly 2026-11-19 (owner's suggestion): on a bug track the advisor named superpowers' systematic-debugging, test-driven-development and verification-before-completion with reasons when installed, and with superpowers disabled for the project it offered it once (MIT, source, installs a hook script, a tip not a blocker, the install command in its own block); "don't ask again" showed the line and asked first; but the write to `.git/skill-advisor-declined.txt` was BLOCKED by the client (files inside .git are protected), so the offer came back; the real install and its reload still need a person (Phase 7 fixes the declined list)
+- [x] Task 2: In a project with firebase.json, the advisor recommends the matching pack from the stack, once. Run headlessly 2026-11-19: it named Firebase Hosting from firebase.json and conductor/tech-stack.md and said the firebase plugin was already installed (its tools were loaded), offering only what was missing
 - [ ] Task 3: Record what was recommended, what was wrong or noisy, and whether the platform's own card was used
 
 **Impact**: The person no longer has to know which skill to load; LaneConductor, which knows the lane and the stack, says so from a small vetted list, points to a finder for the rest, and the platform's own install steps do the installing, only if the person asks.
+
+## Phase 7: A declined list the client lets us write (found by the CLI run of 2026-11-19; release 1.9.9)
+
+- [ ] Task 1: The declined list moves out of `.git/` (the client protects files inside .git, so the write was refused and the offer came back) to the personal settings file `.laneconductor.json`, a new key `skills.declined` (a list of catalog entry names), which is git-ignored and already documented in `ops/settings.md`; the procedure shows the exact change first, writes it only after the yes, and adds the `.gitignore` line for `.laneconductor.json` first (asking, as the board procedure does) when it is missing
+- [ ] Task 2: Reading it: a catalog entry named in `skills.declined` is not offered in this project; an old `.git/skill-advisor-declined.txt` is still read when present
+- [ ] Task 3: Update the settings table, `ops/suggest-skills.md`, the catalog text and the tests (TC-9 declined); the generated commands must not grow; repeat the headless decline and a fresh suggest-skills to see the offer stop
+
