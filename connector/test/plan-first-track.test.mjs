@@ -148,7 +148,8 @@ test('"file all N" and numbers: the existing `new` procedure (search first), in 
   assert.match(CARD, /For each, in the plan's order, follow `new`: search first \(a fitting track is offered an update\), then create in the plan lane, the plan item as the problem \("From `docs\/plan\.md`: <the item as written>"\)/);
   assert.match(CARD, /An open question is filed only if asked/);
   assert.match(cardLines[cardLines.length - 1], /^> Reply with numbers, "all 6 plan items", or tell me a title of your own\.$/);
-  assert.match(CARD, /<!-- generated: add-ons one-line install -->/, 'the board line and its install line are still there');
+  assert.match(CARD, /\*\*The board line\*\*: always the one in the card above, `\/laneconductor:board`/, 'the board line is the board command alone');
+  assert.doesNotMatch(CARD, /<!-- generated: add-ons one-line install -->/, 'no add-on install line on the card');
 });
 
 test('one text: next, setup and new-project carry the same card, and the shipped copies lead with the plan too', () => {

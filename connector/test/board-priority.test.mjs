@@ -152,3 +152,19 @@ test('Needs attention keeps its order (newest first) and is not sorted by priori
   ], { generatedAt: NOW });
   assert.deepEqual(board.needs_attention.map((a) => a.number), [1003, 1002, 1001]);
 });
+
+test('page: inside a lane the cards that finished their step (success) come first, after priority, newest first inside each group; Done stays newest first', async () => {
+  store();
+  const data = dataOf([
+    entry(601, 'planned long ago', { status: 'success' }),
+    entry(602, 'waiting to be planned'),
+    entry(603, 'being planned', { status: 'running' }),
+    entry(604, 'waiting too'),
+    entry(605, 'planned lately', { status: 'success' }),
+    entry(606, 'urgent but queued', { priority: 'high' }),
+    entry(607, 'low and done planning', { status: 'success', priority: 'low' }),
+  ]);
+  const ids = await runPage(serve(data));
+  assert.deepEqual(laneIds(ids, 0), ['AM-606', 'AM-605', 'AM-601', 'AM-604', 'AM-603', 'AM-602', 'AM-607'], 'high first, then success first, then the rest, then low');
+  unstub();
+});

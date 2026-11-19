@@ -480,5 +480,5 @@ export const NEXT_JOURNEY = `${NEXT_JOURNEY_START}
 1. Install the base plugin (see "Install" below).
 2. Type \`/${NAMES.base}:next\`.
 3. Do the one step it names, then type it again.
-4. With no \`conductor/\` yet it offers three paths and the add-ons that fit (${ADDONS.map((e) => `\`${e.name}\``).join(' and ')}); you run their install commands yourself.
+4. With no \`conductor/\` yet it offers \`go\`: set up and file your plan as tracks. Add-ons (${ADDONS.map((e) => `\`${e.name}\``).join(', ')}) are yours to install.
 ${NEXT_JOURNEY_END}`;

@@ -161,9 +161,7 @@ S04 at the default level, and the close of `setup` (with no plan document) and `
 - **With a plan**: the lead names the file; at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
 - **Without a plan**, only generic suggestions, at most four, one line each: the title, then the fact behind it in a few words. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track. The reply line has no "all".
 - **Never invent**: every line is text from a file (named) or a fact a command or a read checked.
-- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you.
-
-<!-- generated: add-ons one-line install -->
+- **The board line**: always the one in the card above, `/laneconductor:board`. That command looks for the board add-on itself and, when it is missing, says so and shows the install commands; so detect nothing and show no install line here.
 
 - **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked. Setup files the first four the same way, with no question.
 
@@ -204,6 +202,8 @@ project and are not installed. Show them; never run an install. One installed, a
 The board is also named when it is installed. At the explain level in S02 and S03 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop: open the board, copy the step, run it here, refresh.
 
 <!-- generated: recommended plugins -->
+
+<!-- generated: add-ons one-line install -->
 
 ## A skill tip
 

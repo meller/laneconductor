@@ -4,7 +4,7 @@ LaneConductor teaches Claude a plan-first way of working on a project whose plan
 under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
 to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 1.9.5.
+Version 1.9.6.
 
 ## Getting started
 
@@ -12,7 +12,7 @@ Version 1.9.5.
 1. Install the base plugin (see "Install" below).
 2. Type `/laneconductor:next`.
 3. Do the one step it names, then type it again.
-4. With no `conductor/` yet it offers three paths and the add-ons that fit (`laneconductor-parallel` and `laneconductor-board`); you run their install commands yourself.
+4. With no `conductor/` yet it offers `go`: set up and file your plan as tracks. Add-ons (`laneconductor-parallel`, `laneconductor-board`) are yours to install.
 <!-- end generated: next journey -->
 
 ## What is in it

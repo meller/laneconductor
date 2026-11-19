@@ -278,15 +278,14 @@ test('the S04 rules: at most four, only facts that were read, nothing claimed th
   assert.match(TRACK_CARD, /For each, in the plan.s order, follow `new`: search first \(a fitting track is offered an update\), then create in the plan lane/);
 });
 
-test('the S04 board line: the board command when the add-on is installed, else the one-line install shown alone in its own bash block and never run; detected without chaining', () => {
-  assert.match(TRACK_CARD, /\*\*The board line\*\*: as above when the board add-on is installed/);
-  assert.match(TRACK_CARD, /only if that is not enough run `claude plugin list` as a command of its own, never chained/);
-  assert.match(TRACK_CARD, /the line below alone in its own bash block, never run by you/);
-  assert.match(TRACK_CARD, /<!-- generated: add-ons one-line install -->/, 'the source holds a marker, the catalog supplies the line');
+test('the S04 board line is always the board command: it checks for its add-on itself, so the card detects nothing and shows no install line', () => {
+  assert.match(TRACK_CARD, /\*\*The board line\*\*: always the one in the card above, `\/laneconductor:board`/);
+  assert.match(TRACK_CARD, /looks for the board add-on itself and, when it is missing, says so and shows the install commands/);
   assert.doesNotMatch(TRACK_CARD, /claude plugin install/, 'the source names no install command by hand');
+  assert.doesNotMatch(TRACK_CARD, /run this yourself, then `\/reload-plugins`/, 'no install line on the card');
   const shipped = section(cmd('next'), 'The first-track card');
-  assert.ok(shipped.includes(`\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``), 'the shipped card carries the catalog one-liner in its own fence');
-  assert.ok(!shipped.includes('<!-- generated'), 'the marker is replaced');
+  assert.ok(!shipped.includes(ADDONS_INSTALL), 'the shipped card carries no add-on install line');
+  assert.ok(!shipped.includes('<!-- generated'), 'no marker is left');
 });
 
 test('the S04 row and the explain level: the default level is the card, the explain level keeps the primer and the add-ons', () => {
@@ -318,7 +317,7 @@ test('the closing offers only the board and the first track: no "Next: run" line
   assert.doesNotMatch(SETUP_MD, /Commit this\s+scaffold\?|Commit this scaffold\?/);
   assert.doesNotMatch(SETUP_MD, /opens the whole project as a board/);
   assert.doesNotMatch(cmd('setup'), /opens the whole project as a board|Both add-ons in one line|STARTER SET/);
-  assert.match(TRACK_CARD, /The board line\*\*: as above when the board add-on is installed/);
+  assert.match(TRACK_CARD, /The board line\*\*: always the one in the card above/);
   assert.doesNotMatch(TRACK_CARD, /Skip it when setup's starter set offered the board/, 'the starter set is no longer part of setup');
   assert.match(SETUP_MD, /\*\*See it on the board:\*\* the board line of the first-track card/);
 });
