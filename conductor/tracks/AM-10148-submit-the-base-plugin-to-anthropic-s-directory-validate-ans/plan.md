@@ -15,7 +15,7 @@ The design is in spec.md. Split out of track 10128, Phase 7. The owner submits.
 
 ## Phase 3: Submit
 
-- [ ] Task 1 (HUMAN): the owner answers the data-handling questions, ticks the acknowledgements and submits
+- [x] Task 1 (HUMAN): the owner answers the data-handling questions, ticks the acknowledgements and submits (submitted 2026-11-19)
 
 ## Phase 4: Review loop
 

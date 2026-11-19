@@ -1,7 +1,7 @@
 # Track AM-10148: Submit the base plugin to Anthropic's directory (validate, answers, review loop)
 
-**Lane**: plan
-**Lane Status**: queue
+**Lane**: review
+**Lane Status**: waiting
 **Progress**: 0%
 **Phase**: New
 **Track Kind**: feature
