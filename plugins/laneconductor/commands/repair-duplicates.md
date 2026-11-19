@@ -41,13 +41,13 @@ markers). By hand, write the files exactly as it would:
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
    **Merge Mode**: direct
-   **Auto Run**: yes
+   **Auto Run**: no
    **Author**: INITIALS
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `yes`. Write `pr` / `no` only when the
-   user asks for it on this track ("this one needs a PR, don't auto-run it").
+   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `no` (as create_track does). Write `pr` / `yes` only when the
+   user asks for it on this track ("this one needs a PR, auto-run it").
 3. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
    installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
    name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
