@@ -38,6 +38,6 @@ For a new project the right start is the brainstorm and the new-project workflow
 
 ## Phase 6: A brand-new project starts from the card (owner direction, 2026-11-19; release 1.9.5)
 
-- [ ] Task 6.1: `next` on an empty or brand-new folder offers `go` to start the brainstorm (the new-project interview); `go` starts it; the interview explores options and decisions before any file is written
-- [ ] Task 6.2: The workflow ends with the same two-item closing as setup (see it on the board, plan the first track) and the suggested skills, one question
+- [x] Task 6.1: `next` on an empty or brand-new folder offers `go` to start the brainstorm (the new-project interview); `go` starts it; the interview explores options and decisions before any file is written
+- [x] Task 6.2: The workflow ends with the same two-item closing as setup (see it on the board, plan the first track) and the suggested skills, one question
 

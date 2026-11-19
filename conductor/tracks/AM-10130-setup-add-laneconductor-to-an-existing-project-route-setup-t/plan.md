@@ -49,7 +49,7 @@ Setup reads the README and `package.json`. For an existing project it should als
 
 The pre-write confirmation ("Reply ok, or tell me what differs") is one more turn before any value. New files are additive and reversible, so setup writes first and shows what it created with a one-line undo. It stops to ask only when something is unusual: an existing `conductor/` folder with content, no git repository, or uncommitted changes in a file it would touch. The `go` reply to the `next` card (track 10144 Phase 12) and a direct `/laneconductor:setup` both mean yes. This supersedes the "one pre-filled message ending Reply ok" rule of track 10132 TC-2 for the first-run path.
 
-- [ ] Task 7.1: Rewrite setup's flow to: analyse, write, then one summary (what it created, the declared privacy line, the undo line, the plan items found), then file the first four plan items as tracks when invoked through `go` (or when the person picked them), then the two-item closing offer of Phase 12
-- [ ] Task 7.2: The unusual cases still ask first, in one line each (existing `conductor/` with content, no git repository, uncommitted changes in a file setup would touch)
-- [ ] Task 7.3: Update 10132 TC-2 and its text test to match, keep the generated setup command from growing, and run the headless end-to-end check
+- [x] Task 7.1: Rewrite setup's flow to: analyse, write, then one summary (what it created, the declared privacy line, the undo line, the plan items found), then file the first four plan items as tracks when invoked through `go` (or when the person picked them), then the two-item closing offer of Phase 12
+- [x] Task 7.2: The unusual cases still ask first, in one line each (existing `conductor/` with content, no git repository, uncommitted changes in a file setup would touch)
+- [x] Task 7.3: Update 10132 TC-2 and its text test to match, keep the generated setup command from growing, and run the headless end-to-end check
 
