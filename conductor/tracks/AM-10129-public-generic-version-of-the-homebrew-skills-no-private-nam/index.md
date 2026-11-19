@@ -1,9 +1,9 @@
 # Track AM-10129: Public, generic version of the homebrew skills: no private names, paths, repos or commits
 
-**Lane**: review
-**Lane Status**: waiting
-**Progress**: 83%
-**Phase**: Delivered 2026-11-19: the 13 skills are in this repository (skills/, checker and privacy gate in skills-tools/) and shipped as five plugins at 0.1.0 (nodejs-frontend, firebase, node-postgres, gemini, skill-from-code), on the site and in the wiki. Open: the advisor catalog entries (3.6, needs a base release) and the after-release steps (2.11 npx test, 3.9 the agent-skill topic).
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-19 by the owner: delivered. The 13 skills are in this repository (skills/, checker and privacy gate in skills-tools/) and ship as five plugins (nodejs-frontend, firebase, node-postgres, gemini 0.1.1, skill-from-code), verified (the TokenTalos skill against TokenTalos 1.4.1 and the apps), installed from a clean profile, on the site and in the wiki. The three leftovers (advisor catalog entries, the npx skills add test, the agent-skill topic) moved to AM-10150.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

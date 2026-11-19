@@ -1,10 +1,10 @@
 # Track AM-10115: Plugin v2: prompts after a lane ends, commands, a plan-review agent, and board card actions
 
-**Lane**: implement
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Priority**: high
-**Progress**: 60%
-**Phase**: FIRST IN THE QUEUE (owner, 2026-11-19): Phase 0, board auto-update with partial publishes. Earlier: Board card actions, Project drawer, What's next panel, freshness and Refresh, one board command shipped in plugins 1.3.0 to 1.6.0 (654 connector tests). Open: Phase 1 hooks extension, review-plan button, real desktop-app and phone checks.
+**Progress**: 100%
+**Phase**: Closed 2026-11-19 by the owner: delivered. Board card actions, Project drawer, What's next panel, freshness and Refresh (plugins 1.3.0 to 1.6.0); Phase 0 (board add-on 1.10.0 to 1.10.2): partial publish, /laneconductor-board:refresh, the hooks, auto-refresh ON BY DEFAULT, and an open board that reloads itself, verified in a real session on 2026-11-19. Not built: the extra hooks of Phase 1 (never requested; reopen if wanted). The board-page follow-ups (desktop-app checks of the Move menu and Check now, the phone and dark-theme check, the Review-the-plan button) moved to AM-10151.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
