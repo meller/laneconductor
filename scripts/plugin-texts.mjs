@@ -89,6 +89,13 @@ export const oneLineInstall = (names) => {
 export const BUNDLES = CATALOG.bundles;
 /** For use OUTSIDE Claude (website, READMEs): the base and both add-ons. */
 export const FULL_INSTALL = oneLineInstall(BUNDLES.full_install);
+/** The one-line UPDATE for the same plugins: one `claude plugin marketplace update` per distinct marketplace, then one `claude plugin update` per plugin. */
+export const oneLineUpdate = (names) => {
+  const sources = names.map(sourceOfPlugin);
+  const marketplaces = [...new Set(sources.map((s) => `claude plugin marketplace update ${s.marketplace}`))];
+  return [...marketplaces, ...sources.map((s) => `claude plugin update ${s.plugin}@${s.marketplace}`)].join(' && ');
+};
+export const FULL_UPDATE = oneLineUpdate(BUNDLES.full_install);
 /** For use INSIDE a Claude session where the base is already installed: both add-ons. */
 export const ADDONS_INSTALL = oneLineInstall(BUNDLES.addons_install);
 /** The README paragraph "The full version in one line", with the line alone in its bash fence. */

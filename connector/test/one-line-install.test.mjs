@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, NAMES, PROFILES, RECOMMENDED, ADDONS, CATALOG_REL, buildPlugin, setupRecommendBlock } from '../../scripts/build-plugin.mjs';
-import { STARTER, FULL_INSTALL, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
+import { STARTER, FULL_INSTALL, FULL_UPDATE, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
 
 const catalog = JSON.parse(fs.readFileSync(path.join(REPO, CATALOG_REL), 'utf8'));
 const market = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin/marketplace.json'), 'utf8'));
@@ -110,4 +110,11 @@ test('the base stays Markdown-only and free of daemon-era words, with the new te
     assert.ok(/\.(md|json|png)$|^LICENSE$/.test(rel), `${rel} is Markdown, JSON, the licence or the icon`);
     if (/\.md$/.test(rel)) assert.ok(!BAD.test(String(f.content)), `${rel} has a daemon-era word`);
   }
+});
+
+test('the update one-liner is built from the same bundle, updates every plugin of the full version, and is in the root README', () => {
+  assert.equal(FULL_UPDATE, 'claude plugin marketplace update laneconductor && claude plugin update laneconductor@laneconductor && claude plugin update laneconductor-board@laneconductor && claude plugin update laneconductor-parallel@laneconductor');
+  assert.ok(!FULL_UPDATE.includes('install'), 'an update line never installs');
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  assert.ok(readme.includes('```bash\n' + FULL_UPDATE + '\n```'), 'the root README carries the update line alone in its bash fence');
 });

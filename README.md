@@ -71,14 +71,13 @@ Check that it loaded:
 If you installed with `--scope local` and open another folder, `claude plugin list` shows the plugin as disabled
 there. That is how local scope works, not a fault.
 
-To update:
+To update all three in one line (installing again does not upgrade a plugin that is already installed):
 
 ```bash
-claude plugin marketplace update laneconductor
-claude plugin update laneconductor@laneconductor
+claude plugin marketplace update laneconductor && claude plugin update laneconductor@laneconductor && claude plugin update laneconductor-board@laneconductor && claude plugin update laneconductor-parallel@laneconductor
 ```
 
-then `/reload-plugins`.
+then restart your sessions (or run `/reload-plugins`).
 
 LaneConductor is three plugins from one generator: `laneconductor` (the base, Markdown only, works alone; the one prepared for
 Anthropic's directory), and two optional add-ons from this marketplace: `laneconductor-parallel` (parallel work in worktrees, a
