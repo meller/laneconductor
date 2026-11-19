@@ -135,10 +135,10 @@ After `/laneconductor:plan 1` finished, the chat message ran to about 35 lines: 
 
 ## Phase 14: Three gaps found by running the owner-step cycle through the real client (2026-11-19; release 1.9.8)
 
-- [ ] Task 14.1: Supervised implement of a non-dev track ends in `Lane Status: waiting` (with Owner Action, Owner Action Due and Waiting for reply), not `running`, so `next` shows "do the owner action" (S22) instead of "being worked on"
-- [ ] Task 14.2: A non-dev track (marketing, sales, support) is done in this session: no sub-agent recommendation, no worktree, no "dispatch or do it here" question; the sub-agent recommendation is for code tracks
-- [ ] Task 14.3: A non-dev track that passes the quality gate closes as `done:success` (there is nothing to merge): the closing message says so and does not offer `merge`; code tracks are unchanged (`done:queue`, then merge)
-- [ ] Task 14.4: Text tests for the three, sizes must not grow, and the headless cycle repeated on the scratch marketing track
+- [x] Task 14.1: Supervised implement of a non-dev track ends in `Lane Status: waiting` (with Owner Action, Owner Action Due and Waiting for reply), not `running`, so `next` shows "do the owner action" (S22) instead of "being worked on"
+- [x] Task 14.2: A non-dev track (marketing, sales, support) is done in this session: no sub-agent recommendation, no worktree, no "dispatch or do it here" question; the sub-agent recommendation is for code tracks
+- [x] Task 14.3: A non-dev track that passes the quality gate closes as `done:success` (there is nothing to merge): the closing message says so and does not offer `merge`; code tracks are unchanged (`done:queue`, then merge)
+- [x] Task 14.4: Text tests for the three, sizes must not grow, and the headless cycle repeated on the scratch marketing track
 
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
