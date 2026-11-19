@@ -124,6 +124,15 @@ Goal: reduce friction and give the fastest value. Today a first run takes four t
 - [x] Task 12.3: The closing after `go` offers exactly two things: see it on the board (`/laneconductor:board`, with the add-on install line when it is not installed) and plan the first track (`/laneconductor:plan 1`, naming its title); one question, no commit question
 - [x] Task 12.4: Text tests for the two cards and the closing, a size check (next must not grow), and a headless end-to-end check of the whole sequence on a fixture with a plan document, on an empty folder, and on a project that already has `conductor/`
 
+## Phase 13: A short closing message when a lane finishes (owner feedback from a real planning run, 2026-11-19; release 1.9.7)
+
+After `/laneconductor:plan 1` finished, the chat message ran to about 35 lines: four phases, twelve test cases, findings, three decisions, two next steps. The owner's direction: when planning finishes, give a short overview and a way to see more, and point to the board, where the card carries the next step's instruction.
+
+- [ ] Task 13.1: The closing chat message of a lane command (plan first, then implement, review, quality-gate, merge) is at most about six lines: the outcome in one line (what was done, where the track now sits), the decisions or answers needed from the person (at most three, each one line; they block the next step so they stay), the next step as one command, and one "more" line: `/laneconductor:board` (the card shows the next step with a Copy button) or say "show the plan"; findings, phase and test-case lists and the rest go into the track's files and its one completion comment, not into the chat
+- [ ] Task 13.2: Written once and shared where several lane commands inline the same text (the lane commands must not grow; `run` must stay under 68 KB); keep the completion comment rule (one `> **system**:` line) as it is
+- [ ] Task 13.3: The board card of a track that finished its lane shows the next step and its Copy button (it does for plan:success today); check the same for the other lanes and fix gaps
+- [ ] Task 13.4: Text tests (each lane guide's closing is short and has the four parts; the plan guide no longer asks for a findings list in chat) and a headless check of `plan 1` on a fixture, with the line count of the closing message
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.
