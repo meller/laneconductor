@@ -367,7 +367,7 @@
                 </ul>
             </div>
             <div class="sidebar-group">
-                <div class="sidebar-title">Legacy tier (v1-legacy)</div>
+                <div class="sidebar-title">Experimental tier, unmaintained (v1-legacy)</div>
                 <ul class="sidebar-links">
                     <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
                     <li><a href="#modes">Operating Modes</a></li>
@@ -406,11 +406,12 @@
 
                 <div class="callout">
                     <div class="callout-title">Direction (decided 2026-11-16)</div>
-                    <p>Claude plus git plus a connector, delivered as one plugin. The Postgres dashboard, the sync
-                        daemon, workers and dispatch, the cloud collector and federated hubs are the earlier version of
-                        LaneConductor. They are parked at the <code>v1-legacy</code> git tag, the daemon is stopped, and
-                        the plugin does not need any of them. Sections of this page that describe that older stack are
-                        listed under <strong>Legacy tier</strong> in the sidebar and marked on the page.</p>
+                    <p>Claude plus git plus a connector. LaneConductor is a Markdown-only base plugin, two optional add-ons
+                        (parallel work, and the board) and optional skill packs. The Postgres dashboard, the sync daemon,
+                        workers and dispatch, the cloud collector and federated hubs are the earlier version of
+                        LaneConductor. They are experimental and currently unmaintained, kept at the <code>v1-legacy</code>
+                        git tag, and the plugins do not need any of them. Sections of this page that describe that older
+                        stack are listed under <strong>Experimental tier</strong> in the sidebar and marked on the page.</p>
                 </div>
 
                 <h3>Track Types</h3>
@@ -428,9 +429,9 @@
             <section id="vs-coding-agents">
                 <h2>LaneConductor vs. Standalone Coding Agents</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>
@@ -575,10 +576,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <code>plugin:laneconductor:lc</code>.</li>
                     <li>Remove the project's own skill (<code>.claude/skills/laneconductor</code>, often a symlink) and
                         any copy in <code>~/.claude/skills</code>, so the skill is not loaded twice.</li>
-                    <li>If a worker runs for the project, stop it with <code>lc worker stop</code>.</li>
+                    <li>If a worker runs for the project, stop it with <code>lc worker stop</code> (the deprecated <code>lc</code> command line).</li>
                 </ol>
                 <p>Your tracks do not change. <code>make install</code>, <code>lc start</code> and a Postgres database
-                    belong to the legacy tier and are not needed.</p>
+                    belong to the experimental tier and are not needed.</p>
             </section>
 
             <section id="claude-skill">
@@ -620,23 +621,31 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
 
             <section id="board">
                 <h2>The board</h2>
-                <p>The board shows every track by lane. It is part of the plugin: run
-                    <code>/laneconductor:board</code>, or ask Claude to "update the board".</p>
+                <p>The board shows every track by lane, as one private page. Open it with <code>/laneconductor:board</code>, or ask
+                    Claude to "show the board". Building it needs the optional <strong>laneconductor-board</strong> add-on, which
+                    carries the script and the page.</p>
                 <ul>
-                    <li>It is built by <code>lc board --site &lt;dir&gt;</code> (the plugin carries its own copy of the
-                        script) as a static page plus <code>board.json</code> and one document file per track. Claude
-                        publishes it as a <strong>private</strong> artifact and keeps its URL in
-                        <code>.laneconductor.json</code> (<code>board.artifact_url</code>).</li>
-                    <li>It is a <strong>snapshot</strong>. It changes only when Claude refreshes it, and it shows when it
-                        was generated.</li>
+                    <li>Claude runs the add-on's script (<code>lc-board.mjs</code>), which writes a static page plus
+                        <code>board.json</code> and one document file per track, and publishes them as a <strong>private</strong>
+                        artifact. The artifact's URL is kept in <code>.laneconductor.json</code>
+                        (<code>board.artifact_url</code>).</li>
+                    <li><strong>It refreshes itself.</strong> With board add-on 1.10.1 or newer, when Claude finishes a turn after a track
+                        changed (it edited a track file, or used the connector), it is asked to run
+                        <code>/laneconductor-board:refresh</code>. That publishes only the files that changed: a manifest of hashes
+                        decides which. This is on by default once a board exists; set <code>board.auto_update: false</code> in
+                        <code>.laneconductor.json</code> to turn it off. <code>/laneconductor:board refresh</code> republishes the whole
+                        board by hand.</li>
+                    <li><strong>An open board updates its own view.</strong> While its tab is visible the page reads a tiny index
+                        (<code>version.json</code>, the board's generated time) every 15 seconds. When a newer board was published it
+                        reloads itself, unless you have a track open or a search typed; then it shows a "newer board" button instead.</li>
+                    <li>It is a <strong>snapshot</strong>, not a live view. It shows when it was generated.</li>
                     <li>Click a track to see its Overview, Plan, Spec and Tests.</li>
                     <li>Every document is scanned first. A file with secrets, email addresses or phone numbers in it is
                         withheld whole and named by track number and file name.
                         <code>conversation.md</code> is left out unless you set
                         <code>board.include_conversation: true</code>.</li>
                     <li>Sharing the board shares the documents on it. Share it only with people who may read them.</li>
-                    <li>It needs the plugin's local script, so it works in Claude Code and Cowork, not in claude.ai chat
-                        alone.</li>
+                    <li>It works in Claude Code and Cowork, not in claude.ai chat alone.</li>
                 </ul>
             </section>
 
@@ -739,9 +748,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="llm-config">
                 <h2>LLM Configuration</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
                 </div>
 
                 <p>LaneConductor allows you to define which AI agents and models are used for specific tasks, providing
@@ -783,9 +792,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="modular-integrations">
                 <h2>Modular Integrations</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. It is designed to bridge the gap between your local environment and enterprise tools across multiple operating modes.</p>
@@ -810,9 +819,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="jira-workflow">
                 <h2>Jira Workflow — Hybrid Sync</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>The Jira integration uses a <strong>Hybrid Sync</strong> model: Inbound Webhooks for instant updates, and Polling-based Bidirectional Sync for reliability and conflict resolution.</p>
@@ -844,9 +853,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="modes">
                 <h2>Operating Modes</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>One of LaneConductor's greatest strengths is its flexibility. You can switch modes based on your
@@ -909,9 +918,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="operational-safety">
                 <h2>Operational Safety & Best Practices</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
                 </div>
 
                 <p>Working with AI agents requires a balance between automation and oversight. We've identified two
@@ -946,9 +955,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="bidirectional-sync">
                 <h2>Bidirectional Sync &amp; Track Status</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
                 </div>
 
                 <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
@@ -1019,9 +1028,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="chat-control-plane">
                 <h2>Persistent Chat &amp; Control Surface</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>Accessible at <code>/chat</code> in the web dashboard, the persistent Chat surface provides a unified control room to interact with, steer, and monitor all agents in your LaneConductor instance.</p>
@@ -1058,9 +1067,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="workspace-modes">
                 <h2>Workspace Modes</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>Every track resolves to one of two workspace modes at execution time:</p>
@@ -1079,9 +1088,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="worktrees-panel">
                 <h2>Worktrees &amp; Panel</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>When running a track in <code>branch</code> workspace mode, LaneConductor leverages Git Worktrees to provide isolated parallel execution. This isolates the agent's work, ensuring that uncommitted changes and branch states are quarantined. The <strong>Worktrees Panel</strong> on the dashboard provides direct human visibility and control over these environments:</p>
@@ -1096,9 +1105,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="concurrency-model">
                 <h2>Concurrency &amp; Locking</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>Four independent constraints govern how many track sessions can run at once, stacked together
@@ -1132,9 +1141,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="merge-modes">
                 <h2>PR &amp; Merge Modes</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>Controls how track branches integrate back into the main branch once the Quality Gate passes:</p>
@@ -1148,9 +1157,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="auto-run">
                 <h2>Auto-Run Configuration</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>Determines whether a track can be automatically claimed and executed by background workers without manual human triggering:</p>
@@ -1175,9 +1184,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="autoresearch">
                 <h2>Autoresearch Pattern — Karpathy-Inspired KPI Loops</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
 
@@ -1251,9 +1260,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="cli-general">
                 <h2>CLI Reference: General</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                    <div class="callout-title" style="color: var(--amber);">Deprecated: the lc command line</div>
+                    <p>The <code>lc</code> command line belongs to the earlier stack. It is deprecated: unmaintained, and it will get no new
+                        features. Use the plugin commands (<code>/laneconductor:&lt;name&gt;</code>) instead: they work on the track files
+                        directly, with no database and no daemon.</p>
                 </div>
 
                 <table class="command-table">
@@ -1299,9 +1309,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="cli-track">
                 <h2>CLI Reference: Track Management</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                    <div class="callout-title" style="color: var(--amber);">Deprecated: the lc command line</div>
+                    <p>The <code>lc</code> command line belongs to the earlier stack. It is deprecated: unmaintained, and it will get no new
+                        features. Use the plugin commands (<code>/laneconductor:&lt;name&gt;</code>) instead: they work on the track files
+                        directly, with no database and no daemon.</p>
                 </div>
 
                 <table class="command-table">
@@ -1351,9 +1362,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="configuration">
                 <h2>Configuration</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>LaneConductor is highly configurable. The two main control files are:</p>
@@ -1378,9 +1389,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
             <section id="secret-management">
                 <h2>Secret Management</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>LaneConductor follows a strict pattern: <strong>no secrets in source code, no secrets in git history</strong>. All credentials are stored in GCP Secret Manager and pulled locally on demand via ADC.</p>
@@ -1421,9 +1432,9 @@ DB_PASSWORD=$(gcloud secrets versions access latest --secret="CLOUD_DB_PASSWORD"
             <section id="gitignore-pattern">
                 <h2>What to Gitignore</h2>
                 <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
                     <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
                 </div>
 
                 <p>The following files are always gitignored. Each has a corresponding <code>.example</code> file committed in its place:</p>
