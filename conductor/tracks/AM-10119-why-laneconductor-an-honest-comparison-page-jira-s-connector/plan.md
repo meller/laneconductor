@@ -20,5 +20,5 @@ Design approach: one docs page that compares use cases (not features), sourced a
 ## Phase 4: Owner review and landing section
 
 - [x] Task 4.1: The owner reviews the wording of the page (approved 2026-11-19: "looks good", after the source corrections and the "since then it has grown" paragraph)
-- [ ] Task 4.2: Add the short landing section with the same story, after the owner agrees (coordinate with tracks 10114 and 10112; landing/index.html has other sessions' uncommitted edits)
-- [ ] Task 4.3: Deploy only when the owner says so
+- [x] Task 4.2: Add the short landing section with the same story, after the owner agrees (done 2026-11-19, as a "Why LaneConductor" section: what it is first, no "not for" card; the "One plugin" pillar now says three plugins) (coordinate with tracks 10114 and 10112; landing/index.html has other sessions' uncommitted edits)
+- [x] Task 4.3: Deploy only when the owner says so (deployed 2026-11-19 on the owner's word)
