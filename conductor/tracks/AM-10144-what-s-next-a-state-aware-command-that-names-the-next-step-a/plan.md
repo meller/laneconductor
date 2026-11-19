@@ -85,6 +85,15 @@ Order: build after track 10143 merges (both edit `connector/src/commands.mjs`; t
 
 **Impact**: Evidence that the first version works on real state, not only fixtures.
 
+## Phase 9: A shorter first run (owner feedback from a real first run, 2026-11-19)
+
+The owner ran `next` and then `setup` in a fresh copy of a real project and found both messages too long to read. Plan: S02 in `ops/next.md` shows the one next step, one line on what it does and one line pointing to `/laneconductor:next explain`; the lane primer, the three paths, the board note and the add-ons note move to the explain level or to the moment they are relevant; it asks nothing twice (no "say go" before a command that itself asks for confirmation); it states only what it has checked (it said 5 commits where the repository had 7).
+
+- [ ] Task 9.1: Shorten S02 (and S03, S04 where they repeat the same extras) to the step, one line of what it does and one pointer to the explain level; keep the explain level as it is
+- [ ] Task 9.2: Remove the double confirmation: a card whose command asks for confirmation itself does not end with "say go"
+- [ ] Task 9.3: Counts and other facts in a card come from a command that was run for that purpose (for example `git rev-list --count HEAD`), never from a truncated listing; say so in the text
+- [ ] Task 9.4: Text tests (the S02 card has no primer, no board note and no add-ons note at the default level, and the explain level still has them; the size of `next` does not grow), and update the ops-text-versus-code comparison
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.
