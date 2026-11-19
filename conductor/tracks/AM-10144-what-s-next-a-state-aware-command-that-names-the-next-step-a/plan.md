@@ -133,6 +133,13 @@ After `/laneconductor:plan 1` finished, the chat message ran to about 35 lines: 
 - [x] Task 13.3: The board card of a track that finished its lane shows the next step and its Copy button (it does for plan:success today); check the same for the other lanes and fix gaps
 - [x] Task 13.4: Text tests (each lane guide's closing is short and has the four parts; the plan guide no longer asks for a findings list in chat) and a headless check of `plan 1` on a fixture, with the line count of the closing message
 
+## Phase 14: Three gaps found by running the owner-step cycle through the real client (2026-11-19; release 1.9.8)
+
+- [ ] Task 14.1: Supervised implement of a non-dev track ends in `Lane Status: waiting` (with Owner Action, Owner Action Due and Waiting for reply), not `running`, so `next` shows "do the owner action" (S22) instead of "being worked on"
+- [ ] Task 14.2: A non-dev track (marketing, sales, support) is done in this session: no sub-agent recommendation, no worktree, no "dispatch or do it here" question; the sub-agent recommendation is for code tracks
+- [ ] Task 14.3: A non-dev track that passes the quality gate closes as `done:success` (there is nothing to merge): the closing message says so and does not offer `merge`; code tracks are unchanged (`done:queue`, then merge)
+- [ ] Task 14.4: Text tests for the three, sizes must not grow, and the headless cycle repeated on the scratch marketing track
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.

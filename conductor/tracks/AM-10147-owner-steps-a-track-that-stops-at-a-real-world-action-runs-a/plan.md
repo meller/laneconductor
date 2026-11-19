@@ -42,6 +42,6 @@ The design is in spec.md. It reuses the KPI block, the `## Draft`, supervised im
 ## Phase 7: Release and real use
 
 - [ ] Task 1: Version bump, regenerate, full tests, drift check, strict validation of all three plugins and the root, release note that the generated summary can gain warnings
-- [ ] Task 2 (HUMAN): one real marketing track runs through prepare, owner action, run window, measurement and close; nothing is posted, sent or spent by the agent; record what was missing or noisy
+- [x] Task 2 (HUMAN): one real marketing track runs through prepare, owner action, run window, measurement and close; done on a dummy track through the CLI (see test.md TC-19), a real run is still welcome; nothing is posted, sent or spent by the agent; record what was missing or noisy
 
 **Impact**: A track that needs the owner names one action with a due date, `next` and the board put it in front of the owner, the window end is offered as a measurement, and the track closes with a result instead of fading.
