@@ -1,9 +1,10 @@
 # Track AM-10119: Why LaneConductor: an honest comparison page (Jira's connector, Linear, community plugins, plain Claude)
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 70%
-**Phase**: Docs page written (docs/why-laneconductor.md and README origin section, commit dd495f3d), not pushed. Open: the owner's review of the wording, the short landing section (needs the owner's go; landing/index.html has another session's uncommitted edits), re-verify sources before any release.
+**Lane**: done
+**Lane Status**: success
+**Result**: shipped and live: docs/why-laneconductor.md (sources re-checked 2026-11-19), README and NOTICE, a Why LaneConductor section on laneconductor.com; no KPI set
+**Progress**: 100%
+**Phase**: Done: the page, README, NOTICE and the landing section are on main and deployed (2026-11-19)
 **Track Kind**: feature
 **Type**: marketing
 **Merge Mode**: direct
