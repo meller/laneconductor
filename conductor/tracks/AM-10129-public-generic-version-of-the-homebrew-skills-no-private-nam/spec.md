@@ -78,3 +78,13 @@ Still provisional: third-party skills for shared-GCP, two partly read PWA skills
 ## Decision changed (owner, 2026-11-19)
 
 No new repository. The skills ship as a Markdown-only plugin in THIS repository's marketplace (working name `laneconductor-skills`), built by the same generator, next to the other three. The single-commit fresh repo of 2026-11-18 stays only as the local source (`~/Code/homebrew-skills-public`); nothing is pushed to a new GitHub repository. The release waits until the directory review of track 10148 is decided.
+
+## Where skills can be published (read 2026-11-19 from two write-ups of June and August 2026; not tried by us)
+
+- Our own marketplace (this repository): the plugin `laneconductor-skills`. Nothing to submit; pushing to the public repository is the publishing.
+- skills.sh (the `npx skills add owner/repo` tool): one write-up says a listing is automatic from install tracking and needs a public GitHub repository, with an `agent-skill` topic tag; another says maintainers add entries on request. Unconfirmed which; the same repository layout serves both: `skills/<name>/SKILL.md`.
+- GitHub crawlers (smithery.ai, skillsmp.com, claude-plugins.dev, claudemarketplaces.com and others) index a public repository with SKILL.md folders automatically, per the write-up.
+- Submit-form directories (Smithery, LobeHub, MCPMarket and more): free, by submitting the repository URL.
+- ClawHub (the OpenClaw hub): a CLI publish with automated checks; it belongs to a different agent ecosystem and is not a priority.
+- Anthropic: its directory is for plugins and is reviewed by a human (track 10148 is our submission of the base plugin); the partner Skills directory is curated and not open to submissions; individuals can upload a skill to claude.ai (Settings, Capabilities, Skills).
+- The layout implication: a root `skills/` folder in this repository would make `npx skills add meller/laneconductor` work, and the generator would copy it into the plugin. The tool's telemetry is the registry's, not ours; our plugins still send nothing.

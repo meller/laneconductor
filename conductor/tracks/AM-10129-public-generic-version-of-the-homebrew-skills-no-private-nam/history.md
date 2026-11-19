@@ -1,3 +1,4 @@
 # History: AM-10129
 
 - 2026-11-19 ✅ Overlap check against public skills (four read-only agents): nothing is a full duplicate; four are trimmed, five need stale defaults fixed, the LLM gateway skill is rewritten around TokenTalos (public MIT), the rest kept. Decision changed by the owner: publish as a plugin inside this repository's marketplace, no new repository. Details in the spec. Nothing in ~/Code/homebrew-skills-public changed yet.
+- 2026-11-19 ✅ Fixes applied in ~/Code/homebrew-skills-public (uncommitted, local): the LLM skill rewritten around TokenTalos, stale Gemini defaults fixed to what the apps run (Gemini 3), pointers to public skills, small additions, and a real bug fixed in the Makefile template's `stop-all`. Checker 0/0, gate 13 clean. Where skills can be published recorded in the spec (task 2.10 and 2.11 added). Nothing moved into this repository or released yet; waits for the owner's read of the TokenTalos skill and the directory review of 10148.
