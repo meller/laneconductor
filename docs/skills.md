@@ -27,7 +27,7 @@ project, site, bucket, secret or repository; identifiers are placeholders such a
 | `firebase-google-sign-in` | Google-only sign-in with Firebase Auth, token check, `provisionUser` |
 | `cache-buster` | Hosting headers, build stamp, stale-tab banner, post-deploy recovery |
 | `pwa-vite-workbox` | Installable PWA with vite-plugin-pwa and the incidents behind each setting |
-| `skill-from-pattern` | A skill generator: turns a pattern or a verified incident of yours into a new skill in this library |
+| `skill-from-code` | A skill generator: turns a pattern or verified incident of yours, shown by working code, into a new skill in this library |
 
 ## Install and update
 
@@ -50,14 +50,14 @@ an order.
     "plan": ["shared-gcp-firebase-site", "postgres-local-neon-prod-secret-manager"],
     "implement": ["makefile-local-run", "isolated-test-database", "prisma-in-cloud-functions", "vertex-gemini-adc"],
     "review": ["isolated-test-database"],
-    "merge": ["skill-from-pattern"]
+    "merge": ["skill-from-code"]
   }
 }
 ```
 
 Skills copied into `.claude/skills/` keep their plain names, which is the form the LaneConductor
 lane guides document for `workflow.json`. Keep the lists short: every listed skill adds to what Claude
-reads in that lane. Add `skill-from-pattern` to `merge` so a lesson learned in a track becomes a
+reads in that lane. Add `skill-from-code` to `merge` so a lesson learned in a track becomes a
 skill while the context is fresh.
 
 ## Format rules
@@ -107,7 +107,7 @@ cd skills-tools && npm test                     # the tools' own tests
 
 ## Adding or changing a skill
 
-Use `skill-from-pattern`. In short: the problem must be the owner's convention or incident,
+Use `skill-from-code`. In short: the problem must be the owner's convention or incident,
 be shown by working code, and have cost real time. Search the skills first, draft, run
 `node skills-tools/bin/check.mjs` and `node skills-tools/bin/gate.mjs` to zero findings, show the human, then
 commit on a branch.
