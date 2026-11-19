@@ -1,0 +1,3 @@
+# History: AM-10149
+
+- 2026-11-19 ℹ️ Created at the owner's request: no purchase, so the aim is awareness and adoption, measured by one KPI (GitHub stars per week plus directory installs). Baseline recorded in the spec from `gh api`: 14 stars, 3 forks, 1 watcher, 464 clones from 128 unique cloners in 14 days (an upper bound, not users), 8 unique page views, one referrer. Found: no analytics on the site, no real sitemap or robots.txt (the catch-all rewrite returns the home page), Search Console unverified as far as the repository shows. Earlier launch tracks (for example 1069) closed with "not measured". Depends on 10148 (the directory listing) for the second half of the KPI. Not started: nothing deployed or posted.
