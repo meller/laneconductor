@@ -41,6 +41,22 @@ The owner submits; nothing here submits, posts or answers on the owner's behalf.
 - [ ] The review table exists and every reviewer comment has an answer or a fix with a version (REQ-6).
 - [ ] After the listing, the clean-profile install works and is recorded; only then is the directory install mentioned in the README and the website (REQ-7).
 
+## Draft answers for the portal (for the owner to read, edit and paste; written 2026-11-19 from the repository, version 1.9.9)
+
+Each sentence below can be checked against the repository. The holds are paraphrased from earlier notes: paste the portal's exact wording and I will match each answer to it.
+
+Data handling:
+- What does it access? Only your own project's files: the track folders under `conductor/tracks/`, the other files in `conductor/` and the optional personal settings file `.laneconductor.json`. Claude reads and writes them in your session with your normal permission prompts. It does not read files elsewhere.
+- What is collected or sent anywhere? Nothing. The plugin makes no network requests of its own, has no analytics, telemetry or tracking, and stores nothing about you outside your project's files (docs/privacy.md).
+- Third parties? None. The two optional add-ons are separate plugins in a separate marketplace and are not part of this submission.
+- Credentials and secrets? It never asks for, reads or stores them, and its text tells Claude never to put secrets in track files.
+- Code it runs? None ships: the plugin is Markdown only (one skill, slash commands, and one read-only agent whose tools are Read, Grep and Glob). A command may ask Claude to use git or a shell command in your own session, under your own permission prompts. It never runs an install by itself: it shows the install commands for you to run.
+- Privacy policy: https://github.com/meller/laneconductor/blob/main/docs/privacy.md
+
+Reviewer hold 1, a credential-read heuristic on plugin.json: plugin.json holds only metadata (name, displayName, version, description, author, homepage, repository, license, keywords, privacyPolicyUrl). It declares no configuration prompts, environment variables, servers or hooks, and nothing in the plugin reads credentials. (Match to the exact field the portal names.)
+
+Reviewer hold 2, the publisher name resembling another: the publisher is an individual, Asaf Meller (https://github.com/meller). The repository github.com/meller/laneconductor and the homepage laneconductor.com are the same project. (Name the other publisher the portal mentions.)
+
 ## Risks and limits
 
 - The portal's safety scan and policy review are not visible to us until the owner runs Validate or submits; a surprise there costs a release cycle.

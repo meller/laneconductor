@@ -6,7 +6,7 @@ The design is in spec.md. Split out of track 10128, Phase 7. The owner submits.
 
 - [x] Task 1: Name the version to submit (the current release of the base) and run the local checks of REQ-1 on it; record the results here. Version 1.9.1 (main 70d8c053), 2026-11-19: 769 of 769 connector tests, drift check clean, `claude plugin validate --strict` and the directory profile pass on plugins/laneconductor, the catalog resolves online (12 entries), README, LICENSE and icon present, no script, package file, .mcp.json or isolation key in the base, the privacy page, the homepage and the repository answer 200.
 - [x] Task 2 (HUMAN): the real-session setup and next check of track 10132 (no "Allow reads outside the working directories" prompt); record the result. Done 2026-11-19 headlessly (the owner's suggestion) on a scratch copy of a real project: no read-outside denial; a chained Bash denial in next on 1.9.0 was fixed in 1.9.1.
-- [ ] Task 3: Draft the answers of REQ-4 (the two earlier reviewer holds and the data-handling questions) from the plugin's real behaviour, for the owner to read and edit
+- [x] Task 3: Draft the answers of REQ-4 (the two earlier reviewer holds and the data-handling questions) from the plugin's real behaviour, for the owner to read and edit. Written in spec.md, section "Draft answers for the portal"; they need the portal's exact wording to be matched
 
 ## Phase 2: The portal's Validate
 
