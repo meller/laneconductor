@@ -49,7 +49,7 @@ test('--site writes board.html, board.json and docs/, prints their absolute path
   const r = run(repo, '--site', site);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `${path.join(site, 'board.html')}\n${path.join(site, 'board.json')}\n`);
-  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs']);
+  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs', 'manifest.json']);
   assert.ok(!fs.readdirSync(repo).includes('board.json'), 'nothing is written into the repo');
 });
 

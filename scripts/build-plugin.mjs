@@ -82,6 +82,9 @@ export const SKILL_EXCLUDE_DIRS = ['legacy'];
 export const SERVER_ENTRIES = { parallel: ['bin/lc-connector.mjs', 'bin/lc-scaffold.mjs'], board: ['bin/lc-board.mjs'] };
 export const SERVER_ASSETS = { parallel: [], board: ['src/board-page.html'] };
 export const SERVER_DIRS = { parallel: ['guides'], board: [] };
+// The board add-on's own command and hooks (track AM-10115 Phase 0): the base stays Markdown only, with no hooks.
+export const BOARD_EXTRAS_SRC = 'connector/plugin-extras-board';
+export const BOARD_EXTRAS = ['commands/refresh.md', 'hooks/hooks.json', 'hooks/lc-board-hook.mjs'];
 const AGENTS = { base: ['agents/plan-reviewer.md'], parallel: ['agents/track-runner.md'], board: [] };
 const KEYWORDS = {
   base: ['laneconductor', 'tracks', 'planning', 'git'],
@@ -175,10 +178,26 @@ function collector(repo) {
 
 const readPkg = (repo) => JSON.parse(fs.readFileSync(path.join(repo, 'connector/package.json'), 'utf8'));
 
+// Per-plugin versions. Every plugin follows connector/package.json (the connector's version) unless connector/plugin-extras/versions.json
+// names a version for its profile ({ "board": "1.10.0" }): then only that plugin, its README line and its marketplace entry take it. The base
+// can stay byte-identical while an add-on is released on its own.
+export const VERSIONS_SRC = `${EXTRAS_SRC}/versions.json`;
+function versionOverrides(repo) {
+  const abs = path.join(repo, VERSIONS_SRC);
+  if (!fs.existsSync(abs)) return {};
+  const v = JSON.parse(fs.readFileSync(abs, 'utf8'));
+  for (const [k, x] of Object.entries(v)) {
+    if (!PROFILES.includes(k) || !/^\d+\.\d+\.\d+$/.test(x)) throw new Error(`${VERSIONS_SRC}: ${JSON.stringify(k)}: ${JSON.stringify(x)} (keys are ${PROFILES.join(', ')}; values are semver)`);
+  }
+  return v;
+}
+/** The version of one plugin: its entry in versions.json, else connector/package.json. */
+export const pluginVersion = (profile, repo = REPO) => versionOverrides(repo)[profile] ?? readPkg(repo).version;
+
 /** Copies the named files of connector/plugin-extras/ (e.g. agents/plan-reviewer.md) into the plugin; `transform(rel, text)` rewrites Markdown. */
-function addExtras(c, repo, rels, transform = (_, t) => t) {
+function addExtras(c, repo, rels, transform = (_, t) => t, src = EXTRAS_SRC) {
   for (const rel of rels) {
-    c.addFrom(`${EXTRAS_SRC}/${rel}`, rel);
+    c.addFrom(`${src}/${rel}`, rel);
     const f = c.files.get(rel);
     f.content = Buffer.from(transform(rel, f.content.toString('utf8')));
   }
@@ -222,13 +241,13 @@ export function renderBaseCommand(cmd, readSkill = null) {
   return `${front.join('\n')}\n${parts.join('\n\n')}\n`;
 }
 
-function manifest(profile, pkg) {
+function manifest(profile, version) {
   // Only fields the directory portal knows (its Validate of 2026-11-18 warned about documentationUrl and supportUrl), plus the listing
   // field privacyPolicyUrl. The same shape for the add-ons, so one test emulates the portal for all three.
   return json({
     name: NAMES[profile],
     displayName: DISPLAY[profile],
-    version: pkg.version,
+    version,
     description: DESCRIPTIONS[profile],
     author: { name: AUTHOR, url: AUTHOR_URL },
     homepage: 'https://laneconductor.com',
@@ -270,7 +289,7 @@ function addServer(c, repo, { entries, assets = [], dirs = [] }) {
 function commonFiles(c, repo, profile, pkg) {
   c.addFrom(ICON_SRC, '.claude-plugin/icon.png');
   c.addFrom('LICENSE', 'LICENSE');
-  c.add('.claude-plugin/plugin.json', manifest(profile, pkg));
+  c.add('.claude-plugin/plugin.json', manifest(profile, pluginVersion(profile, repo)));
 }
 
 /** BASE: Markdown, JSON and one PNG only. The README is added later (it embeds the plugin map, which is derived from these files). */
@@ -304,20 +323,21 @@ function buildBase(repo) {
 function buildParallel(repo) {
   const c = collector(repo);
   const pkg = readPkg(repo);
+  const version = pluginVersion('parallel', repo);
   const lock = JSON.parse(fs.readFileSync(path.join(repo, 'connector/package-lock.json'), 'utf8'));
   addServer(c, repo, { entries: SERVER_ENTRIES.parallel, assets: SERVER_ASSETS.parallel, dirs: SERVER_DIRS.parallel });
   addExtras(c, repo, AGENTS.parallel);
   // package.json + lockfile at the plugin root, derived from the connector's (runtime deps only).
   const name = NAMES.parallel;
-  c.add('package.json', json({ name, version: pkg.version, type: pkg.type, dependencies: pkg.dependencies }));
+  c.add('package.json', json({ name, version, type: pkg.type, dependencies: pkg.dependencies }));
   const packages = {};
   for (const [key, entry] of Object.entries(lock.packages)) {
     if (key === '') {
-      packages[''] = { name, version: pkg.version, dependencies: pkg.dependencies, engines: entry.engines };
+      packages[''] = { name, version, dependencies: pkg.dependencies, engines: entry.engines };
       if (!entry.engines) delete packages[''].engines;
     } else if (!entry.dev) packages[key] = entry;
   }
-  c.add('package-lock.json', json({ name, version: pkg.version, lockfileVersion: lock.lockfileVersion, requires: true, packages }));
+  c.add('package-lock.json', json({ name, version, lockfileVersion: lock.lockfileVersion, requires: true, packages }));
   c.add('.mcp.json', json({
     mcpServers: {
       [SERVER_KEY]: {
@@ -335,6 +355,7 @@ function buildBoard(repo) {
   const c = collector(repo);
   const pkg = readPkg(repo);
   addServer(c, repo, { entries: SERVER_ENTRIES.board, assets: SERVER_ASSETS.board, dirs: SERVER_DIRS.board });
+  addExtras(c, repo, BOARD_EXTRAS, undefined, BOARD_EXTRAS_SRC);
   commonFiles(c, repo, 'board', pkg);
   return c;
 }
@@ -361,6 +382,7 @@ export function pluginFacts(profile, files) {
     tools,
     prompts: hasConnector ? COMMANDS.map((c) => c.name) : [],
     scripts: [...files.keys()].filter((r) => /^server\/bin\/[^/]+\.mjs$/.test(r)).map((r) => r.slice('server/bin/'.length)).sort(),
+    hooks: files.has('hooks/hooks.json') ? Object.keys(JSON.parse(text('hooks/hooks.json')).hooks).sort() : [],
     program: files.has('.mcp.json') || [...files.keys()].some((r) => r.endsWith('.mjs')),
   };
 }
@@ -376,7 +398,11 @@ export function buildPluginMap(facts) {
   L.push('## What each plugin provides', '');
   L.push(`| | \`${base.name}\` (base) | \`${parallel.name}\` (add-on) | \`${board.name}\` (add-on) |`, '| :--- | :--- | :--- | :--- |');
   const row = (label, f) => L.push(`| ${label} | ${PROFILES.map((p) => f(facts[p])).join(' | ')} |`);
-  row('Slash commands', (f) => (f.commands.length ? `all of them, as \`/${f.name}:<name>\` (${f.commands.map((c) => `\`${c}\``).join(', ')})` : 'none (the add-ons ship no commands; the base commands detect them)'));
+  row('Slash commands', (f) => {
+    if (f.profile === 'base') return `all of them, as \`/${f.name}:<name>\` (${f.commands.map((c) => `\`${c}\``).join(', ')})`;
+    return f.commands.length ? `${f.commands.map((c) => `\`/${f.name}:${c}\``).join(', ')} only (the base commands detect the add-ons)` : 'none (the base commands detect the add-ons)';
+  });
+  row('Hooks', (f) => (f.hooks.length ? f.hooks.map((h) => `\`${h}\``).join(', ') : 'none'));
   row('Skills', (f) => list(f.skills));
   row('Agents', (f) => list(f.agents, (a) => `\`${a.name}\`${a.isolation ? ` (isolation: ${a.isolation})` : ''}`));
   row('MCP tools', (f) => (f.tools.length ? `${f.tools.map((t) => `\`${t}\``).join(', ')}; named \`${toolRef('<tool>')}\`` : 'none'));
@@ -403,7 +429,7 @@ export function buildPluginMap(facts) {
 }
 
 /** The short version of the map embedded in every plugin README. */
-export function shortMap(facts) {
+export function shortMap(facts, profile = 'base') {
   const b = facts.base;
   const p = facts.parallel;
   const d = facts.board;
@@ -412,7 +438,10 @@ export function shortMap(facts) {
     '| :--- | :--- |',
     `| \`${b.name}\` (base) | the ${list(b.skills, (s) => `\`${s}\``)} skill, every slash command (\`/${b.name}:<name>\`), the ${list(b.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent. Markdown only. |`,
     `| \`${p.name}\` (add-on) | the connector's tools (\`${CONNECTOR_TOOL_PREFIX}*\`) and MCP prompts, the ${list(p.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent (one per track, in its own worktree), ${list(p.scripts.filter((s) => s !== 'lc-connector.mjs'), (s) => `\`${s}\``)}. No slash commands. |`,
-    `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page. No slash commands. |`,
+    // The base and parallel READMEs keep the board row as released with 1.9.11 (the base stays byte-identical until the owner releases it); the board's own README says what it now ships.
+    profile !== 'board'
+      ? `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page. No slash commands. |`
+      : `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page, the \`/${d.name}:refresh\` command (publishes only what changed) and opt-in hooks that keep the board current. |`,
   ].join('\n');
 }
 
@@ -422,11 +451,10 @@ const fill = (text, vars) => text.replace(/\{\{(\w+)\}\}/g, (m, k) => { if (!(k 
 function buildEverything(repo) {
   const built = Object.fromEntries(PROFILES.map((p) => [p, BUILDERS[p](repo)]));
   const facts = Object.fromEntries(PROFILES.map((p) => [p, pluginFacts(p, built[p].files)]));
-  const pkg = readPkg(repo);
-  const common = { VERSION: pkg.version, PRIVACY_URL, PLUGIN_MAP: shortMap(facts), ADDONS: addonsReadmeBlock(), FULL_INSTALL: fullInstallBlock(), NEXT_JOURNEY, SKILL_ADVISOR: skillAdvisorReadmeBlock() };
+  const common = { PRIVACY_URL, ADDONS: addonsReadmeBlock(), FULL_INSTALL: fullInstallBlock(), NEXT_JOURNEY, SKILL_ADVISOR: skillAdvisorReadmeBlock() };
   for (const p of PROFILES) {
     const own = RECOMMENDED.find((e) => e.name === NAMES[p]);
-    const vars = { ...common, INSTALL_SELF: own ? installBlock(p) : '', SELF_NOTE: own ? installsNote(p) : '' };
+    const vars = { ...common, PLUGIN_MAP: shortMap(facts, p), VERSION: pluginVersion(p, repo), INSTALL_SELF: own ? installBlock(p) : '', SELF_NOTE: own ? installsNote(p) : '' };
     built[p].add('README.md', fill(fs.readFileSync(path.join(repo, README_SRC, `${p}.md`), 'utf8'), vars));
   }
   return { plugins: Object.fromEntries(PROFILES.map((p) => [p, built[p].files])), facts, map: buildPluginMap(facts) };
@@ -438,7 +466,10 @@ export function buildPlugin(repo = REPO, profile = 'base') {
   return buildEverything(repo).plugins[profile];
 }
 
-export function buildMarketplace() {
+export function buildMarketplace(repo = REPO) {
+  // A plugin with its own version (versions.json) carries it in its marketplace entry too (the manifest's version wins; the two are kept equal).
+  const own = versionOverrides(repo);
+  const ver = (profile) => (own[profile] ? { version: own[profile] } : {});
   return json({
     name: MARKETPLACE,
     owner: { name: AUTHOR },
@@ -455,12 +486,14 @@ export function buildMarketplace() {
         source: `./${RELS.parallel}`,
         description: 'Add-on: parallel work in git worktrees with conflict-checked track writes (a local connector) and a track-runner subagent.',
         author: { name: AUTHOR },
+        ...ver('parallel'),
       },
       {
         name: NAMES.board,
         source: `./${RELS.board}`,
-        description: 'Add-on: the board script and page, a private snapshot of every track by lane.',
+        description: 'Add-on: the board script and page, a private snapshot of every track by lane; a refresh command that publishes only what changed, and opt-in hooks that keep it current.',
         author: { name: AUTHOR },
+        ...ver('board'),
       },
     ],
   });
@@ -471,7 +504,7 @@ export function buildAll(repo = REPO) {
   const { plugins, map } = buildEverything(repo);
   const out = new Map();
   for (const p of PROFILES) for (const [r, f] of plugins[p]) out.set(`${RELS[p]}/${r}`, f);
-  out.set(MARKETPLACE_REL, { content: Buffer.from(buildMarketplace()), exec: false });
+  out.set(MARKETPLACE_REL, { content: Buffer.from(buildMarketplace(repo)), exec: false });
   out.set(PLUGIN_MAP_REL, { content: Buffer.from(map), exec: false });
   return out;
 }

@@ -39,7 +39,9 @@ test('docs/plugin-map.md says exactly that: every provided name appears in its c
   const cmds = row('Slash commands');
   for (const c of CATALOG) assert.ok(cmds[1].includes(`\`${c.name}\``), `${c.name} is a base command`);
   assert.match(cmds[2], /none/);
-  assert.match(cmds[3], /none/);
+  assert.match(cmds[3], /`\/laneconductor-board:refresh` only/);
+  assert.match(row('Hooks')[3], /`PostToolUse`, `Stop`/);
+  assert.equal(row('Hooks')[1], 'none');
   assert.ok(row('MCP tools')[2].includes(`${CONNECTOR_TOOL_PREFIX}<tool>`));
   for (const t of TOOLS) assert.ok(row('MCP tools')[2].includes(`\`${t.name}\``), t.name);
   assert.ok(row('Agents')[2].includes('`track-runner` (isolation: worktree)'));
@@ -63,8 +65,10 @@ test('every README carries the same short plugin map, generated from the same fa
   const short = shortMap(facts);
   for (const p of PROFILES) {
     const readme = fs.readFileSync(path.join(REPO, RELS[p], 'README.md'), 'utf8');
-    assert.ok(readme.includes(short), `${NAMES[p]} README holds the short map`);
+    assert.ok(readme.includes(shortMap(facts, p)), `${NAMES[p]} README holds the short map`);
   }
+  // The base and parallel READMEs keep the board row of the released 1.9.11 (the base stays byte-identical); only the board's own README names its new command.
+  assert.ok(shortMap(facts, 'board').includes('`/laneconductor-board:refresh`') && !short.includes('refresh'));
   assert.ok(short.includes('`laneconductor-parallel` (add-on) | the connector\'s tools') && short.includes('No slash commands.'));
   assert.ok(!/\b\d+\s+(slash\s+)?commands\b/.test(short), 'no command count');
 });

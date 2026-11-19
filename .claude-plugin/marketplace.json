@@ -24,10 +24,11 @@
     {
       "name": "laneconductor-board",
       "source": "./plugins/laneconductor-board",
-      "description": "Add-on: the board script and page, a private snapshot of every track by lane.",
+      "description": "Add-on: the board script and page, a private snapshot of every track by lane; a refresh command that publishes only what changed, and opt-in hooks that keep it current.",
       "author": {
         "name": "Asaf Meller"
-      }
+      },
+      "version": "1.9.11"
     }
   ]
 }

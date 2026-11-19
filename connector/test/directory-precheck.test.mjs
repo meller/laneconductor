@@ -9,7 +9,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, CONNECTOR_TOOL_PREFIX } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, CONNECTOR_TOOL_PREFIX, pluginVersion } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
@@ -109,11 +109,11 @@ test('version and manifest limits: semver version equal to connector/package.jso
   for (const [label, dir] of PLUGINS) {
     const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));
     assert.match(m.version, /^\d+\.\d+\.\d+$/, label);
-    assert.equal(m.version, readJson(path.join(REPO, 'connector/package.json')).version, label);
+    assert.equal(m.version, pluginVersion(dir === BASE ? 'base' : dir === BOARD ? 'board' : 'parallel'), `${label}: its own version (connector/package.json unless connector/plugin-extras/versions.json names one)`);
     assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
     assert.ok(m.name.length <= 64 && m.description.length <= 1024);
     assert.ok(!fs.existsSync(path.join(dir, 'bin')), `${label}: a top-level bin/ stops claude.ai and Cowork installing the plugin`);
-    assert.ok(!fs.existsSync(path.join(dir, 'hooks')));
+    assert.ok(dir === BOARD || !fs.existsSync(path.join(dir, 'hooks')), `${label}: only the board add-on has hooks`);
   }
   assert.equal(readJson(path.join(PLUGIN, 'package.json')).version, readJson(path.join(PLUGIN, '.claude-plugin/plugin.json')).version);
 });

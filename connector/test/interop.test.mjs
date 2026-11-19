@@ -98,7 +98,8 @@ for (const [label, profiles] of SETS) {
     const bare = [...seen.keys()].map((k) => k.split(':')[1]);
     for (const n of bare) assert.equal(bare.filter((b) => b === n).length, 1, `${n} is a name of more than one kind or plugin`);
     // The add-ons ship no slash commands and no skill: only the base registers those.
-    for (const p of profiles.filter((x) => x !== 'base')) assert.deepEqual([surface(dirs[p]).commands, surface(dirs[p]).skills], [[], []], `${NAMES[p]} registers commands or skills`);
+    // (The board add-on ships exactly one command of its own, refresh: track AM-10115 Phase 0.)
+    for (const p of profiles.filter((x) => x !== 'base')) assert.deepEqual([surface(dirs[p]).commands, surface(dirs[p]).skills], [p === 'board' ? ['refresh'] : [], []], `${NAMES[p]} registers commands or skills`);
   });
 
   test(`matrix (${label}): the base's board command finds the script by its Glob when the board add-on is installed, and shows the install commands when it is not (TC-4, TC-6)`, () => {

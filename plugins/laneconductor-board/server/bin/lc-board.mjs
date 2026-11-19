@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The board script: prints the board data (plan Phase 5d) for one project as JSON.
-//   lc-board.mjs [--repo <path>] [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json]]
+//   lc-board.mjs [--repo <path>] [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json [--previous <manifest.json|none> [--live-board <board.json>]]]]
 // Default: JSON on STDOUT and nothing is written into the repo (a board is a snapshot, not a
 // committed file). --out writes the file. --check <file> exits 1 when the file's data differs from
 // a fresh build (generated_at is ignored). Reads only conductor/workflow.json, the optional .laneconductor.json
@@ -18,6 +18,13 @@
 // line, and nothing else on stdout; with --json it prints one JSON object instead,
 // { page, root, files } (files are relative to root: board.json and every docs file), ready to pass to
 // the Artifact tool. Files the privacy scan withheld are named on stderr (never their content).
+// --site also writes manifest.json (a sha256 per file; src/board-manifest.mjs), which is published with the board but is not in `files`.
+// Partial publish (track AM-10115 Phase 0): with --json --previous <the manifest.json read from the live artifact>, the object also carries
+// mode ("partial" | "full"), changed, removed, pageChanged and publish ({ path: path | null }: only the changed files, null for removed ones,
+// and manifest.json). A previous manifest that is missing (pass `none`), unreadable, malformed or of another version gives mode "full" and
+// every file. --live-board <the board.json read from the live artifact> must hash to the manifest's board.json entry, else mode "full"
+// (the live board was published by something else since). `files` itself is never shortened: without --previous the output is exactly
+// { page, root, files }, which is what the base `board` command relies on.
 // <dir> may not be inside the repo's conductor/ folder.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -30,11 +37,12 @@ import { outcomeCandidate } from '../src/owner-steps.mjs';
 import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
+import { MANIFEST_FILE, buildManifest, parseManifest, planPublish, sha256 } from '../src/board-manifest.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
 const die = (msg) => { process.stderr.write(`board: ${msg}\n`); process.exit(2); };
-for (const n of ['--repo', '--out', '--now', '--check', '--site']) if (argv.includes(n) && !opt(n)) die(`${n} needs a value`);
+for (const n of ['--repo', '--out', '--now', '--check', '--site', '--previous', '--live-board']) if (argv.includes(n) && !opt(n)) die(`${n} needs a value`);
 
 const repo = path.resolve(opt('--repo') ?? process.cwd());
 const now = opt('--now') ?? new Date().toISOString();
@@ -131,7 +139,24 @@ if (siteDir) {
     }
   } catch { /* no git: the board has no commit and the page shows the age only */ }
   await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, commit }))}\n`, 'utf8');
-  process.stdout.write(argv.includes('--json') ? `${JSON.stringify({ page, root: dir, files })}\n` : `${page}\n${data}\n`);
+  // The manifest: a hash of the exact bytes of the page and of every data file, written last so it describes what is on disk.
+  const pageBytes = await fs.readFile(page);
+  const bytes = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await fs.readFile(path.join(dir, f))])));
+  const manifest = buildManifest({ pageBytes, files: bytes });
+  await fs.writeFile(path.join(dir, MANIFEST_FILE), `${JSON.stringify(manifest)}\n`, 'utf8');
+  const result = { page, root: dir, files };
+  const previousArg = opt('--previous');
+  if (previousArg !== undefined) {
+    const previous = parseManifest(await readText(path.resolve(previousArg)));
+    const liveArg = opt('--live-board');
+    let liveBoardSha;
+    if (liveArg !== undefined) {
+      const live = await fs.readFile(path.resolve(liveArg)).catch(() => null);
+      liveBoardSha = live === null ? '' : sha256(live);
+    }
+    Object.assign(result, planPublish({ current: manifest, allFiles: files, previous, liveBoardSha }));
+  }
+  process.stdout.write(argv.includes('--json') ? `${JSON.stringify(result)}\n` : `${page}\n${data}\n`);
 } else if (checkFile) {
   const text = await readText(path.resolve(checkFile));
   let have = null;

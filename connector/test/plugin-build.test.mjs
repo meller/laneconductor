@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, BASE_HABITS, REPO,
-  PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND,
+  PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND, pluginVersion,
 } from '../../scripts/build-plugin.mjs';
 import { makeZip, readZip } from '../../scripts/make-zip.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
@@ -45,7 +45,7 @@ test('TC-1: --check exits 1 and names the file when any of the three plugins, th
   // Build a scratch "repo" holding only what the generator reads, then edit generated files.
   const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-plugin-drift-'));
   try {
-    for (const rel of ['.claude/skills/laneconductor', 'connector/src', 'connector/guides', 'connector/plugin-extras']) {
+    for (const rel of ['.claude/skills/laneconductor', 'connector/src', 'connector/guides', 'connector/plugin-extras', 'connector/plugin-extras-board']) {
       fs.cpSync(path.join(REPO, rel), path.join(tmp, rel), { recursive: true });
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
@@ -100,7 +100,8 @@ test('TC-1: marketplace lists the base, then the two add-ons; each entry names i
   for (const [profile, dir] of Object.entries(DIRS)) {
     const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));
     assert.equal(m.name, NAMES[profile]);
-    assert.equal(m.version, version, `${m.name}: the plugin version follows connector/package.json`);
+    assert.equal(m.version, pluginVersion(profile), `${m.name}: the plugin version follows connector/package.json unless connector/plugin-extras/versions.json names one for it`);
+    assert.equal(market.plugins.find((x) => x.name === m.name).version ?? m.version, m.version, `${m.name}: a marketplace entry that names a version names the manifest's`);
     assert.equal(m.dependencies, undefined, `${m.name}: no dependency on another plugin (cross-marketplace dependencies are unverified)`);
     assert.equal(m.mcpServers, undefined, `${m.name}: .mcp.json declares the server, not the manifest`);
     assert.equal(RELS[profile], `plugins/${m.name}`);
@@ -127,7 +128,7 @@ test('the parallel add-on declares one local server, key lc, started with node o
   assert.ok(!fs.existsSync(path.join(BASE, '.mcp.json')) && !fs.existsSync(path.join(BOARD, '.mcp.json')));
   for (const f of ['server/bin/lc-board.mjs', 'server/src/board-page.html']) assert.ok(fs.existsSync(path.join(BOARD, f)), `board ships ${f}`);
   assert.ok(!fs.existsSync(path.join(BOARD, 'server/bin/lc-connector.mjs')) && !fs.existsSync(path.join(BOARD, 'package.json')), 'the board needs no connector and no packages');
-  for (const dir of Object.values(DIRS)) assert.ok(!fs.existsSync(path.join(dir, 'hooks')), 'no hooks (they would be a separate opt-in extension)');
+  for (const [profile, dir] of Object.entries(DIRS)) assert.equal(fs.existsSync(path.join(dir, 'hooks')), profile === 'board', `${profile}: only the board add-on ships hooks (the base stays Markdown only, with no hooks)`);
 });
 
 test('listing: each README has its words, LICENSE, the install commands (one per bash block) and the migration note; no command count; no placeholder', () => {
@@ -135,7 +136,7 @@ test('listing: each README has its words, LICENSE, the install commands (one per
     const readme = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
     assert.ok(proseWords(readme) >= 120, `${profile}: our floor is 120 words outside code blocks, got ${proseWords(readme)}`);
     assert.ok(!readme.includes('{{'), `${profile}: a template placeholder was left in the README`);
-    assert.ok(readme.includes(`Version ${version}.`));
+    assert.ok(readme.includes(`Version ${pluginVersion(profile)}.`));
     assert.ok(fs.readFileSync(path.join(dir, 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))), 'plugin LICENSE is the repo LICENSE');
     assert.ok(readme.includes('Elastic License 2.0') && readme.includes('LICENSE'));
     // TC-9: the install commands, each alone in a ```bash fence; the add-ons' commands appear for both add-ons; the migration note.
@@ -161,7 +162,7 @@ test('listing: each README has its words, LICENSE, the install commands (one per
     assert.ok(parallel.includes(must), `parallel README must mention ${must}`);
   }
   const board = norm(fs.readFileSync(path.join(BOARD, 'README.md'), 'utf8'));
-  for (const must of ['**/laneconductor-board/**/bin/lc-board.mjs', 'no slash commands', 'private artifact', 'secrets and personal data', 'works alone']) assert.ok(board.includes(must), `board README must mention ${must}`);
+  for (const must of ['**/laneconductor-board/**/bin/lc-board.mjs', '/laneconductor-board:refresh', 'board.auto_update', 'private artifact', 'secrets and personal data', 'works alone']) assert.ok(board.includes(must), `board README must mention ${must}`);
 });
 
 test('no top-level bin/ in any plugin, no symlinks, no node_modules committed', () => {
@@ -366,7 +367,7 @@ test('make-zip: deterministic, holds exactly the plugin files at the zip root, k
   assert.match(ok.stdout, /sha256: [0-9a-f]{64}/);
   const board = run('--out', path.join(tmp, 'dist'), '--plugin', 'board');
   assert.equal(board.status, 0, board.stderr);
-  assert.ok(fs.existsSync(path.join(tmp, 'dist', `laneconductor-board-${version}.zip`)));
+  assert.ok(fs.existsSync(path.join(tmp, 'dist', `laneconductor-board-${pluginVersion('board')}.zip`)));
   assert.match(run('--out', path.join(tmp, 'dist'), '--plugin', 'full').stderr, /--plugin must be one of/);
   assert.equal(run().status, 1, '--out is required');
   assert.match(run('--out', path.join(REPO, 'x.zip')).stderr, /refusing to write inside the repository/);

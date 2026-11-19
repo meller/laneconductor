@@ -6,7 +6,8 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 
 | | `laneconductor` (base) | `laneconductor-parallel` (add-on) | `laneconductor-board` (add-on) |
 | :--- | :--- | :--- | :--- |
-| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the add-ons ship no commands; the base commands detect them) | none (the add-ons ship no commands; the base commands detect them) |
+| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the base commands detect the add-ons) | `/laneconductor-board:refresh` only (the base commands detect the add-ons) |
+| Hooks | none | none | `PostToolUse`, `Stop` |
 | Skills | `laneconductor` | none | none |
 | Agents | `plan-reviewer` | `track-runner` (isolation: worktree) | none |
 | MCP tools | none | `append_conversation`, `create_track`, `get_context`, `get_track`, `health_report`, `help`, `list_tracks`, `report_outcome`, `update_track`; named `mcp__plugin_laneconductor-parallel_lc__<tool>` | none |

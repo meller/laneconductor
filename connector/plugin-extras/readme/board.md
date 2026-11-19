@@ -15,9 +15,17 @@ dependency on the base plugin or on the connector: it is one script and one page
   finds the script (it Globs for `**/laneconductor-board/**/bin/lc-board.mjs` under
   `~/.claude/plugins/cache`, where installed plugins live) and runs it; it shows how to install this add-on when it does not find it.
 
-It adds no slash commands: the commands are in the base plugin. You can also run the script yourself:
-`node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json` and one documents file per track that
-is not done into `<dir>`, which must be outside `conductor/`.
+- `/laneconductor-board:refresh`: rebuilds the board and publishes only the files that changed (a partial publish: one track edited sends `board.json`, that track's
+  document and a small `manifest.json`). It needs a stored board; the base plugin's `board refresh` still publishes everything. The first publish, a conflict or a
+  failure publishes everything.
+- two hooks (`hooks/hooks.json`, one script, `hooks/lc-board-hook.mjs`) that note when a track changed (Edit or Write of a track file, the connector's `create_track` and
+  `update_track`) in the plugin's data directory, never in your project. They do nothing else unless you set `board.auto_update: true` in `.laneconductor.json`: then, when
+  Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run the refresh command. With the option off, one line per session says the board is out of date.
+  The hooks make no network request, run no other program and print no file text.
+
+The base plugin's commands are unchanged: it adds no other slash commands. You can also run the script yourself:
+`node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json` and one documents file per track that
+is not done into `<dir>`, which must be outside `conductor/`; with `--previous <the manifest.json read from the live artifact>` its JSON also lists what changed.
 
 ## Install
 
@@ -42,7 +50,7 @@ this add-on, and restart your sessions. The files in git are unchanged, so nothi
 - The script runs `git` read-only (the origin URL and the current branch name), reads `conductor/workflow.json`,
   the optional settings file `.laneconductor.json` and each track's `index.md`, `spec.md`, `plan.md` and `test.md`, and writes only into the folder you name
   with `--site`, never inside `conductor/`. It makes no network requests. Publishing the artifact is done by Claude, with your
-  approval, never by the script.
+  approval, never by the script or a hook.
 - Board privacy: every document is scanned for secrets and personal data before it goes onto the board; a file with any match is
   withheld whole and named by track number and file name, never by its content. `conversation.md` is left out unless you set
   `board.include_conversation: true`, and sharing the artifact shares the documents on it, so share it only with people who may read

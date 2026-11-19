@@ -1,0 +1,28 @@
+{
+  "description": "LaneConductor Board: notes when a track changed and, only when board.auto_update is true in .laneconductor.json, asks Claude to refresh the board at the end of the turn.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__plugin_laneconductor-parallel_lc__create_track|mcp__plugin_laneconductor-parallel_lc__update_track|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lc-board-hook.mjs post",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/hooks/lc-board-hook.mjs stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
