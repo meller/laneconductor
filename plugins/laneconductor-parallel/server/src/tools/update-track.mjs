@@ -41,7 +41,7 @@ async function parkingAdvice(tx, folder, before, after, statusSet) {
   const now = parseMarkers(after).values;
   const status = (now['Lane Status'] ?? '').trim();
   const lane = (now['Lane'] ?? '').trim();
-  if (status === 'waiting' && lane !== 'done' && !(now['Waiting Reason'] ?? '').trim() && (statusSet || (was['Lane Status'] ?? '').trim() !== 'waiting')) {
+  if (status === 'waiting' && lane !== 'done' && !(now['Waiting Reason'] ?? '').trim() && !(now['Owner Action'] ?? '').trim() && (statusSet || (was['Lane Status'] ?? '').trim() !== 'waiting')) {
     out.push('Lane Status is waiting but there is no **Waiting Reason**. Add one line saying what unblocks the track (and **Waiting On Tracks** when it waits for tracks), so a person can tell why it is parked.');
   }
   if (status === 'running' && (was['Lane Status'] ?? '').trim() !== 'running') {

@@ -30,10 +30,12 @@ const REUSE = (what) => (
   + 'If one fits, say so and ask me "Update track N (title, lane) with this? [default: yes]". On yes, or no answer, extend that track (its spec or plan, through `update_track` with the `base` from `get_track`, and a comment) and do NOT create a track; a done track is reopened only on my explicit yes. '
   + 'Only if I say no, or nothing fits, call `create_track`, and say which tracks you looked at and why none fit. Several small gaps from one session go into one fitting track, an epic or one backlog track, not one track each. If `create_track` answers with `similar_tracks`, show them and offer to move the new content into one of them.'
 );
+// Track AM-10144 Phase 14: the sub-agent and worktree recommendation is for code tracks; a track that writes no code is worked here, with no question.
+const NON_DEV = 'If `**Type**` is not `dev` (marketing, sales, support, other) the track has no code: recommend no sub-agent and no worktree, ask no question about one, and do the lane in this session (skip steps 3 and 4). A code track: ';
 const WORKTREE = 'RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding.';
 const LANE_WORK = (lane, dispatch) => (
   `1. Call \`get_context\` with lane \`${lane}\` and \`get_track\` for the track.\n`
-  + `2. ${WORKTREE}\n`
+  + `2. ${NON_DEV}${WORKTREE}\n`
   + `3. Show the exact dispatch you would make, with this prompt: "${dispatch}"\n`
   + `4. Start nothing until I say yes. If I decline, or sub-agents are unavailable (chat), do the lane yourself in this session following the guide.\n`
   + `5. Record state with \`update_track\` and the \`base\` from \`get_track\`. ${FINISH}`
@@ -91,14 +93,14 @@ export const COMMANDS = [
   },
   {
     name: 'implement', group: 'plan and deliver', title: 'Implement a track',
-    description: 'Implement a track from its plan (recommends one sub-agent per track in its own worktree)',
+    description: 'Implement a track from its plan (code tracks: one sub-agent in its own worktree)',
     example: 'implement track 10106', args: [TRACK], connector: true,
     procedure: `Implement track {{track}}. The procedure is the implement lane guide (skill file \`lanes/implement.md\`); follow it and do not restate it here.\n\n`
       + LANE_WORK('implement', 'Work track N through its implement lane: read the lane guide, follow plan.md, commit in your worktree, report commits and test results; do not merge or push.'),
   },
   {
     name: 'review', group: 'plan and deliver', title: 'Review a track',
-    description: 'Review a track\'s implementation (recommends one sub-agent per track in its own worktree)',
+    description: 'Review a track\'s implementation (code tracks: one sub-agent in its own worktree)',
     example: 'review track 10106', args: [TRACK], connector: true,
     procedure: `Review track {{track}}. The procedure is the review lane guide (skill file \`lanes/review.md\`); follow it and do not restate it here.\n\n`
       + LANE_WORK('review', 'Review track N in the review lane: read the lane guide, evaluate the work, do not fix it, report a verdict with evidence; do not merge or push.'),
@@ -117,11 +119,11 @@ export const COMMANDS = [
   },
   {
     name: 'run', group: 'plan and deliver', title: 'Run a track end to end',
-    description: 'Take a track through its lanes (recommends one sub-agent per track, in its own worktree)',
+    description: 'Take a track through its lanes (code tracks: one sub-agent per track, in its own worktree)',
     example: 'run track 10106 end to end', args: [TRACK], connector: true,
     procedure: 'Run track {{track}} end to end. The guardrails are the skill file `ops/working-a-track.md`; read it, and read the lane guide for each lane you run.\n\n'
       + '1. Call `get_track` for the track (`list_tracks` first if I gave a title) and `get_context` for the lane it is in; `get_context` also lists where each lane goes next.\n'
-      + '2. RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree. Why: isolation from the primary checkout, several tracks in parallel, no collisions.\n'
+      + `2. ${NON_DEV}RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree. Why: isolation from the primary checkout, several tracks in parallel, no collisions.\n`
       + '3. Show the exact dispatch you would make, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." One dispatch per lane, one agent per track.\n'
       + '4. Start nothing until I say yes. If I decline, or sub-agents are unavailable (chat), work the lane in this session following its lane guide.\n'
       + `5. Record state with \`update_track\` and the \`base\` from \`get_track\`. ${FINISH} Ask me before any merge or push.\n`

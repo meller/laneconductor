@@ -16,7 +16,7 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 - A new track folder is untracked, so a worktree off HEAD cannot see it: commit just that folder
   to main locally first (a worktree is the only reason this is needed; pushing is not).
 - Before touching a dirty primary checkout, check for a live process using it as cwd.
-- Do not open a track for a gap you find on the way until you have searched: list the tracks by the key words (every lane, backlog and done too), and if one fits ask "Update track N (title, lane) with this? [default: yes]" and extend it. Several small gaps go into one fitting track, an epic or one backlog track. See "Search first" in `ops/tracks.md`.
+- Search the tracks (every lane, backlog and done too) before opening one for a gap you find on the way; if one fits, ask "Update track N (title, lane) with this? [default: yes]" and extend it. See "Search first" in `ops/tracks.md`.
 - One session per track. If something else also works the track (another session, an automatic runner), stop and ask.
 - Do not run test suites that start background processes from inside a worktree: they can attach
   to the real primary checkout and leak processes. Check for leftovers after any test run.
@@ -25,13 +25,15 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
   is silently ignored by sync.
 - If a decision is the human's, ask in `conversation.md`, set `**Waiting for reply**: yes`, and stop.
 
-## Plugin users: one subagent per track in a worktree
+## Plugin users: one subagent per track in a worktree (code tracks)
+Only for a code track (`**Type**` `dev`). A non-dev track (marketing, sales, support, other) writes no code: no sub-agent, no
+worktree, no question about one; work its lane in this session.
+
 With the optional laneconductor-parallel add-on installed (Claude Code or Cowork, not chat), its `laneconductor-parallel:track-runner`
-subagent is the recommended way to work a track: one subagent per track, each in its own worktree,
-so code stays off the primary checkout, tracks run in parallel and do not collide, and the add-on's
-conflict-checked writes keep the shared track state safe. Recommend it and show the exact dispatch (agent name and
-one-line prompt); start nothing until the human says yes. `/laneconductor:run N`, `:implement N` and `:review N` do this
-when the agent is listed. It never merges or pushes.
+subagent is the recommended way to work a code track: one subagent per track, each in its own worktree, so code stays off the
+primary checkout, tracks run in parallel and do not collide, and conflict-checked writes keep the shared track state safe. Recommend it
+and show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes. `/laneconductor:run N`,
+`:implement N` and `:review N` do this when the agent is listed. It never merges or pushes.
 
 Without the add-on, work the lane in this session, or by hand in a worktree: `git worktree add .worktrees/track-N -b track-N`,
 a separate session started in that folder, one track per worktree, and never `git add -A` there. Say what the add-on adds

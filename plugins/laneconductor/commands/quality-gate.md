@@ -17,15 +17,14 @@ From the skill files this command names, copied here: whole files, or only the s
 
 ### `lanes/quality-gate.md`
 
-Run the checks, post the result, and route the track. Passing here queues the track for merge
-(`done:queue`); it does not mean shipped, because the merge action sets `done:success` once the
-code is on `main`.
+Run the checks, post the result, and route the track. Passing here queues a code track for merge
+(`done:queue`); it is not shipped until the merge action sets `done:success` once the code is on `main`.
+A non-dev track has no branch, so a pass closes it as `done:success`: nothing to merge.
 
 0. **Claim the track first.** Write `**Lane**: quality-gate` and `**Lane Status**: running` to
    the track's `index.md`. Set `**Lane**` explicitly: when run directly the track may not sit in
    this lane, and the board would show it running in the wrong column. In the same edit, clear
-   any existing `**Verdict**` marker, so a run cut short (including the KPI-miss early exit in
-   step 1) never leaves a stale value for a later run's exit handler to misread.
+   any existing `**Verdict**` marker, so a run cut short never leaves a stale value.
 0b. **KPI window.** If `**KPI Check After**` in `index.md` is in the future, ask
    "KPI window not reached, Xh remaining. Measuring now may be unreliable. Run anyway? (y/n)" and
    stop on "n". When an automatic run launched you it already checked the time; skip this.
@@ -53,10 +52,8 @@ code is on `main`.
      KPI MISS replanning above.
 2. **Execute the checks.** Read `conductor/quality-gate.md` and the track's `test.md`, and run
    every command in their "Automated Checks" / "Test Commands" sections with the shell.
-   - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Older copies
-     of that file shipped pre-ticked with a stale `Status: PASS`. Re-run each command and judge
-     only by output you saw yourself. If you catch yourself thinking "it's already checked",
-     that is the failure this warning exists for.
+   - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Re-run each command
+     and judge only by output you saw yourself, never by a ticked box or a stale `Status: PASS`.
    - `test.md` commands are the primary check for this track; `quality-gate.md` applies the
      project-wide standards.
    - Scan modified files for hardcoded secrets and check `.gitignore` covers the Zero-Secrets
@@ -73,8 +70,7 @@ code is on `main`.
      record what you saw (screenshot, or the real API/DB response). "The code looks correct" is
      not evidence.
    - **Restart long-running processes first.** Servers and long-running tools do not hot-reload, so
-     verifying against a process started before your change tests the old code. This has caused
-     several false passes in this repo.
+     verifying against a process started before your change tests the old code.
 
    **2b. Stub and deferred-work scan.**
    ```bash
@@ -111,11 +107,11 @@ code is on `main`.
      named in `spec.md`'s Solution is FFU, deferred or future; (3) step 2a's real-product check
      was performed and an observation recorded. If any fails, do not set `done`: set the lane to
      `review` (or `on_failure`), keep `**Progress**` below 100%, and write what remains in
-     `conversation.md`. Documenting a deferral honestly does not make the track complete; a track
-     that shipped a stub and was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
-     the incident these rules come from.
-   - **PASS:** apply the success move (this project: `done:queue`, passed and not yet shipped),
-     append `## ✅ QUALITY PASSED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
+     `conversation.md`. Documenting a deferral honestly does not make the track complete.
+   - **PASS:** a code track takes the success move (this project: `done:queue`, passed and not yet shipped).
+     A non-dev track (`**Type**` not `dev`) sets `**Lane**: done` and `**Lane Status**: success` instead (with the connector,
+     as markers, not `outcome`) and says in one clause that there is nothing to merge. Append `## ✅ QUALITY PASSED` to
+     `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move, explain the failure in
      `conversation.md`, and in the same edit write `**Verdict**: fail`.
    - The move sets `**Lane**` and `**Lane Status**` together (a bare target is `queue`); do not set the
@@ -126,7 +122,7 @@ code is on `main`.
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
-6. **Close** with the closing message of a lane.
+6. **Close** with the closing message of a lane. A non-dev track closed at `done:success` names `/laneconductor:next`, not merge.
 
 #### Offer a missing skill
 

@@ -7,8 +7,7 @@ the implement lane's retry loop, so write them up as gaps instead.
 0. **Claim the track first.** Write `**Lane**: review` and `**Lane Status**: running` to the
    track's `index.md`. Set `**Lane**` explicitly: when the command is run directly the track may
    not sit in this lane, and the board would show it running in the wrong column. In the same
-   edit, clear any existing `**Verdict**` marker, so a run that is cut short never leaves a stale
-   value for a later run's exit handler to misread.
+   edit, clear any existing `**Verdict**` marker, so a run cut short never leaves a stale value.
 1. **Load context.**
    - Unless `FRESH_SESSION: false` (review often resumes the session implement used), read
      `plan.md`, `spec.md`, `test.md`, and `product-guidelines.md`, `design-language.md`,
@@ -36,10 +35,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      append `## ✅ REVIEWED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move (this project: `implement:queue`), add
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
-   - Write `**Verdict**` every time, PASS or FAIL. The harness can tag the same
-     turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
-     a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
-     a resolved review is routed instead of parked indefinitely.
+   - Write `**Verdict**` every time, PASS or FAIL: a resolved review is routed from it, not parked.
 5. **Close** with the closing message of a lane.
 
 ## Offer a missing skill

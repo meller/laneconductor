@@ -1,5 +1,5 @@
 ---
-description: Implement a track from its plan (recommends one sub-agent per track in its own worktree)
+description: "Implement a track from its plan (code tracks: one sub-agent in its own worktree)"
 argument-hint: <track number or title>
 ---
 Implement track `$ARGUMENTS`. The procedure is the implement lane guide (skill file `lanes/implement.md`); follow it and do not restate it here.
@@ -7,7 +7,7 @@ Implement track `$ARGUMENTS`. The procedure is the implement lane guide (skill f
 This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.
 
 1. Find the track's folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`. Read the lane guide too. Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.
-2. If the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding. Show the exact dispatch, with this prompt: "Work track N through its implement lane: read the lane guide, follow plan.md, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: sub-agents per track in worktrees, conflict-checked track writes; It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing.
+2. If `**Type**` is not `dev` (marketing, sales, support, other) the track has no code: recommend no sub-agent and no worktree, ask no question about one, and do the lane in this session. A code track: if the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, so the work stays off the primary checkout and tracks run in parallel without colliding. Show the exact dispatch, with this prompt: "Work track N through its implement lane: read the lane guide, follow plan.md, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: sub-agents per track in worktrees, conflict-checked track writes; It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing.
 3. Change state by editing the track files directly, following the skill's `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.
 
 In Claude Code the add-on's sub-agent is `laneconductor-parallel:track-runner`. See "Plugin users" in the skill's `ops/working-a-track.md`.
@@ -30,9 +30,8 @@ commits go.
    land in the implement lane by itself. Without it the board shows the track running in the
    wrong column.
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
-   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions). Never
-   scaffold a second folder for an existing number.
-2. **Workspace.** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
+   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/`. Never scaffold a second folder for an existing number.
+2. **Workspace (dev tracks; a non-dev track needs no worktree).** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
    make the worktree yourself: `git worktree add .worktrees/NNN -b track-NNN` (or reuse it if it
    exists), and work there; with the parallel add-on, the `track-runner` sub-agent does this for
    you. If another session is already working in that worktree, stop and report instead of
@@ -43,7 +42,7 @@ commits go.
    - `conductor/deployment-stack.md`, `product-guidelines.md`, `design-language.md`,
      `tech-stack.md`, each if present.
    - `conversation.md`: human comments override the plan.
-   - `last_run.log` if present: why the previous run failed.
+   - `last_run.log` if present: why the last run failed.
    - **test.md self-healing:** if `test.md` is missing, empty or still the
      `(Test cases to be added)` stub, write concrete test cases and commands for each phase
      before any implementation code. Template:
@@ -61,8 +60,7 @@ commits go.
      - [ ] All unit tests pass
      - [ ] No regressions in related features
      ```
-   - TDD is recommended because `test.md` is written for it: per phase, write the test, watch it
-     fail, write the minimal code, watch it pass.
+   - TDD is recommended, `test.md` is written for it: per phase, write the test, watch it fail, then the minimal code.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
    - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
      `ab-testing`; sales: `sales-enablement`, `cold-email`, `prospecting`, `revops`; support: `ticket-triage`, `draft-response`,
@@ -73,9 +71,10 @@ commits go.
      `### Publish Instructions` to the user. Nothing is posted, sent or spent for the owner: they do it.
    - Write `**Owner Action**` (one line, up to 200 characters: exactly what the owner must do) and
      `**Owner Action Due**` (`YYYY-MM-DD`) to `index.md`, taking the day from the plan; when the plan has
-     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes`. That marker is
-     itself the Inbox signal, so no completion comment is needed.
-   - Stop. Do not transition the lane yourself.
+     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes` and `**Lane Status**: waiting`
+     (the Owner Action is the reason: no Waiting Reason; `**Lane**` stays `implement`; with the connector one `update_track` writes all four).
+     The Inbox signal is that marker, so no completion comment is needed.
+   - Stop. Do not move the lane yourself.
    - **The owner's reply** ("posted", "done", or a move): nothing moves the track by itself, so you do it.
      Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `**KPI Check After**` to now plus
      the KPI `Window` (a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`); park the track in the quality-gate lane as
@@ -88,22 +87,16 @@ commits go.
    `conversation.md`: `> **system**: ⚠️ FUNDAMENTALS CONFLICT - this track's [requirement] appears to
    require changing conductor/[doc].md ([specific conflict]). Continuing as specified; doc not
    modified - please review whether conductor/[doc].md should be updated.` (one comment, prefix
-   each continuation line with `> `). It is non-blocking unless proceeding would be actively wrong; then treat it like
-   any blocker and stop for human input instead of guessing.
+   each continuation line with `> `). It is non-blocking unless proceeding would be actively wrong; then stop for human input.
 5. **Dev tracks: per phase.**
    - Implement the tasks.
    - **Run the verification before you tick anything.** Do not mark a task `[x]` or write
      "Phase N complete" until you have executed whatever verifies it and read the real output.
      This holds even when `test.md` has no case for the phase: if there is a CLI flag, endpoint,
      UI flow or dispatch to exercise, exercise it. A written-but-unrun test file or a plausible
-     diff is not verification. One run shipped a "complete" phase with two new test
-     files that were never run (one had an import error) and a hardcoded `null` that broke the
-     one path that mattered.
+     diff is not verification.
    - **Never end a turn on a command you just backgrounded.** The harness kills background
-     children when the session exits, so the work is silently lost and the run exits 0
-     mid-work (the run's exit handler now reports `ended_mid_work`, which is recovery,
-     not prevention). Run long commands in the foreground and wait, or hand off explicitly with a
-     note in `conversation.md` naming what is still running and what the next turn should check.
+     children when the session exits, so the work is silently lost mid-work. Run long commands in the foreground and wait, or note in `conversation.md` what is still running.
    - Update `plan.md` (tick the task) and the `**Progress**` marker in `index.md`.
    - Commit: `feat(track-NNN): Phase X - description`.
 6. **Complete (dev tracks).** Apply the same verification bar to the track as a whole before
@@ -175,7 +168,7 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 - A new track folder is untracked, so a worktree off HEAD cannot see it: commit just that folder
   to main locally first (a worktree is the only reason this is needed; pushing is not).
 - Before touching a dirty primary checkout, check for a live process using it as cwd.
-- Do not open a track for a gap you find on the way until you have searched: list the tracks by the key words (every lane, backlog and done too), and if one fits ask "Update track N (title, lane) with this? [default: yes]" and extend it. Several small gaps go into one fitting track, an epic or one backlog track. See "Search first" in `ops/tracks.md`.
+- Search the tracks (every lane, backlog and done too) before opening one for a gap you find on the way; if one fits, ask "Update track N (title, lane) with this? [default: yes]" and extend it. See "Search first" in `ops/tracks.md`.
 - One session per track. If something else also works the track (another session, an automatic runner), stop and ask.
 - Do not run test suites that start background processes from inside a worktree: they can attach
   to the real primary checkout and leak processes. Check for leftovers after any test run.
@@ -184,13 +177,15 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
   is silently ignored by sync.
 - If a decision is the human's, ask in `conversation.md`, set `**Waiting for reply**: yes`, and stop.
 
-#### Plugin users: one subagent per track in a worktree
+#### Plugin users: one subagent per track in a worktree (code tracks)
+Only for a code track (`**Type**` `dev`). A non-dev track (marketing, sales, support, other) writes no code: no sub-agent, no
+worktree, no question about one; work its lane in this session.
+
 With the optional laneconductor-parallel add-on installed (Claude Code or Cowork, not chat), its `laneconductor-parallel:track-runner`
-subagent is the recommended way to work a track: one subagent per track, each in its own worktree,
-so code stays off the primary checkout, tracks run in parallel and do not collide, and the add-on's
-conflict-checked writes keep the shared track state safe. Recommend it and show the exact dispatch (agent name and
-one-line prompt); start nothing until the human says yes. `/laneconductor:run N`, `:implement N` and `:review N` do this
-when the agent is listed. It never merges or pushes.
+subagent is the recommended way to work a code track: one subagent per track, each in its own worktree, so code stays off the
+primary checkout, tracks run in parallel and do not collide, and conflict-checked writes keep the shared track state safe. Recommend it
+and show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes. `/laneconductor:run N`,
+`:implement N` and `:review N` do this when the agent is listed. It never merges or pushes.
 
 Without the add-on, work the lane in this session, or by hand in a worktree: `git worktree add .worktrees/track-N -b track-N`,
 a separate session started in that folder, one track per worktree, and never `git add -A` there. Say what the add-on adds

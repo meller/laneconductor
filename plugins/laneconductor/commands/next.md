@@ -19,7 +19,7 @@ does and why it comes next, and teaches the lane model a little at a time. Use i
 
 ## Gather
 
-Read in this order; stop as soon as the state is clear. It is the same with or without the parallel add-on.
+Read in this order; stop as soon as the state is clear, with or without the parallel add-on.
 
 1. **Is this a repository?** `git rev-parse --is-inside-work-tree` (read only). Note the default and the current
    branch, and whether the folder holds anything besides `.git`. For the number of commits run `git rev-list --count HEAD`.
@@ -27,7 +27,7 @@ Read in this order; stop as soon as the state is clear. It is the same with or w
 3. **List the tracks.** Glob `conductor/tracks/*/index.md`, skipping archived folders (`_duplicate-*`, `_quarantine-*`). One Grep
    for the header markers is enough; open a track's own files only for the candidates the card names.
    With the parallel add-on, call `list_tracks` instead (filters `lane`, `lane_status`; `lane: done` with `lane_status: queue` shows
-   the gated tracks), then `get_track` for the track you name, for `valid.next` and the freshness line. Say so in one line before the card only when its reasons need the person: `behind_upstream`, `unpushed_local_commits`, `dirty_state_files`, a stale claim. No upstream (`no_upstream`) or a rebuilt summary (`track_summary_regenerated`) is normal: no line. The add-on is never required. It also reports `blocked_by` (the numbers not
+   the gated tracks), then `get_track` for the track you name, for `valid.next` and the freshness line. Say so in one line before the card only when its reasons need the person: `behind_upstream`, `unpushed_local_commits`, `dirty_state_files`, a stale claim. No upstream (`no_upstream`) or a rebuilt summary (`track_summary_regenerated`) is normal: no line. It also reports `blocked_by` (the numbers not
    yet `done:success`) and `ready_to_resume`: use them for S09 and S10; without it, work them out from `Waiting On Tracks` and `Depends On`.
 4. **Read these markers**, header block only, the first one wins when a marker is repeated (and the track is damaged, S21):
    `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Part Of`, `Merge Mode`,
@@ -40,7 +40,7 @@ Read in this order; stop as soon as the state is clear. It is the same with or w
 6. **Git facts, read only.** For a track in `done:queue`: does a local branch for it exist (`git branch --list`), and is it an
    ancestor of the default branch (`git merge-base --is-ancestor`)? When no branch exists, does the default branch have a commit
    for it (`git log --grep` on `(track-N)`)? A commit counts only when its subject is NOT one of the connector's own state commits,
-   `chore(track-N): <tool> ...` (`<tool>`: one of its three write tools), as in `chore(track-12): <tool> index.md`: those record files, not shipped work.
+   `chore(track-N): <tool> ...` (`<tool>`: one of its three write tools): those record files, not shipped work.
    For a track that is `running`: the time of the last commit that touched its folder or a branch named for it
    (`git log -1 --format=%ct -- <folder>`, `git for-each-ref`). A fact you cannot establish is not guessed: ask one question instead.
 7. **Comments.** `conversation.md` is not committed: read it only when it exists here, and never rely on it. The committed signal
@@ -72,12 +72,12 @@ the epic's own file holds no child status.
 | S08 | A track is `running` and recent | Say so and leave it alone ("N is being worked on; start nothing on it"); the card goes on to the next candidate | none |
 | S09 | `waiting` on tracks (`Waiting On Tracks`, else `Depends On`) and every named track is `done:success` | Resume it: the dependencies shipped; say which. Setting `queue` and clearing the parking markers is the resume | `/laneconductor:move N <lane>:queue` |
 | S10 | The track names tracks it waits on (`Waiting On Tracks`, else `Depends On`) and at least one is not `done:success`, and it is `waiting` or `queue` (a track that is `running`, in `failure` or waiting for a reply is read as S05 to S08 first). `done:queue` is gated, not shipped, and does not count | Not a candidate: named in the "also" line as blocked by those tracks; a blocker that is itself a candidate is ranked as usual | none |
-| S11 | `done:queue` and the track's branch is not merged (or that cannot be established) | Merge it: it passed the quality gate and is not shipped. The merge command asks before any merge or push | `/laneconductor:merge N` |
+| S11 | `done:queue` and the track's branch is not merged (or that cannot be established) | Merge it: it passed the quality gate and is not shipped. The merge command asks before any merge or push; a non-dev track has no branch, there it records `done:success` | `/laneconductor:merge N` |
 | S12 | `done:queue` and its branch exists and is already an ancestor of the default branch, or no branch exists and the default branch has a commit for it that is not one of the connector's own state commits (`chore(track-N): <tool> ...`, see step 6) | It looks merged: ask the person to confirm, then record it | `/laneconductor:move N done:success` |
 | S13 | `done:waiting` (a pull request is open) | The pull request waits for a person to merge it: show `PR URL`; once it is merged, record it | `/laneconductor:move N done:success` |
 | S14 | `quality-gate:queue`, or `review:success` when the workflow does not move on by itself | Run the quality gate: it evaluates and never fixes | `/laneconductor:quality-gate N` |
-| S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. With the parallel add-on, recommend one sub-agent per track in its own worktree | `/laneconductor:review N` |
-| S16 | `implement:queue`, or `plan:success` (plan done, parked) with a real plan and real test cases | Implement it from its plan. With the parallel add-on, recommend one sub-agent per track in its own worktree; without it, in this session or by hand in a worktree | `/laneconductor:implement N` |
+| S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. A code track with the parallel add-on: recommend one sub-agent in its own worktree | `/laneconductor:review N` |
+| S16 | `implement:queue`, or `plan:success` (plan done, parked) with a real plan and real test cases | Implement it from its plan. A code track with the parallel add-on: recommend one sub-agent in its own worktree; otherwise, and for a non-dev track, in this session | `/laneconductor:implement N` |
 | S17 | `implement:queue` or `plan:success`, but `plan.md` or `test.md` is missing or still the empty stub from track creation | Plan it first: there is nothing to implement from. This overrides S16 | `/laneconductor:plan N` |
 | S18 | `plan:queue` | Plan it: the plan lane writes the spec, the plan and the test cases, and no code, so the work is agreed and testable first | `/laneconductor:plan N` |
 | S19 | The only tracks that are not shipped are in `backlog` | Pick one to start: show up to three, recommend the oldest, and say that moving it to `plan:queue` starts it | `/laneconductor:move N plan:queue` |

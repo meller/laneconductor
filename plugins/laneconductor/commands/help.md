@@ -14,11 +14,11 @@ Start here
 Plan and deliver
 - plan <track number or title>: Plan a track: write its spec, plan and test cases (the plan lane). Example: "plan track 10106"
 - brainstorm <track number or title>: Brainstorm a track: explore options and decisions before planning. Example: "brainstorm the export feature"
-- implement <track number or title>: Implement a track from its plan (recommends one sub-agent per track in its own worktree). Example: "implement track 10106"
-- review <track number or title>: Review a track's implementation (recommends one sub-agent per track in its own worktree). Example: "review track 10106"
+- implement <track number or title>: Implement a track from its plan (code tracks: one sub-agent in its own worktree). Example: "implement track 10106"
+- review <track number or title>: Review a track's implementation (code tracks: one sub-agent in its own worktree). Example: "review track 10106"
 - quality-gate <track number or title>: Run the quality gate on a track (evaluates, never fixes). Example: "run the quality gate on 10106"
 - merge <track number or title>: Merge a finished track, or open its PR. Example: "merge track 10106"
-- run <track number or title>: Take a track through its lanes (recommends one sub-agent per track, in its own worktree). Example: "run track 10106 end to end"
+- run <track number or title>: Take a track through its lanes (code tracks: one sub-agent per track, in its own worktree). Example: "run track 10106 end to end"
 - review-plan <track number or title>: Review a track's spec and plan for gaps with a read-only reviewer. Example: "review the plan of track 10106"
 
 Create and manage

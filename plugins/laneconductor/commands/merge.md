@@ -28,6 +28,8 @@ Markers this lane reads and writes:
 - `**PR URL**` (and `**PR Number**`, `**PR Status**`) are written by this lane once `gh pr create`
   returns; the board shows the URL while the track sits at `done:waiting`.
 
+A non-dev track (`**Type**` not `dev`) has no branch and nothing to merge: if one sits at `done:queue`, set `done:success`, say so and stop.
+
 0. **Claim the track first.** Write `**Lane**: done` and `**Lane Status**: running` to
    `conductor/tracks/NNN-*/index.md`. Set `**Lane**` explicitly: when run directly the track may
    not sit in this lane, and the board would show it running in the wrong column.
@@ -38,13 +40,12 @@ Markers this lane reads and writes:
    a note about a conflicted PR; see step 6).
 3. **Single writer.** Only the primary checkout's copy of `conductor/tracks/NNN-*/*.md` is ever
    written. If a leftover worktree for the track still exists, do not touch its files:
-   two copies of `index.md` written in two places is how markers get overwritten.
+   two copies of `index.md` is how markers get overwritten.
 4. **Direct mode** (`**Merge Mode**: direct`):
    a. Check `git status` in the primary checkout is clean enough to merge, then
       `git merge --no-ff track-NNN` with a message that names the track (`Merge track-NNN`). If it reports
       `track-NNN` is not a branch, that is expected, not a failure, for a track with
-      `**Workspace**: main` (every earlier lane already ran on `main`, so there was never a
-      branch). Treat it as a successful merge and go to 4e.
+      `**Workspace**: main` (every lane ran on `main`, so there was never a branch). Treat it as a successful merge and go to 4e.
    b. If the merge stops with a **conflict**, resolve it in this session: read the conflicting
       hunks, understand both sides' intent (this track's plan/spec against the conflicting change
       on main) and produce a correct result, then commit the merge. There is no separate
@@ -66,16 +67,15 @@ Markers this lane reads and writes:
       `**PR Number**`, `**PR URL**` and `**PR Status**` into the primary checkout's `index.md`.
    b. After a conflict re-run (step 6), the branch was already updated and pushed, so the existing
       PR picks up the new commits; just report it.
-   c. Set `**Lane Status**: waiting` (`done:waiting`). In the done lane, `waiting` means "waiting
-      on a human outside the system": there is nothing more for this session to do. Do not merge
-      the PR yourself; approval and merge happen on GitHub.
+   c. Set `**Lane Status**: waiting` (`done:waiting`): waiting on a human outside the system, nothing
+      more for this session to do. Do not merge the PR yourself; approval and merge happen on GitHub.
 6. **Re-entry after a conflicted PR.** If the track was moved back to `done:queue` because GitHub
    reports the PR has a conflict, run the pr-mode flow (step 5), but first `git fetch origin`
    and merge or rebase `origin/main` into `track-NNN`, resolve any real conflict in-session as in
    step 4b, and push (force-push only after a yes, and only if you rebased) before looking for
-   the open PR. Pushing first is what makes the existing PR pick up the new commits.
-7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, the
-   commit hashes and any incident are dated lines there, never in `plan.md` or `spec.md`):
+   the open PR, so the existing PR picks up the new commits.
+7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, hashes and
+   incidents are dated lines there, never in `plan.md` or `spec.md`):
    - direct success: `✅ Merged track-NNN to main.`
    - pr mode: `⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
      action, not because anything failed)
@@ -83,8 +83,7 @@ Markers this lane reads and writes:
 8. **Close** with the closing message of a lane.
 
 Boundary: this lane only merges or opens a PR for code that already passed review and
-quality-gate. Write no feature code here; the only code changes it should make are those needed
-to resolve a conflict between the track branch and `main`. `workflow.json` stays the authority
+quality-gate. Write no feature code here; change code only to resolve a conflict with `main`. `workflow.json` stays the authority
 for target lanes (how a target is read, and `done:queue` against `done:success`, is in
 `ops/lanes-and-statuses.md`).
 

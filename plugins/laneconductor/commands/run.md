@@ -1,5 +1,5 @@
 ---
-description: Take a track through its lanes (recommends one sub-agent per track, in its own worktree)
+description: "Take a track through its lanes (code tracks: one sub-agent per track, in its own worktree)"
 argument-hint: <track number or title>
 ---
 Run track `$ARGUMENTS` end to end. The guardrails are the skill file `ops/working-a-track.md`; read it, and read the lane guide for each lane you run.
@@ -7,7 +7,7 @@ Run track `$ARGUMENTS` end to end. The guardrails are the skill file `ops/workin
 This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.
 
 1. Find the track's folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`. Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.
-2. If the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding. Show the exact dispatch, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: sub-agents per track in worktrees, conflict-checked track writes; It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing. One dispatch per lane, one agent per track.
+2. If `**Type**` is not `dev` (marketing, sales, support, other) the track has no code: recommend no sub-agent and no worktree, ask no question about one, and do the lane in this session. A code track: if the sub-agent `laneconductor-parallel:track-runner` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, so the work stays off the primary checkout and tracks run in parallel without colliding. Show the exact dispatch, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." Start nothing until I say yes; if I decline, do the lane yourself. If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) and, once, what the laneconductor-parallel add-on adds (parallel work: sub-agents per track in worktrees, conflict-checked track writes; It installs an MCP server (a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing. One dispatch per lane, one agent per track.
 3. Change state by editing the track files directly, following the skill's `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change. Ask me before any merge or push.
 4. If I ask for the board along the way, follow the `board` command; building it needs the board add-on.
 
@@ -37,7 +37,7 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 - A new track folder is untracked, so a worktree off HEAD cannot see it: commit just that folder
   to main locally first (a worktree is the only reason this is needed; pushing is not).
 - Before touching a dirty primary checkout, check for a live process using it as cwd.
-- Do not open a track for a gap you find on the way until you have searched: list the tracks by the key words (every lane, backlog and done too), and if one fits ask "Update track N (title, lane) with this? [default: yes]" and extend it. Several small gaps go into one fitting track, an epic or one backlog track. See "Search first" in `ops/tracks.md`.
+- Search the tracks (every lane, backlog and done too) before opening one for a gap you find on the way; if one fits, ask "Update track N (title, lane) with this? [default: yes]" and extend it. See "Search first" in `ops/tracks.md`.
 - One session per track. If something else also works the track (another session, an automatic runner), stop and ask.
 - Do not run test suites that start background processes from inside a worktree: they can attach
   to the real primary checkout and leak processes. Check for leftovers after any test run.
@@ -46,13 +46,15 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
   is silently ignored by sync.
 - If a decision is the human's, ask in `conversation.md`, set `**Waiting for reply**: yes`, and stop.
 
-#### Plugin users: one subagent per track in a worktree
+#### Plugin users: one subagent per track in a worktree (code tracks)
+Only for a code track (`**Type**` `dev`). A non-dev track (marketing, sales, support, other) writes no code: no sub-agent, no
+worktree, no question about one; work its lane in this session.
+
 With the optional laneconductor-parallel add-on installed (Claude Code or Cowork, not chat), its `laneconductor-parallel:track-runner`
-subagent is the recommended way to work a track: one subagent per track, each in its own worktree,
-so code stays off the primary checkout, tracks run in parallel and do not collide, and the add-on's
-conflict-checked writes keep the shared track state safe. Recommend it and show the exact dispatch (agent name and
-one-line prompt); start nothing until the human says yes. `/laneconductor:run N`, `:implement N` and `:review N` do this
-when the agent is listed. It never merges or pushes.
+subagent is the recommended way to work a code track: one subagent per track, each in its own worktree, so code stays off the
+primary checkout, tracks run in parallel and do not collide, and conflict-checked writes keep the shared track state safe. Recommend it
+and show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes. `/laneconductor:run N`,
+`:implement N` and `:review N` do this when the agent is listed. It never merges or pushes.
 
 Without the add-on, work the lane in this session, or by hand in a worktree: `git worktree add .worktrees/track-N -b track-N`,
 a separate session started in that folder, one track per worktree, and never `git add -A` there. Say what the add-on adds
@@ -312,9 +314,8 @@ commits go.
    land in the implement lane by itself. Without it the board shows the track running in the
    wrong column.
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
-   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions). Never
-   scaffold a second folder for an existing number.
-2. **Workspace.** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
+   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/`. Never scaffold a second folder for an existing number.
+2. **Workspace (dev tracks; a non-dev track needs no worktree).** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
    make the worktree yourself: `git worktree add .worktrees/NNN -b track-NNN` (or reuse it if it
    exists), and work there; with the parallel add-on, the `track-runner` sub-agent does this for
    you. If another session is already working in that worktree, stop and report instead of
@@ -325,7 +326,7 @@ commits go.
    - `conductor/deployment-stack.md`, `product-guidelines.md`, `design-language.md`,
      `tech-stack.md`, each if present.
    - `conversation.md`: human comments override the plan.
-   - `last_run.log` if present: why the previous run failed.
+   - `last_run.log` if present: why the last run failed.
    - **test.md self-healing:** if `test.md` is missing, empty or still the
      `(Test cases to be added)` stub, write concrete test cases and commands for each phase
      before any implementation code. Template:
@@ -343,8 +344,7 @@ commits go.
      - [ ] All unit tests pass
      - [ ] No regressions in related features
      ```
-   - TDD is recommended because `test.md` is written for it: per phase, write the test, watch it
-     fail, write the minimal code, watch it pass.
+   - TDD is recommended, `test.md` is written for it: per phase, write the test, watch it fail, then the minimal code.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
    - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
      `ab-testing`; sales: `sales-enablement`, `cold-email`, `prospecting`, `revops`; support: `ticket-triage`, `draft-response`,
@@ -355,9 +355,10 @@ commits go.
      `### Publish Instructions` to the user. Nothing is posted, sent or spent for the owner: they do it.
    - Write `**Owner Action**` (one line, up to 200 characters: exactly what the owner must do) and
      `**Owner Action Due**` (`YYYY-MM-DD`) to `index.md`, taking the day from the plan; when the plan has
-     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes`. That marker is
-     itself the Inbox signal, so no completion comment is needed.
-   - Stop. Do not transition the lane yourself.
+     none, ask the owner for one, never invent it. Then set `**Waiting for reply**: yes` and `**Lane Status**: waiting`
+     (the Owner Action is the reason: no Waiting Reason; `**Lane**` stays `implement`; with the connector one `update_track` writes all four).
+     The Inbox signal is that marker, so no completion comment is needed.
+   - Stop. Do not move the lane yourself.
    - **The owner's reply** ("posted", "done", or a move): nothing moves the track by itself, so you do it.
      Clear `Owner Action`, `Owner Action Due` and `Waiting for reply`; set `**KPI Check After**` to now plus
      the KPI `Window` (a UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`); park the track in the quality-gate lane as
@@ -370,22 +371,16 @@ commits go.
    `conversation.md`: `> **system**: ⚠️ FUNDAMENTALS CONFLICT - this track's [requirement] appears to
    require changing conductor/[doc].md ([specific conflict]). Continuing as specified; doc not
    modified - please review whether conductor/[doc].md should be updated.` (one comment, prefix
-   each continuation line with `> `). It is non-blocking unless proceeding would be actively wrong; then treat it like
-   any blocker and stop for human input instead of guessing.
+   each continuation line with `> `). It is non-blocking unless proceeding would be actively wrong; then stop for human input.
 5. **Dev tracks: per phase.**
    - Implement the tasks.
    - **Run the verification before you tick anything.** Do not mark a task `[x]` or write
      "Phase N complete" until you have executed whatever verifies it and read the real output.
      This holds even when `test.md` has no case for the phase: if there is a CLI flag, endpoint,
      UI flow or dispatch to exercise, exercise it. A written-but-unrun test file or a plausible
-     diff is not verification. One run shipped a "complete" phase with two new test
-     files that were never run (one had an import error) and a hardcoded `null` that broke the
-     one path that mattered.
+     diff is not verification.
    - **Never end a turn on a command you just backgrounded.** The harness kills background
-     children when the session exits, so the work is silently lost and the run exits 0
-     mid-work (the run's exit handler now reports `ended_mid_work`, which is recovery,
-     not prevention). Run long commands in the foreground and wait, or hand off explicitly with a
-     note in `conversation.md` naming what is still running and what the next turn should check.
+     children when the session exits, so the work is silently lost mid-work. Run long commands in the foreground and wait, or note in `conversation.md` what is still running.
    - Update `plan.md` (tick the task) and the `**Progress**` marker in `index.md`.
    - Commit: `feat(track-NNN): Phase X - description`.
 6. **Complete (dev tracks).** Apply the same verification bar to the track as a whole before
@@ -443,8 +438,7 @@ the implement lane's retry loop, so write them up as gaps instead.
 0. **Claim the track first.** Write `**Lane**: review` and `**Lane Status**: running` to the
    track's `index.md`. Set `**Lane**` explicitly: when the command is run directly the track may
    not sit in this lane, and the board would show it running in the wrong column. In the same
-   edit, clear any existing `**Verdict**` marker, so a run that is cut short never leaves a stale
-   value for a later run's exit handler to misread.
+   edit, clear any existing `**Verdict**` marker, so a run cut short never leaves a stale value.
 1. **Load context.**
    - Unless `FRESH_SESSION: false` (review often resumes the session implement used), read
      `plan.md`, `spec.md`, `test.md`, and `product-guidelines.md`, `design-language.md`,
@@ -472,10 +466,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      append `## ✅ REVIEWED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move (this project: `implement:queue`), add
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
-   - Write `**Verdict**` every time, PASS or FAIL. The harness can tag the same
-     turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
-     a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
-     a resolved review is routed instead of parked indefinitely.
+   - Write `**Verdict**` every time, PASS or FAIL: a resolved review is routed from it, not parked.
 5. **Close** with the closing message of a lane.
 
 #### Offer a missing skill
@@ -499,15 +490,14 @@ An optional top-level `skills` object in `conductor/workflow.json` may list more
 
 ### `lanes/quality-gate.md`
 
-Run the checks, post the result, and route the track. Passing here queues the track for merge
-(`done:queue`); it does not mean shipped, because the merge action sets `done:success` once the
-code is on `main`.
+Run the checks, post the result, and route the track. Passing here queues a code track for merge
+(`done:queue`); it is not shipped until the merge action sets `done:success` once the code is on `main`.
+A non-dev track has no branch, so a pass closes it as `done:success`: nothing to merge.
 
 0. **Claim the track first.** Write `**Lane**: quality-gate` and `**Lane Status**: running` to
    the track's `index.md`. Set `**Lane**` explicitly: when run directly the track may not sit in
    this lane, and the board would show it running in the wrong column. In the same edit, clear
-   any existing `**Verdict**` marker, so a run cut short (including the KPI-miss early exit in
-   step 1) never leaves a stale value for a later run's exit handler to misread.
+   any existing `**Verdict**` marker, so a run cut short never leaves a stale value.
 0b. **KPI window.** If `**KPI Check After**` in `index.md` is in the future, ask
    "KPI window not reached, Xh remaining. Measuring now may be unreliable. Run anyway? (y/n)" and
    stop on "n". When an automatic run launched you it already checked the time; skip this.
@@ -535,10 +525,8 @@ code is on `main`.
      KPI MISS replanning above.
 2. **Execute the checks.** Read `conductor/quality-gate.md` and the track's `test.md`, and run
    every command in their "Automated Checks" / "Test Commands" sections with the shell.
-   - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Older copies
-     of that file shipped pre-ticked with a stale `Status: PASS`. Re-run each command and judge
-     only by output you saw yourself. If you catch yourself thinking "it's already checked",
-     that is the failure this warning exists for.
+   - **The checkboxes in `quality-gate.md` are a checklist to run, not a report.** Re-run each command
+     and judge only by output you saw yourself, never by a ticked box or a stale `Status: PASS`.
    - `test.md` commands are the primary check for this track; `quality-gate.md` applies the
      project-wide standards.
    - Scan modified files for hardcoded secrets and check `.gitignore` covers the Zero-Secrets
@@ -555,8 +543,7 @@ code is on `main`.
      record what you saw (screenshot, or the real API/DB response). "The code looks correct" is
      not evidence.
    - **Restart long-running processes first.** Servers and long-running tools do not hot-reload, so
-     verifying against a process started before your change tests the old code. This has caused
-     several false passes in this repo.
+     verifying against a process started before your change tests the old code.
 
    **2b. Stub and deferred-work scan.**
    ```bash
@@ -593,11 +580,11 @@ code is on `main`.
      named in `spec.md`'s Solution is FFU, deferred or future; (3) step 2a's real-product check
      was performed and an observation recorded. If any fails, do not set `done`: set the lane to
      `review` (or `on_failure`), keep `**Progress**` below 100%, and write what remains in
-     `conversation.md`. Documenting a deferral honestly does not make the track complete; a track
-     that shipped a stub and was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
-     the incident these rules come from.
-   - **PASS:** apply the success move (this project: `done:queue`, passed and not yet shipped),
-     append `## ✅ QUALITY PASSED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
+     `conversation.md`. Documenting a deferral honestly does not make the track complete.
+   - **PASS:** a code track takes the success move (this project: `done:queue`, passed and not yet shipped).
+     A non-dev track (`**Type**` not `dev`) sets `**Lane**: done` and `**Lane Status**: success` instead (with the connector,
+     as markers, not `outcome`) and says in one clause that there is nothing to merge. Append `## ✅ QUALITY PASSED` to
+     `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move, explain the failure in
      `conversation.md`, and in the same edit write `**Verdict**: fail`.
    - The move sets `**Lane**` and `**Lane Status**` together (a bare target is `queue`); do not set the
@@ -608,7 +595,7 @@ code is on `main`.
      `blocked` although this step already resolved a routable outcome, and the run's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
      written for the KPI-miss exit, which has no code verdict and routes through `on_failure` itself.
-6. **Close** with the closing message of a lane.
+6. **Close** with the closing message of a lane. A non-dev track closed at `done:success` names `/laneconductor:next`, not merge.
 
 #### Offer a missing skill
 
@@ -642,6 +629,8 @@ Markers this lane reads and writes:
 - `**PR URL**` (and `**PR Number**`, `**PR Status**`) are written by this lane once `gh pr create`
   returns; the board shows the URL while the track sits at `done:waiting`.
 
+A non-dev track (`**Type**` not `dev`) has no branch and nothing to merge: if one sits at `done:queue`, set `done:success`, say so and stop.
+
 0. **Claim the track first.** Write `**Lane**: done` and `**Lane Status**: running` to
    `conductor/tracks/NNN-*/index.md`. Set `**Lane**` explicitly: when run directly the track may
    not sit in this lane, and the board would show it running in the wrong column.
@@ -652,13 +641,12 @@ Markers this lane reads and writes:
    a note about a conflicted PR; see step 6).
 3. **Single writer.** Only the primary checkout's copy of `conductor/tracks/NNN-*/*.md` is ever
    written. If a leftover worktree for the track still exists, do not touch its files:
-   two copies of `index.md` written in two places is how markers get overwritten.
+   two copies of `index.md` is how markers get overwritten.
 4. **Direct mode** (`**Merge Mode**: direct`):
    a. Check `git status` in the primary checkout is clean enough to merge, then
       `git merge --no-ff track-NNN` with a message that names the track (`Merge track-NNN`). If it reports
       `track-NNN` is not a branch, that is expected, not a failure, for a track with
-      `**Workspace**: main` (every earlier lane already ran on `main`, so there was never a
-      branch). Treat it as a successful merge and go to 4e.
+      `**Workspace**: main` (every lane ran on `main`, so there was never a branch). Treat it as a successful merge and go to 4e.
    b. If the merge stops with a **conflict**, resolve it in this session: read the conflicting
       hunks, understand both sides' intent (this track's plan/spec against the conflicting change
       on main) and produce a correct result, then commit the merge. There is no separate
@@ -680,16 +668,15 @@ Markers this lane reads and writes:
       `**PR Number**`, `**PR URL**` and `**PR Status**` into the primary checkout's `index.md`.
    b. After a conflict re-run (step 6), the branch was already updated and pushed, so the existing
       PR picks up the new commits; just report it.
-   c. Set `**Lane Status**: waiting` (`done:waiting`). In the done lane, `waiting` means "waiting
-      on a human outside the system": there is nothing more for this session to do. Do not merge
-      the PR yourself; approval and merge happen on GitHub.
+   c. Set `**Lane Status**: waiting` (`done:waiting`): waiting on a human outside the system, nothing
+      more for this session to do. Do not merge the PR yourself; approval and merge happen on GitHub.
 6. **Re-entry after a conflicted PR.** If the track was moved back to `done:queue` because GitHub
    reports the PR has a conflict, run the pr-mode flow (step 5), but first `git fetch origin`
    and merge or rebase `origin/main` into `track-NNN`, resolve any real conflict in-session as in
    step 4b, and push (force-push only after a yes, and only if you rebased) before looking for
-   the open PR. Pushing first is what makes the existing PR pick up the new commits.
-7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, the
-   commit hashes and any incident are dated lines there, never in `plan.md` or `spec.md`):
+   the open PR, so the existing PR picks up the new commits.
+7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, hashes and
+   incidents are dated lines there, never in `plan.md` or `spec.md`):
    - direct success: `✅ Merged track-NNN to main.`
    - pr mode: `⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
      action, not because anything failed)
@@ -697,8 +684,7 @@ Markers this lane reads and writes:
 8. **Close** with the closing message of a lane.
 
 Boundary: this lane only merges or opens a PR for code that already passed review and
-quality-gate. Write no feature code here; the only code changes it should make are those needed
-to resolve a conflict between the track branch and `main`. `workflow.json` stays the authority
+quality-gate. Write no feature code here; change code only to resolve a conflict with `main`. `workflow.json` stays the authority
 for target lanes (how a target is read, and `done:queue` against `done:success`, is in
 `ops/lanes-and-statuses.md`).
 
