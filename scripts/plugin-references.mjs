@@ -8,7 +8,7 @@ import { installBlock, SHORT_RULE } from './plugin-texts.mjs';
 const W = (file) => ({ file });
 const T = (file, ...heads) => ({ file, heads });
 /** new-project is no lane and creates no non-dev track, so the skill offers of the guide and of newTrack it carries are left out of its copy. */
-const NO_OFFERS = (ref) => ({ ...ref, drop: [/## Offer a missing skill[\s\S]*?(?=## Skills that help here)/, /Look first \(the session skills list[\s\S]*?(?=\n5\. Create `history\.md`)/] });
+const NO_OFFERS = (ref) => ({ ...ref, drop: [/## Offer a missing skill[\s\S]*?(?=## Skills that help here)/, /Look first \(the session skills list[\s\S]*?(?=\n4\. Create `history\.md`)/] });
 const PARTS = (file, from, to) => ({ file, from, to });
 /** The scaffold text as setup and new-project carry it: the no-questions variant belongs to the worker tier (it reads a context file another tool writes), so the commands leave it out; new-project also leaves out the interactive variant, which is its own interview. */
 const SCAFFOLD_GENERATE = /#+ setup scaffold generate[\s\S]*?(?=\n#+ setup scaffold \(interactive\))/;
@@ -27,11 +27,13 @@ const LANES_COMMON = [
   T('SKILL.md', '## Finding a track', '## conversation.md format'),
 ];
 const SETTINGS = W('ops/settings.md');
+/** The closing chat message of a lane command, written once in SKILL.md and carried by each lane command (and `run`) once. */
+const CLOSING = T('SKILL.md', '## The closing message of a lane');
 /** One paragraph of the implement guide (the owner's reply), written once in the skill source and carried by the comment command alone besides the commands that carry the guide whole. */
 const OWNER_REPLY = { file: 'lanes/implement.md', from: "   - **The owner's reply**", to: '4b. **Fundamentals conflict', label: " (the owner's reply, step 4)", dedent: true };
 const FORMS = PARTS('setup/templates.md', '**Track spec forms**', null);
 const REASON_LANE = 'the lane command follows its lane guide, which it used to read from the plugin install folder; the guide and the few reference sections it needs are copied in, so nothing is read outside the project';
-const lane = (guide, extra = []) => ({ why: REASON_LANE, refs: [W(`lanes/${guide}.md`), ...extra, ...LANES_COMMON] });
+const lane = (guide, extra = [], closing = [CLOSING]) => ({ why: REASON_LANE, refs: [W(`lanes/${guide}.md`), ...extra, ...LANES_COMMON, ...closing] });
 
 export const REFERENCES = {
   setup: { why: 'setup writes the conductor files, and files the plan items as tracks, from the scaffold text, the templates and newTrack, which it used to read from the plugin install folder', refs: [
@@ -39,13 +41,13 @@ export const REFERENCES = {
   'new-project': { why: 'new-project writes the conductor files from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
     SCAFFOLD(SCAFFOLD_GENERATE, SCAFFOLD_INTERACTIVE), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK)), NO_OFFERS(W('lanes/brainstorm.md'))] },
   plan: lane('plan', [TRACK_FILES]),
-  brainstorm: lane('brainstorm', [TRACKS_SEARCH]),
+  brainstorm: lane('brainstorm', [TRACKS_SEARCH], []),
   implement: lane('implement', [W('ops/working-a-track.md'), ADDON]),
   review: lane('review', [W('ops/working-a-track.md'), ADDON]),
   'quality-gate': lane('quality-gate'),
   merge: lane('merge'),
   run: { why: 'run works any lane, so it carries the five lane guides and the working-a-track guardrails it used to read from the plugin install folder', refs: [
-    W('ops/working-a-track.md'), ADDON, TRACK_FILES, W('lanes/plan.md'), W('lanes/implement.md'), W('lanes/review.md'), W('lanes/quality-gate.md'), W('lanes/merge.md'), ...LANES_COMMON] },
+    W('ops/working-a-track.md'), ADDON, TRACK_FILES, W('lanes/plan.md'), W('lanes/implement.md'), W('lanes/review.md'), W('lanes/quality-gate.md'), W('lanes/merge.md'), ...LANES_COMMON, CLOSING] },
   new: { why: 'the command names ops/tracks.md (search first, newTrack, the track files); the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK), TRACK_FILES] },
   bug: { why: 'the command names ops/tracks.md and the bug form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },
   feature: { why: 'the command names ops/tracks.md and the feature form of the templates; the sections are copied in', refs: [TRACKS_SEARCH, T('ops/tracks.md', NEWTRACK, UPDATE), FORMS] },

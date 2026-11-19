@@ -60,6 +60,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
+5. **Close** with the closing message of a lane.
 
 #### Offer a missing skill
 
@@ -80,15 +81,10 @@ Candidates for the `review` lane:
 
 #### Skills that help here
 
-These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
-named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
-and carry on without it. `requesting-code-review` helps frame what to check and how to report it; `receiving-code-review` helps when feedback arrives and each point needs to be checked before acting on it.
+Suggestions, a second opinion, never an order: if a skill named here is installed (for example from the Superpowers
+plugin), consider using it; if not, say so in one line and carry on without it. `requesting-code-review` helps frame what to check and how to report it; `receiving-code-review` helps when feedback arrives and each point needs to be checked before acting on it.
 
-Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"review"`, such as
-`{ "skills": { "review": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
-it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
-own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
-skill's method, not its output paths.
+An optional top-level `skills` object in `conductor/workflow.json` may list more under `"review"` (`{ "skills": { "review": ["my-skill"] } }`): use them the same way (if one is missing, say so and continue). Absent, nothing changes. Where a skill's steps or file locations differ from this guide or the track files, those win; take the skill's method, not its output paths.
 
 ### `ops/working-a-track.md`
 
@@ -170,12 +166,12 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | a bare `done` from another lane | `done:queue`, never `done:success` |
 | `null` | no automatic move: the lane's own action or a human decides |
 | missing from the lane | the file's top-level `defaults.on_success` / `defaults.on_failure`, read the same way; no automatic move when the file has none (an explicit `null` never falls back) |
-| `stay` or `stop` | no automatic move. Older files carry these words; they are read, never written, so do not put them in a file |
+| `stay` or `stop` | no automatic move (older files; read, never written) |
 
 An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. Fields of the older format
 are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `primary_model`, `hooks`.
 
-Worked examples. This project's own file (current format):
+Worked examples. This project's own file:
 
 | Lane | on_success | on_failure |
 |------|-----------|-----------|
@@ -185,17 +181,11 @@ Worked examples. This project's own file (current format):
 | quality-gate | `done:queue` | `plan:queue` |
 | done | none | `done:failure` |
 
-An older file (the older format: bare targets, old lane names): `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"`
-resolves to `review:queue` on success and `in-progress:failure` on failure (the failure target names the same lane); `planning` with
-`"on_success": "backlog"` resolves to `backlog:queue`; `done` and `backlog` with `null` targets have no automatic move.
+An older file (bare targets, old lane names) resolves by the table above: `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"` gives `review:queue` and `in-progress:failure`; a `null` target has no automatic move.
 
 #### Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
-`planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
-are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
-The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
-the project's own names into `**Lane**`.
+A project names its own lanes in `conductor/workflow.json`; the guides use the standard names, which replaced the old ones: `planning` to `plan` and `in-progress` to `implement` (older projects keep the old names; tracks are never renamed). The connector reports the mapping as `valid.guide_lanes` (the project's names as `valid.lanes`); without it, match by meaning. Write the project's own names into `**Lane**`.
 
 #### Manual moves win
 
@@ -212,37 +202,30 @@ Moving to a lane without a status means `queue`: `move NNN backlog`, `move NNN i
 `**Lane Status**` in `conductor/tracks/NNN-*/index.md` (with the add-on, `update_track` with those markers).
 Prefer a `lane:status` that `workflow.json` defines for that lane. When the move is "this lane's action
 finished", do not work the target out yourself: with the connector, call `update_track` with `outcome`
-(`success` or `failure`) and the `base` from `get_track`, which applies the workflow's move; its answer to
-"where does it go" is `valid.next` in `get_track`. Without the connector, read `workflow.json` with the
-grammar in `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane;
-for the same lane it is `success` or `failure`).
+(`success` or `failure`) and the `base` from `get_track` (it applies the workflow's move; `valid.next` says
+where it goes); without it, read `workflow.json` with the grammar in `ops/lanes-and-statuses.md`.
 
 #### pulse `[track-number] [status] [progress%] [summary?]`
 
 Update the track's markers in `conductor/tracks/NNN-*/index.md`: `**Progress**: N%`, `**Phase**`
-when the work entered a new phase, `**Step**` (the current activity; infer it if not given),
+when the work entered a new phase, `**Step**` (the current activity),
 `**Summary**`, and `**Waiting for reply**: no` after every AI response. A `[status]` that names a lane is a move, so use `move` for that;
-`pulse` does not write `**Status**` any more (it is a legacy marker the parser only reads when
-`**Lane**` is missing).
+`pulse` no longer writes the legacy `**Status**`.
 
 #### comment `[track-number] [body]`
 
-A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
-`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
-an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
-Use `⚠️` for something that needs a human and `ℹ️` for a note.
+A comment from a person or an agent (an agent's answer to a human comment too) is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`. A note that records an event (a run, a classification, a completion) is a dated line
+in `history.md` instead. Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
 #### Finding a track
 
 A track number maps to one folder under `conductor/tracks/`. With the parallel add-on, `get_track` finds it. Without
-it, use Glob `conductor/tracks/*-<N>-*/` for the form `INITIALS-NNN-slug` (for example `AM-10023-my-feature`, the
-current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; scan for **both** (a scan for one
-form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
+it, use Glob `conductor/tracks/*-<N>-*/` for the form `INITIALS-NNN-slug` (for example `AM-10023-my-feature`) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; scan for **both**. If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
-If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
+If a folder exists for the number, use it: scaffolding a second is an error (a scan that missed `AM-<number>-...` once created a duplicate).
 
 #### conversation.md format
 
@@ -254,8 +237,20 @@ entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, mus
 > second line, also prefixed with >
 ```
 `author` is `human`, `claude`, `gemini` or `system`. The tools that read it recognize only
-`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a markdown header, a plain
-blockquote, loose prose) stays in the file but is silently never synced to the UI, with no error.
-For long pasted material (an email, a contract, a redline) keep one opening `> **author**:` line and
-prefix every following line, blank ones and markdown headers included, with `>`. Do not drop the
-prefix partway because the content reads like a document.
+`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a header, a plain
+blockquote, loose prose) stays in the file but is never read, with no error.
+For long pasted material (an email, a contract) keep one opening `> **author**:` line and
+prefix every following line, blank ones and headers included, with `>`.
+
+### `SKILL.md` (The closing message of a lane)
+
+#### The closing message of a lane
+
+The last chat message of a lane command (and of an owner-step reply) is six lines at most, with no heading:
+
+1. **Outcome**, one line: what was done and where the track sits now, with its title and a gist: `Planned AM-1 "Title" (6 phases, 12 tests): <one clause on the approach>; parked at plan:success.`
+2. **Needed from the person**: what blocks the next step, three lines at most, one each (a supervised track: its Owner Action; a plan item marked unverified or open that blocks building). None: leave it out.
+3. **Next**: the command alone, for the lane the track now sits in (`/laneconductor:implement N`; after a merge, `/laneconductor:next`).
+4. **More**, word for word: ``More: `/laneconductor:board` (the track's card shows the next step with a Copy button), or say "show the plan".``
+
+Findings, phase and test-case lists, risks and caveats go into the track's files and its one completion comment, not the chat; give them on "show the plan". Say nothing of commits or ignored tracks unless unusual.

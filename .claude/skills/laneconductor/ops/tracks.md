@@ -49,16 +49,16 @@ Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you 
 ## newTrack `[name] [description]`
 
 Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
-markers). By hand:
+markers). By hand, write the files exactly as it would:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
    word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
    highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
-   `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
-   `INITIALS-NNN-slug/`.
-2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
+   `AM-10022-slug` both give `10022`). The number is that plus one, never zero-padded (`AM-1`, `AM-10`; `1` for the first track).
+   The id is `INITIALS-<n>` without the slug; the folder is `INITIALS-<n>-slug/`.
+2. **Create `conductor/tracks/INITIALS-<n>-slug/index.md` right away**, for fast feedback:
    ```markdown
-   # Track INITIALS-NNN: [name]
+   # Track INITIALS-<n>: [name]
 
    **Lane**: plan
    **Lane Status**: queue
@@ -71,20 +71,16 @@ markers). By hand:
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   `**Type**` defaults to `dev`. `**Merge Mode**` and `**Auto Run**` default to `direct` and
-   `yes` (changed 2026-09-08; before that the markers were omitted and fell back to the
-   conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
-   track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
-   that already exists without the markers keeps the old fallbacks.
-3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `yes`. Write `pr` / `no` only when the
+   user asks for it on this track ("this one needs a PR, don't auto-run it").
+3. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
    installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
    name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
 
    <!-- generated: skill offers for non-dev types -->
 
-5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
-6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+4. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-<n>`, the id only) and nothing else.
+5. Print `✅ Track <n> created in conductor/tracks/<folder>/.`
 
 ## move `[track-number] [lane:status]`
 
@@ -93,25 +89,21 @@ Moving to a lane without a status means `queue`: `move NNN backlog`, `move NNN i
 `**Lane Status**` in `conductor/tracks/NNN-*/index.md` (with the add-on, `update_track` with those markers).
 Prefer a `lane:status` that `workflow.json` defines for that lane. When the move is "this lane's action
 finished", do not work the target out yourself: with the connector, call `update_track` with `outcome`
-(`success` or `failure`) and the `base` from `get_track`, which applies the workflow's move; its answer to
-"where does it go" is `valid.next` in `get_track`. Without the connector, read `workflow.json` with the
-grammar in [lanes-and-statuses.md](lanes-and-statuses.md) (a bare target is `queue` for another lane;
-for the same lane it is `success` or `failure`).
+(`success` or `failure`) and the `base` from `get_track` (it applies the workflow's move; `valid.next` says
+where it goes); without it, read `workflow.json` with the grammar in [lanes-and-statuses.md](lanes-and-statuses.md).
 
 ## pulse `[track-number] [status] [progress%] [summary?]`
 
 Update the track's markers in `conductor/tracks/NNN-*/index.md`: `**Progress**: N%`, `**Phase**`
-when the work entered a new phase, `**Step**` (the current activity; infer it if not given),
+when the work entered a new phase, `**Step**` (the current activity),
 `**Summary**`, and `**Waiting for reply**: no` after every AI response. A `[status]` that names a lane is a move, so use `move` for that;
-`pulse` does not write `**Status**` any more (it is a legacy marker the parser only reads when
-`**Lane**` is missing).
+`pulse` no longer writes the legacy `**Status**`.
 
 ## comment `[track-number] [body]`
 
-A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
-`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
-an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
-Use `⚠️` for something that needs a human and `ℹ️` for a note.
+A comment from a person or an agent (an agent's answer to a human comment too) is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`. A note that records an event (a run, a classification, a completion) is a dated line
+in `history.md` instead. Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ## delete `[track-number]`
 

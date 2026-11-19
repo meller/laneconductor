@@ -23,7 +23,7 @@ Setup writes first: new files are additive and one line undoes them, so there is
    - The tracks choice, declared and never asked: private when something says the project is public (the README says public, public demo or open source; an open-source LICENSE file; a `package.json` `license` other than UNLICENSED or proprietary) or `git remote` is empty (nothing to share); committed when there is a remote and no such sign. Private tracks are git-ignored (step 3).
 2. **Stop and ask first, one line each, only for something unusual**: a `conductor/` folder with content (an older LaneConductor: how many tracks, in which naming form, which lanes; offer to finish the scaffold: write only what is missing, import nothing, change no track); no git repository (offer `git init` first); uncommitted changes in `.gitignore`, the one existing file setup edits (offer to go on, or to wait while they commit it). Anything else: write.
 3. **Write** the files that are missing ("Create the files" below; the files and templates are under "Reference: scaffold" at the end). No existing file of the project is touched, and `.gitignore` only gets the lines it lacks. Add no walking-skeleton track.
-4. **File the plan items.** With a plan document, file its first four items as tracks, in the plan's order, in the plan lane, as "The answer" of the first-track card says (the `new` procedure: search first, then create; the plan item as the problem, its source file named). No question. The open questions of the plan are not filed: list them. With no plan document nothing is filed.
+4. **File the plan items.** With a plan document, file its first four items as tracks, in the plan's order and the plan lane, as "The answer" of the first-track card says (the `new` procedure: search first, then `create_track` when that tool is present, else by hand as `newTrack` writes the files: next free number, unpadded, heading `# Track AM-1: <Title>`, id only; the plan item as the problem, its source file named). No question. The plan's open questions are not filed: list them. With no plan document nothing is filed.
 5. **A stale project-level skill** is one more line in the closing message, only if `.claude/skills/laneconductor` exists (read only: Glob,
    `test -L`, `git ls-files`): the plugin supplies the skill itself, so this copy is stale. Offer its removal:
    `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
@@ -359,16 +359,16 @@ Leave the key out and nothing changes.
 #### newTrack `[name] [description]`
 
 Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
-markers). By hand:
+markers). By hand, write the files exactly as it would:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
    word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
    highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
-   `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
-   `INITIALS-NNN-slug/`.
-2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
+   `AM-10022-slug` both give `10022`). The number is that plus one, never zero-padded (`AM-1`, `AM-10`; `1` for the first track).
+   The id is `INITIALS-<n>` without the slug; the folder is `INITIALS-<n>-slug/`.
+2. **Create `conductor/tracks/INITIALS-<n>-slug/index.md` right away**, for fast feedback:
    ```markdown
-   # Track INITIALS-NNN: [name]
+   # Track INITIALS-<n>: [name]
 
    **Lane**: plan
    **Lane Status**: queue
@@ -381,16 +381,12 @@ markers). By hand:
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   `**Type**` defaults to `dev`. `**Merge Mode**` and `**Auto Run**` default to `direct` and
-   `yes` (changed 2026-09-08; before that the markers were omitted and fell back to the
-   conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
-   track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
-   that already exists without the markers keeps the old fallbacks.
-3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `yes`. Write `pr` / `no` only when the
+   user asks for it on this track ("this one needs a PR, don't auto-run it").
+3. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
    installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
    name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
 
    
-5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
-6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+4. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-<n>`, the id only) and nothing else.
+5. Print `✅ Track <n> created in conductor/tracks/<folder>/.`

@@ -291,7 +291,7 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | a bare `done` from another lane | `done:queue`, never `done:success` |
 | `null` | no automatic move: the lane's own action or a human decides |
 | missing from the lane | the file's top-level `defaults.on_success` / `defaults.on_failure`, read the same way; no automatic move when the file has none (an explicit `null` never falls back) |
-| `stay` or `stop` | no automatic move. Older files carry these words; they are read, never written, so do not put them in a file |
+| `stay` or `stop` | no automatic move (older files; read, never written) |
 
 An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces.
 

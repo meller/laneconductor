@@ -27,18 +27,15 @@ Moving to a lane without a status means `queue`: `move NNN backlog`, `move NNN i
 `**Lane Status**` in `conductor/tracks/NNN-*/index.md` (with the add-on, `update_track` with those markers).
 Prefer a `lane:status` that `workflow.json` defines for that lane. When the move is "this lane's action
 finished", do not work the target out yourself: with the connector, call `update_track` with `outcome`
-(`success` or `failure`) and the `base` from `get_track`, which applies the workflow's move; its answer to
-"where does it go" is `valid.next` in `get_track`. Without the connector, read `workflow.json` with the
-grammar in `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane;
-for the same lane it is `success` or `failure`).
+(`success` or `failure`) and the `base` from `get_track` (it applies the workflow's move; `valid.next` says
+where it goes); without it, read `workflow.json` with the grammar in `ops/lanes-and-statuses.md`.
 
 #### pulse `[track-number] [status] [progress%] [summary?]`
 
 Update the track's markers in `conductor/tracks/NNN-*/index.md`: `**Progress**: N%`, `**Phase**`
-when the work entered a new phase, `**Step**` (the current activity; infer it if not given),
+when the work entered a new phase, `**Step**` (the current activity),
 `**Summary**`, and `**Waiting for reply**: no` after every AI response. A `[status]` that names a lane is a move, so use `move` for that;
-`pulse` does not write `**Status**` any more (it is a legacy marker the parser only reads when
-`**Lane**` is missing).
+`pulse` no longer writes the legacy `**Status**`.
 
 ### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Manual moves win)
 
@@ -67,12 +64,12 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | a bare `done` from another lane | `done:queue`, never `done:success` |
 | `null` | no automatic move: the lane's own action or a human decides |
 | missing from the lane | the file's top-level `defaults.on_success` / `defaults.on_failure`, read the same way; no automatic move when the file has none (an explicit `null` never falls back) |
-| `stay` or `stop` | no automatic move. Older files carry these words; they are read, never written, so do not put them in a file |
+| `stay` or `stop` | no automatic move (older files; read, never written) |
 
 An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. Fields of the older format
 are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `primary_model`, `hooks`.
 
-Worked examples. This project's own file (current format):
+Worked examples. This project's own file:
 
 | Lane | on_success | on_failure |
 |------|-----------|-----------|
@@ -82,9 +79,7 @@ Worked examples. This project's own file (current format):
 | quality-gate | `done:queue` | `plan:queue` |
 | done | none | `done:failure` |
 
-An older file (the older format: bare targets, old lane names): `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"`
-resolves to `review:queue` on success and `in-progress:failure` on failure (the failure target names the same lane); `planning` with
-`"on_success": "backlog"` resolves to `backlog:queue`; `done` and `backlog` with `null` targets have no automatic move.
+An older file (bare targets, old lane names) resolves by the table above: `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"` gives `review:queue` and `in-progress:failure`; a `null` target has no automatic move.
 
 #### Manual moves win
 

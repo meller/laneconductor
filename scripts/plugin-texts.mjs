@@ -319,7 +319,7 @@ export const BASE_HABITS = `
 ## Habits (this plugin has no hooks)
 
 - First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has \`conductor/tracks\`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from \`git status -sb\`), reading the files directly, and end it with "say \`next\` for the one step". Once per session; never on unrelated prompts.
-- When a lane finishes, give the one-line card \`next\` would give for this track (the rows for that track in the skill's \`ops/next.md\`) and wait. Do not act on it.
+- When a lane finishes, close with "The closing message of a lane" above (six lines at most); its Next line is the one-line card \`next\` would give for this track. Wait; do not act on it.
 - Re-read a track file right before editing it and change only the marker lines; never rewrite the whole file. If the connector tools \`${CONNECTOR_TOOL_PREFIX}*\` are present, change markers with them instead (they refuse a stale write).
 - Before any \`git push\`, say what will be pushed (branch, commits, files) and ask. Nothing here scans for secrets, so the check is yours.
 

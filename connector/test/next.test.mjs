@@ -237,7 +237,7 @@ test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block f
 test('TC-14, TC-15: the habits carry the two edits; the server instructions point to next and stay under the limit', () => {
   const skill = read(path.join(BASE, 'skills/laneconductor/SKILL.md'));
   assert.match(skill, /say `next` for the one step/);
-  assert.match(skill, /give the one-line card `next` would give for this track/);
+  assert.match(skill, /one-line card `next` would give for this track/);
   assert.match(buildInstructions(['help']), /Run the `next` prompt/);
 });
 

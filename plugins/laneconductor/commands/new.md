@@ -31,16 +31,16 @@ Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you 
 #### newTrack `[name] [description]`
 
 Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
-markers). By hand:
+markers). By hand, write the files exactly as it would:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
    word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
    highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
-   `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
-   `INITIALS-NNN-slug/`.
-2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
+   `AM-10022-slug` both give `10022`). The number is that plus one, never zero-padded (`AM-1`, `AM-10`; `1` for the first track).
+   The id is `INITIALS-<n>` without the slug; the folder is `INITIALS-<n>-slug/`.
+2. **Create `conductor/tracks/INITIALS-<n>-slug/index.md` right away**, for fast feedback:
    ```markdown
-   # Track INITIALS-NNN: [name]
+   # Track INITIALS-<n>: [name]
 
    **Lane**: plan
    **Lane Status**: queue
@@ -53,13 +53,9 @@ markers). By hand:
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   `**Type**` defaults to `dev`. `**Merge Mode**` and `**Auto Run**` default to `direct` and
-   `yes` (changed 2026-09-08; before that the markers were omitted and fell back to the
-   conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
-   track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
-   that already exists without the markers keeps the old fallbacks.
-3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `yes`. Write `pr` / `no` only when the
+   user asks for it on this track ("this one needs a PR, don't auto-run it").
+3. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
    installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
    name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
 
@@ -70,8 +66,8 @@ Candidates for these Types:
 - `marketing-skills` (prerequisite; Type marketing/sales): skills content-strategy, launch (was launch-strategy), copywriting, social (was social-content), sales-enablement, cold-email, prospecting, revops, analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
 - `customer-support` (Type support): skills ticket-triage, draft-response, kb-article, customer-escalation, customer-research. Installs connections to hosted services (Slack, Intercom and more), plus skills. `claude plugin marketplace add anthropics/knowledge-work-plugins`, `claude plugin install customer-support@knowledge-work-plugins`
 
-5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
-6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+4. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-<n>`, the id only) and nothing else.
+5. Print `✅ Track <n> created in conductor/tracks/<folder>/.`
 
 ### `ops/tracks.md` (What goes in each track file; Splitting a plan that holds a log)
 

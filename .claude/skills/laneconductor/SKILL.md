@@ -86,12 +86,9 @@ With private tracks the connector writes the files and skips the commit, and say
 ## Finding a track
 
 A track number maps to one folder under `conductor/tracks/`. With the parallel add-on, `get_track` finds it. Without
-it, use Glob `conductor/tracks/*-<N>-*/` for the form `INITIALS-NNN-slug` (for example `AM-10023-my-feature`, the
-current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; scan for **both** (a scan for one
-form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
+it, use Glob `conductor/tracks/*-<N>-*/` for the form `INITIALS-NNN-slug` (for example `AM-10023-my-feature`) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; scan for **both**. If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
-If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
+If a folder exists for the number, use it: scaffolding a second is an error (a scan that missed `AM-<number>-...` once created a duplicate).
 
 ## What goes in each track file
 
@@ -111,11 +108,10 @@ entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, mus
 > second line, also prefixed with >
 ```
 `author` is `human`, `claude`, `gemini` or `system`. The tools that read it recognize only
-`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a markdown header, a plain
-blockquote, loose prose) stays in the file but is silently never synced to the UI, with no error.
-For long pasted material (an email, a contract, a redline) keep one opening `> **author**:` line and
-prefix every following line, blank ones and markdown headers included, with `>`. Do not drop the
-prefix partway because the content reads like a document.
+`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a header, a plain
+blockquote, loose prose) stays in the file but is never read, with no error.
+For long pasted material (an email, a contract) keep one opening `> **author**:` line and
+prefix every following line, blank ones and headers included, with `>`.
 
 ## Session continuity
 
@@ -163,6 +159,17 @@ skill-only session, so re-read the file yourself.
   without it, look up each named track. To resume, set `**Lane Status**` to `queue` and remove
   `**Waiting Reason**` and `**Waiting On Tracks**` (`update_track` removes them when it sets any status
   other than `waiting`). A park for a question or approval is resumed by the answer, not by a track.
+
+## The closing message of a lane
+
+The last chat message of a lane command (and of an owner-step reply) is six lines at most, with no heading:
+
+1. **Outcome**, one line: what was done and where the track sits now, with its title and a gist: `Planned AM-1 "Title" (6 phases, 12 tests): <one clause on the approach>; parked at plan:success.`
+2. **Needed from the person**: what blocks the next step, three lines at most, one each (a supervised track: its Owner Action; a plan item marked unverified or open that blocks building). None: leave it out.
+3. **Next**: the command alone, for the lane the track now sits in (`/laneconductor:implement N`; after a merge, `/laneconductor:next`).
+4. **More**, word for word: ``More: `/laneconductor:board` (the track's card shows the next step with a Copy button), or say "show the plan".``
+
+Findings, phase and test-case lists, risks and caveats go into the track's files and its one completion comment, not the chat; give them on "show the plan". Say nothing of commits or ignored tracks unless unusual.
 
 ## Markers in index.md
 

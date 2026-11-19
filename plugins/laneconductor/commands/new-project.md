@@ -389,16 +389,16 @@ Leave the key out and nothing changes.
 #### newTrack `[name] [description]`
 
 Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
-markers). By hand:
+markers). By hand, write the files exactly as it would:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
    word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
    highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
-   `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
-   `INITIALS-NNN-slug/`.
-2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
+   `AM-10022-slug` both give `10022`). The number is that plus one, never zero-padded (`AM-1`, `AM-10`; `1` for the first track).
+   The id is `INITIALS-<n>` without the slug; the folder is `INITIALS-<n>-slug/`.
+2. **Create `conductor/tracks/INITIALS-<n>-slug/index.md` right away**, for fast feedback:
    ```markdown
-   # Track INITIALS-NNN: [name]
+   # Track INITIALS-<n>: [name]
 
    **Lane**: plan
    **Lane Status**: queue
@@ -411,19 +411,15 @@ markers). By hand:
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   `**Type**` defaults to `dev`. `**Merge Mode**` and `**Auto Run**` default to `direct` and
-   `yes` (changed 2026-09-08; before that the markers were omitted and fell back to the
-   conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
-   track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
-   that already exists without the markers keeps the old fallbacks.
-3. **No queue file.** The folder you just made is the track; nothing else registers it.
-4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   `**Type**` defaults to `dev`; `**Merge Mode**` and `**Auto Run**` to `direct` and `yes`. Write `pr` / `no` only when the
+   user asks for it on this track ("this one needs a PR, don't auto-run it").
+3. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
    installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
    name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
 
    
-5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
-6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+4. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-<n>`, the id only) and nothing else.
+5. Print `✅ Track <n> created in conductor/tracks/<folder>/.`
 
 ### `lanes/brainstorm.md`
 
@@ -451,12 +447,7 @@ An optional deepening step before implement: ask the human clarifying questions 
 
 #### Skills that help here
 
-These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
-named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
-and carry on without it. `brainstorming` helps draw out requirements one question at a time; `writing-plans` helps once the requirements are clear and the plan lane is next.
+Suggestions, a second opinion, never an order: if a skill named here is installed (for example from the Superpowers
+plugin), consider using it; if not, say so in one line and carry on without it. `brainstorming` helps draw out requirements one question at a time; `writing-plans` helps once the requirements are clear and the plan lane is next.
 
-Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"brainstorm"`, such as
-`{ "skills": { "brainstorm": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
-it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
-own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
-skill's method, not its output paths.
+An optional top-level `skills` object in `conductor/workflow.json` may list more under `"brainstorm"` (`{ "skills": { "brainstorm": ["my-skill"] } }`): use them the same way (if one is missing, say so and continue). Absent, nothing changes. Where a skill's steps or file locations differ from this guide or the track files, those win; take the skill's method, not its output paths.

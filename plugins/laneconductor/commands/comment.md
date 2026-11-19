@@ -46,10 +46,9 @@ With the add-on, `append_conversation` with author `system` writes that dated li
 
 #### comment `[track-number] [body]`
 
-A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
-`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
-an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
-Use `⚠️` for something that needs a human and `ℹ️` for a note.
+A comment from a person or an agent (an agent's answer to a human comment too) is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`. A note that records an event (a run, a classification, a completion) is a dated line
+in `history.md` instead. Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (conversation.md format)
 
@@ -63,11 +62,10 @@ entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, mus
 > second line, also prefixed with >
 ```
 `author` is `human`, `claude`, `gemini` or `system`. The tools that read it recognize only
-`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a markdown header, a plain
-blockquote, loose prose) stays in the file but is silently never synced to the UI, with no error.
-For long pasted material (an email, a contract, a redline) keep one opening `> **author**:` line and
-prefix every following line, blank ones and markdown headers included, with `>`. Do not drop the
-prefix partway because the content reads like a document.
+`> **author**: ...` lines plus `>`-prefixed continuations. Anything else (a header, a plain
+blockquote, loose prose) stays in the file but is never read, with no error.
+For long pasted material (an email, a contract) keep one opening `> **author**:` line and
+prefix every following line, blank ones and headers included, with `>`.
 
 ### `lanes/implement.md` (the owner's reply, step 4)
 

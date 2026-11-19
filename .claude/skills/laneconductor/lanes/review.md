@@ -40,6 +40,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
+5. **Close** with the closing message of a lane.
 
 ## Offer a missing skill
 
@@ -49,12 +50,7 @@ Before the work, look at what fits this lane and offer what is missing; usually 
 
 ## Skills that help here
 
-These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
-named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
-and carry on without it. `requesting-code-review` helps frame what to check and how to report it; `receiving-code-review` helps when feedback arrives and each point needs to be checked before acting on it.
+Suggestions, a second opinion, never an order: if a skill named here is installed (for example from the Superpowers
+plugin), consider using it; if not, say so in one line and carry on without it. `requesting-code-review` helps frame what to check and how to report it; `receiving-code-review` helps when feedback arrives and each point needs to be checked before acting on it.
 
-Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"review"`, such as
-`{ "skills": { "review": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
-it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
-own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
-skill's method, not its output paths.
+An optional top-level `skills` object in `conductor/workflow.json` may list more under `"review"` (`{ "skills": { "review": ["my-skill"] } }`): use them the same way (if one is missing, say so and continue). Absent, nothing changes. Where a skill's steps or file locations differ from this guide or the track files, those win; take the skill's method, not its output paths.

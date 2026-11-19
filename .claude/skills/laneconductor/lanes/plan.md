@@ -28,7 +28,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    this? [default: yes]" and extend it instead. Scaffolding over an existing track number
    creates a duplicate folder beside the real one. This has happened when a
    legacy-only scan missed `AM-<number>-...`.
-   - Create `conductor/tracks/INITIALS-NNN-slug/`. Initials are the first letter of each word of
+   - Create `conductor/tracks/INITIALS-<n>-slug/`. Initials are the first letter of each word of
      `git config user.name`, up to 3, `XX` if unset. Never use the bare `NNN-slug` form for a new
      track.
    - Create `index.md` with `**Lane**: plan`, `**Lane Status**: running`, `**Progress**: 0%`,
@@ -104,7 +104,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    fired, `⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 
-Your job ends here. The track waits in its new lane for the next step.
+Your job ends here: write the closing message of a lane and stop. The track waits in its new lane for the next step.
 
 ## Where things go
 
@@ -171,12 +171,7 @@ Before the work, look at what fits this lane and offer what is missing; usually 
 
 ## Skills that help here
 
-These are suggestions, in the same spirit as the rest of this guide: a second opinion, never an order. If a skill
-named here is installed (for example from the Superpowers plugin), consider using it; if it is not, say so in one line
-and carry on without it. `brainstorming` helps settle unclear requirements before the spec is written; `writing-plans` helps break the work into phases with small, checkable tasks for `plan.md`.
+Suggestions, a second opinion, never an order: if a skill named here is installed (for example from the Superpowers
+plugin), consider using it; if not, say so in one line and carry on without it. `brainstorming` helps settle unclear requirements before the spec is written; `writing-plans` helps break the work into phases with small, checkable tasks for `plan.md`.
 
-Also read `conductor/workflow.json`. If it has a top-level `skills` object with a list under `"plan"`, such as
-`{ "skills": { "plan": ["my-skill"] } }`, use those skills in addition, the same way: if one is installed, use it; if
-it is missing, say so and continue. The `skills` key is optional; when it is absent, nothing changes. Where a skill's
-own steps or file locations differ from this guide or from the track files, the track files and this guide win; take the
-skill's method, not its output paths.
+An optional top-level `skills` object in `conductor/workflow.json` may list more under `"plan"` (`{ "skills": { "plan": ["my-skill"] } }`): use them the same way (if one is missing, say so and continue). Absent, nothing changes. Where a skill's steps or file locations differ from this guide or the track files, those win; take the skill's method, not its output paths.
