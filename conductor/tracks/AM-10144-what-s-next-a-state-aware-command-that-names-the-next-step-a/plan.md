@@ -115,6 +115,15 @@ The four first suggestions (licence, secrets, CI, audit) were generic and not in
 - [ ] Task 11.5: Freshness noise: a repository with no upstream, or a regenerated summary, is not by itself a "state may be stale" line in `next`; unpushed commits, a stale claim and the like still are
 - [ ] Task 11.6: Text tests (S04 leads with the plan items and their source, generic items second and fewer than three, the later-on suggestions, no invented item, the empty-folder route) and keep the size of `next` from growing
 
+## Phase 12: One reply from a fresh project to a track ready to plan (owner direction, 2026-11-19; release 1.9.5, after Phase 11)
+
+Goal: reduce friction and give the fastest value. Today a first run takes four turns (next, setup, "ok", pick tracks). Direction: `/laneconductor:next` on a fresh project does the read-only analysis and shows what it found; ONE reply (`go`) then does the full setup, files the suggested tracks, and ends offering the board and planning the first track. A brand-new project starts the brainstorm and new-project process instead.
+
+- [ ] Task 12.1: S02 for an existing project: the card shows what the analysis found (the project in one line, the plan items and their source, as in Phase 11) and offers exactly one reply, `go`, which means: set up LaneConductor, declare the track privacy, file the first four plan items as tracks in the plan lane, and stop at the closing offer; the card says in one clause what `go` will create. `next` itself stays read-only: the `go` reply makes Claude run the setup procedure (the model already invokes the setup command from the user's "go")
+- [ ] Task 12.2: S02 for a brand-new project (an empty folder, or a repository with no code and no plan document): the card says it is a new project and offers `go` to start the brainstorm (the new-project interview), which explores options and decisions before writing files, then the scaffold, first tracks and suggested skills
+- [ ] Task 12.3: The closing after `go` offers exactly two things: see it on the board (`/laneconductor:board`, with the add-on install line when it is not installed) and plan the first track (`/laneconductor:plan 1`, naming its title); one question, no commit question
+- [ ] Task 12.4: Text tests for the two cards and the closing, a size check (next must not grow), and a headless end-to-end check of the whole sequence on a fixture with a plan document, on an empty folder, and on a project that already has `conductor/`
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.
