@@ -10,6 +10,10 @@ const T = (file, ...heads) => ({ file, heads });
 /** new-project is no lane and creates no non-dev track, so the skill offers of the guide and of newTrack it carries are left out of its copy. */
 const NO_OFFERS = (ref) => ({ ...ref, drop: [/## Offer a missing skill[\s\S]*?(?=## Skills that help here)/, /Look first \(the session skills list[\s\S]*?(?=\n5\. Create `history\.md`)/] });
 const PARTS = (file, from, to) => ({ file, from, to });
+/** The scaffold text as setup and new-project carry it: the no-questions variant belongs to the worker tier (it reads a context file another tool writes), so the commands leave it out; new-project also leaves out the interactive variant, which is its own interview. */
+const SCAFFOLD_GENERATE = /#+ setup scaffold generate[\s\S]*?(?=\n#+ setup scaffold \(interactive\))/;
+const SCAFFOLD_INTERACTIVE = /#+ setup scaffold \(interactive\)[\s\S]*?(?=\n#+ Older tracks)/;
+const SCAFFOLD = (...drop) => ({ ...W('setup/scaffold.md'), drop });
 const ADDON = { title: 'The add-on\'s install commands', text: () => `Show these as written when the add-on is missing and I ask for parallel work or isolation; never run them.\n\n${installBlock('parallel')}` };
 const TRACKS_SEARCH = T('ops/tracks.md', '## Search first: the default is update, not create');
 const TRACK_FILES = T('ops/tracks.md', '## What goes in each track file', '## Splitting a plan that holds a log');
@@ -31,9 +35,9 @@ const lane = (guide, extra = []) => ({ why: REASON_LANE, refs: [W(`lanes/${guide
 
 export const REFERENCES = {
   setup: { why: 'setup writes the conductor files after the reply "ok" from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
-    W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**')] },
+    SCAFFOLD(SCAFFOLD_GENERATE), PARTS('setup/templates.md', null, '**Track spec forms**')] },
   'new-project': { why: 'new-project writes the conductor files from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
-    W('setup/scaffold.md'), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK)), NO_OFFERS(W('lanes/brainstorm.md'))] },
+    SCAFFOLD(SCAFFOLD_GENERATE, SCAFFOLD_INTERACTIVE), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK)), NO_OFFERS(W('lanes/brainstorm.md'))] },
   plan: lane('plan', [TRACK_FILES]),
   brainstorm: lane('brainstorm', [TRACKS_SEARCH]),
   implement: lane('implement', [W('ops/working-a-track.md'), ADDON]),

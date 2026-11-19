@@ -94,10 +94,10 @@ export function inlineBody(name, readSkill) {
       .replace('## 1. Detect the situation', '## Detect the situation')
       .replace('## 3. Scaffold', '## Create the files');
     const main = edit(relink(readSkill('setup/setup.md'), 'setup/setup.md').replace(/^# .*\n+/, ''), 'setup/setup.md', [
-      [/Follow `ops\/new-project\.md`, its existing-repository path \(the folder has a `\.git`, or files other than\n`conductor\/`\), and when the folder is empty its new-project path\. In short:/,
-        'Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`); when the folder is empty, the new-project\npath of `ops/new-project.md` applies and `/laneconductor:new-project` is the command for it. In short:'],
+      [/Follow `ops\/new-project\.md`, its existing-repository path \(the folder has a `\.git`, or files other than\n`conductor\/`\)\. /,
+        'Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`). '],
       [/follow\n`setup\/scaffold\.md` \(templates in `setup\/templates\.md`\)/, 'follow the scaffold text under "Reference: scaffold" at the end (`setup/scaffold.md`, templates in `setup/templates.md`)'],
-      [/\(`ops\/next\.md`, "The first-track card": written once, shared with\s+`next`; it holds/, '(at the end of this command; it holds'],
+      [/\(`ops\/next\.md`, "The first-track card": written once, shared with\s+`next`; it leads with the plan found in step 1 and holds/, '(at the end of this command; it leads with the plan found in step 1 and holds'],
     ]);
     return [
       'Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it. Look for no program other than `git`, and read no settings file.',
@@ -122,7 +122,7 @@ export function inlineBody(name, readSkill) {
     const pieces = [
       section(lanes, '## The five lane statuses'),
       section(lanes, '## The two meanings of `done`'),
-      section(lanes, '## Transitions'),
+      section(lanes, '## Transitions').replace(/\n\nWorked examples\.[\s\S]*$/, ''), // the worked examples of workflow.json are for the lane commands; `next` reads `valid.next` or the grammar above
     ].map((s) => shift(s, 1)).join('\n\n').replace('(for example `plan:success`: planned, parked)', '(for example `plan:success`: the plan is written and parked)');
     return [
       'What\'s next: `$ARGUMENTS` (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. In Claude Code, type it as `/laneconductor:next`; the commands in the card are written in that form.',

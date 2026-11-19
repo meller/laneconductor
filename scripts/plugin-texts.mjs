@@ -179,11 +179,11 @@ export const SHORT_RULE = `**Offer rule** (full procedure: \`/${NAMES.base}:sugg
 const MINI_RULE = 'Look first (the session skills list, `claude plugin list`, `.claude/skills/`, `~/.claude/skills/`; an older name counts) and offer only what is missing: at most two, plain text, each install command alone in its own bash block, never run an install, never block, nothing twice in a session or on the declined list.';
 
 /** One catalog entry as one line: why (short), what it installs, the commands in inline code (Claude puts each into its own bash block when it offers). */
-export function entryLine(e, { lanes = null, full = false } = {}) {
+export function entryLine(e, { lanes = null, full = false, brief = false } = {}) {
   const sk = skillsOf(e, lanes);
   const meta = [e.level === 'prerequisite' ? 'prerequisite' : null, e.types.join() !== 'dev' ? `Type ${e.types.join('/')}` : null, e.stack.length ? `stack ${e.stack.join('/')}` : null, full ? e.licence : null].filter(Boolean);
   const names = sk.map((k) => `${k.name}${k.aliases?.length ? ` (was ${k.aliases.join('/')})` : ''}`).join(', ');
-  const blurb = !full && sk.length ? `skills ${names}` : e.why + (sk.length ? `. Skills: ${names}` : '');
+  const blurb = !full && !brief && sk.length ? `skills ${names}` : e.why + (full && sk.length ? `. Skills: ${names}` : '');
   const when = e.kind === 'addon' ? ` Mention only when ${full ? e.triggers.join('; or ') : e.triggers[0]}.` : '';
   const detect = e.skills?.length || (!full && e.kind !== 'addon') ? '' : ` It counts as installed when ${e.detect}.`;
   const what = e.installs_code ? ` Installs ${e.installs}.` : ' Markdown only.';
@@ -245,8 +245,8 @@ export function skillTipsBlock() {
  * The starter set at the end of setup and new-project (REQ-9), generated from the catalog entries that say when they fit a project
  * (`setup_fit`): one line each, so a new entry flows in. It only shows: no command is run and nothing is installed without a yes.
  */
-const recommendParts = (entries) => {
-  const list = offerOrder(entries).map((e) => `${entryLine(e)} It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.`).join('\n');
+const recommendParts = (entries, { fits = true } = {}) => {
+  const list = offerOrder(entries).map((e) => `${entryLine(e, { brief: true })}${fits ? ` It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.` : ''}`).join('\n');
   const addons = entries.filter((e) => e.kind === 'addon');
   const both = addons.length >= 2 // both add-ons of the live catalog; one add-on alone keeps only its own offer
     ? `
@@ -278,7 +278,7 @@ ${list}${both}`;
  * setup-time prose, which `ops/next.md` ("The front door") already says in its own words. Keeps `next` from growing (track AM-10144, Phase 10).
  */
 export const frontDoorBlock = (entries = ADDONS) => {
-  const { list, both } = recommendParts(entries);
+  const { list, both } = recommendParts(entries, { fits: false }); // the triggers ("Mention only when") already say when an add-on fits
   return `Show each entry's commands alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs.
 
 ${list}${both}`;

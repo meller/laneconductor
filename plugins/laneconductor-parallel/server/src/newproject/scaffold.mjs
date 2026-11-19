@@ -26,6 +26,11 @@ export const DEFAULT_WORKFLOW = {
 
 /** The `.gitignore` lines a new project gets: the per-machine conversation files and worktree checkouts, nothing from a daemon. */
 export const GITIGNORE_LINES = ['conductor/tracks/**/conversation.md', 'conductor/tracks/**/conversation.json', '.worktrees/'];
+/**
+ * What private tracks add: the tracks, the summary of every track's title, lane and phase, and the advice log. All three, because with only the
+ * tracks ignored the summary and the log were still committed, which would publish the plan titles of a public repository.
+ */
+export const PRIVATE_GITIGNORE_LINES = ['conductor/tracks/', 'conductor/tracks-summary.md', 'conductor/advice-log/'];
 
 /** Gate commands in the order the template lists them: [answers.commands key, label, expected]. */
 const GATE_CHECKS = [
@@ -69,6 +74,7 @@ export function normalizeAnswers(a = {}) {
     journeys: (Array.isArray(a.journeys) ? a.journeys : []).filter((j) => str(j?.persona) && str(j?.name)).map((j) => ({ persona: str(j.persona), name: str(j.name), flow: list(j.flow) })),
     stateBranch: str(a.stateBranch) || 'main',
     initials,
+    tracks: str(a.tracks).toLowerCase() === 'private' ? 'private' : 'committed',
   };
 }
 
@@ -196,9 +202,9 @@ export function firstTracks(answers, existingDirs = []) {
 }
 
 /** Appends the lines of `GITIGNORE_LINES` that are missing; returns the new content, or null when nothing is missing. */
-export function mergeGitignore(current) {
+export function mergeGitignore(current, { tracks = 'committed' } = {}) {
   const have = new Set((current ?? '').split(/\r?\n/).map((l) => l.trim()));
-  const add = GITIGNORE_LINES.filter((l) => !have.has(l));
+  const add = [...GITIGNORE_LINES, ...(tracks === 'private' ? PRIVATE_GITIGNORE_LINES : [])].filter((l) => !have.has(l));
   if (!add.length) return null;
   const base = current ?? '';
   return `${base}${base === '' || base.endsWith('\n') ? '' : '\n'}${add.join('\n')}\n`;
@@ -241,7 +247,7 @@ export function writeScaffold(dir, answers, { dryRun = false, gitInit = true, fi
     put(`${base}/history.md`, t.files.history); // tracked run log (never in GITIGNORE_LINES)
   }
   const giPath = path.join(root, '.gitignore');
-  const gi = mergeGitignore(fs.existsSync(giPath) ? fs.readFileSync(giPath, 'utf8') : null);
+  const gi = mergeGitignore(fs.existsSync(giPath) ? fs.readFileSync(giPath, 'utf8') : null, { tracks: normalizeAnswers(answers).tracks });
   if (gi !== null) {
     merged.push('.gitignore');
     if (!dryRun) fs.writeFileSync(giPath, gi);

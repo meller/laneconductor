@@ -110,21 +110,23 @@ const example = (text) => cardLines(text).map((l) => l.slice(2));
 
 test('the setup confirmation has the required parts in order: name and purpose, stack, commands that exist, what will be created, the one decision, the reply line', () => {
   const lines = example(FORM);
-  assert.equal(lines.length, 6);
+  assert.equal(lines.length, 7);
   assert.match(lines[0], /^\*\*[\w-]+\*\*: .+\.$/, 'name and purpose in one line');
   assert.match(lines[1], /^Stack: /);
   assert.match(lines[2], /^Commands: `[^`]+`(, `[^`]+`)*\.$/, 'only commands that exist');
-  assert.match(lines[3], /^I will create `conductor\/`/, 'what will be created, in one line');
-  assert.match(lines[4], /^Tracks: committed with the code, or private \(.*\)\? I recommend private: the README says this is a public demo\.$/, 'the one decision with a recommendation');
-  assert.equal(lines[5], 'Reply ok, or tell me what differs.', 'the last line is the reply line');
-  assert.match(FORM, /Recommend private for a repository that looks public \(a README that says public demo, no licence yet\), committed otherwise/);
+  assert.match(lines[3], /^Found your plan in `[^`]+`: \d+ items\.$/, 'the plan documents, in one line (nothing when there is none)');
+  assert.match(lines[4], /^I will create `conductor\/`/, 'what will be created, in one line');
+  assert.match(lines[5], /^Tracks are private \(git-ignored\) because .+\. Say 'commit my tracks' to share them\.$/, 'the tracks decision is declared, not asked');
+  assert.ok(!example(FORM).some((l) => /\?$/.test(l)), 'the confirmation holds no question');
+  assert.equal(lines[6], 'Reply ok, or tell me what differs.', 'the last line is the reply line');
+  assert.match(FORM, /Never ask whether tracks are committed or private: decide from facts and declare it in that one line/);
 });
 
 test('the setup confirmation stays within the line limit: at most twelve lines, and an extra line only for something unusual or that needs a decision', () => {
   assert.match(FORM, /ONE message in this form, at most twelve lines, everything filled in/);
   assert.ok(example(FORM).length <= 12 - 3, 'the example leaves room for the named extra lines');
   assert.ok(example(FORM).every((l) => l.length < 150), 'every line of the example is one line');
-  assert.match(FORM, /Add a line only for something unusual or that needs a decision \(an existing `conductor\/` folder, a stale project-level skill, a conflict\)/);
+  assert.match(FORM, /Add a line only for something unusual \(an existing `conductor\/` folder, a stale project-level skill, a conflict\)/);
   assert.match(SETUP_MD, /about\s+twelve lines, ending "Reply ok, or tell me what differs"/);
   assert.match(SETUP_MD, /\*\*An existing `conductor\/`\*\* \(an older LaneConductor\) is one more line in the message/);
   assert.match(SETUP_MD, /\*\*A stale project-level skill\*\* is one more line in the message, only if/);
@@ -158,8 +160,9 @@ test('the setup confirmation keeps what the earlier tests require: nothing writt
 // ---- the generated commands do not grow ----
 
 // The sizes of the four generated front-door commands before this change (bytes). They may shrink, never grow: a longer first run is the bug this fixes.
-// (next 32908, setup 30811, new-project 35420, run 67201: the sizes of the commit before the first-track card of track AM-10144, Phase 10.)
-const CEILING = { next: 32908, setup: 30811, 'new-project': 35420, run: 67201 };
+// (next 32827, setup 30790, new-project 35416, run 67201: the sizes of the commit before the plan-led first-track card, 2026-11-19; the card now leads with the
+// project's own plan and the freshness, empty-folder and private-tracks rules were added, paid for by trimming wording elsewhere.)
+const CEILING = { next: 32827, setup: 30790, 'new-project': 35416, run: 67201 };
 
 test('the generated next, setup, new-project and run commands do not grow in bytes', () => {
   for (const [name, max] of Object.entries(CEILING)) {
@@ -179,9 +182,9 @@ const trackCardLines = cardLines(TRACK_CARD);
 const AUDIT = 'Audit: review the code for privacy, security and quality, and file each finding as its own track';
 
 test('the S04 card has the step line, numbered suggestions with the audit last, the board line and the own-title option', () => {
-  assert.equal(trackCardLines[0], '> **Next: your first track.**');
+  assert.match(trackCardLines[0], /^> \*\*Next: your first track\.\*\* From your plan in `[^`]+`:$/, 'the lead names the plan file');
   const items = trackCardLines.filter((l) => /^> \d\. /.test(l));
-  assert.ok(items.length >= 1 && items.length <= 4, 'at most four suggestions');
+  assert.ok(items.length >= 1 && items.length <= 7, 'at most four plan items, two generic and the audit');
   assert.ok(items.every((l) => l.length < 150), 'one line each');
   assert.ok(items[items.length - 1].includes(AUDIT), 'the audit track is the last suggestion');
   assert.ok(trackCardLines.some((l) => /`\/laneconductor:board`/.test(l)), 'the board line');
@@ -194,18 +197,17 @@ test('the S04 card has no lane primer, no three-paths list and no "say go"', () 
   assert.doesNotMatch(card, /five lanes|five statuses|There are five|\bqueue\b|running|\bmarker\b/i, 'no lane primer');
   assert.doesNotMatch(card, /\(a\)|\(b\)|\(c\)|three paths|new-project|look around/i, 'no list of paths');
   assert.doesNotMatch(card, /say go/i, 'no second confirmation');
-  assert.ok(trackCardLines.length <= 8, 'a short card');
+  assert.ok(trackCardLines.length <= 12, 'a short card');
 });
 
 test('the S04 rules: at most four, only facts that were read, nothing claimed that was not checked, the audit always last, nothing created before the answer', () => {
   assert.match(TRACK_CARD, /at most four, one line each/);
-  assert.match(TRACK_CARD, /Use only facts you have read/);
-  assert.match(TRACK_CARD, /claim no finding you did not check/);
+  assert.match(TRACK_CARD, /\*\*Never invent\*\*: every line is text from a file \(named\) or a fact a command or a read checked/);
   assert.match(TRACK_CARD, /Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track/);
   for (const fact of ['no licence file', 'public, demo or open source', 'no CI files but a test command', 'no lint or format config', 'no `SECURITY.md`', 'no lockfile']) assert.ok(TRACK_CARD.includes(fact), fact);
   for (const title of ['Choose a licence', 'Check the repository for secrets and personal data before it is public', 'Add CI that runs']) assert.ok(TRACK_CARD.includes(title), title);
-  assert.match(TRACK_CARD, /nothing is created before the person answers/);
-  assert.match(TRACK_CARD, /For each, follow `new`: search first \(a fitting track is offered an update\), then create/);
+  assert.match(TRACK_CARD, /Nothing is created before the person answers/);
+  assert.match(TRACK_CARD, /For each, in the plan.s order, follow `new`: search first \(a fitting track is offered an update\), then create in the plan lane/);
 });
 
 test('the S04 board line: the board command when the add-on is installed, else the one-line install shown alone in its own bash block and never run; detected without chaining', () => {

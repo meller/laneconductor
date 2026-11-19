@@ -170,7 +170,7 @@ export const COMMANDS = [
     procedure: 'Show status for: {{track}} (nothing given means every track not done). Read only; change nothing. The procedure is the skill file `ops/tracks.md` (`status`).\n\n'
       + '1. With a track number or title: call `get_track` and report lane, lane status, progress, phase, summary and the last conversation entries, and whether a human comment is waiting for a reply.\n'
       + '2. With nothing: call `list_tracks` and print the tracks grouped by lane, one line each (id, title, lane status, progress).\n'
-      + '3. If a result says it is stale or possibly stale, say so before relying on it.\n'
+      + '3. If a result says it is stale or possibly stale, say so before relying on it (no upstream and a rebuilt summary alone are normal: say nothing).\n'
     + '4. End by saying that `next` names the one step to take.',
   },
   {

@@ -541,7 +541,7 @@ export class LocalGitStore {
       else commitPaths.push(c.path);
     }
     if (commitPaths.length === 0) {
-      return { ok: true, commit: null, commitError: `${ignored.join(', ')} is gitignored (decision D5); written but not committed`, ignored };
+      return { ok: true, commit: null, commitError: `${ignored.length} path${ignored.length === 1 ? ' is' : 's are'} gitignored (decision D5: private tracks, conversation files); written, nothing committed`, ignored };
     }
     for (const lp of await this._dirtyLogPaths()) if (!commitPaths.includes(lp) && !(await this._isIgnored(lp))) commitPaths.push(lp);
     const add = await this._withIndexLockRetry(['add', '-A', '--', ...commitPaths]);
