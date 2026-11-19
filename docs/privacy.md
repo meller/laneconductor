@@ -6,8 +6,9 @@ This covers the three LaneConductor plugins: `laneconductor` (the base, Markdown
 ## What they read and write
 
 They read and write only your own project's files: the track folders under `conductor/tracks/` and the other files in
-`conductor/`, plus the optional settings file `.laneconductor.json` when it exists. Claude does the reading and writing in your session, with your normal
-permission prompts. The `laneconductor-parallel` add-on's local connector (a program running on your machine) writes the same files,
+`conductor/`, plus the optional settings file `.laneconductor.json` when it exists. The `setup`, `new-project` and `deploy` commands
+also read your project's own manifest, README and configuration files (for example `package.json` or `firebase.json`) to learn its
+stack. Claude does the reading and writing in your session, with your normal permission prompts. The `laneconductor-parallel` add-on's local connector (a program running on your machine) writes the same files,
 and commits them to your local git repository. The `laneconductor-board` add-on's script reads the track files and writes a page and
 data into a folder you name, outside `conductor/`.
 
@@ -23,6 +24,9 @@ Nothing, except what you choose to send:
 - Track files are ordinary files in your git repository: they leave the machine when you push the repository. No plugin pushes by
   itself, except that `laneconductor-parallel` has an opt-in setting (`connector.push: auto-state` in the optional settings file `.laneconductor.json`, off by
   default) that pushes track-only commits to your project's own git remote. The base plugin and the board add-on have no such setting.
+- Two commands can send things out, only after you say yes, and each command is shown to you first: `merge` can push a branch to
+  your git remote and open a pull request with `gh`, and `deploy` runs your own project's deploy command. They send your project's
+  code and files to your own remote or hosting account, never to the plugin's author.
 - The board is a page that Claude publishes as an artifact, only when you approve it, using the page and data the
   `laneconductor-board` add-on builds. It is private by default, and sharing it is your choice. A secret and personal-data scan runs
   before anything is included, and files with a match are withheld. The base plugin alone has no board.
