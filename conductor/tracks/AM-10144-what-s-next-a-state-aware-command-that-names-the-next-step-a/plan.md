@@ -94,6 +94,16 @@ The owner ran `next` and then `setup` in a fresh copy of a real project and foun
 - [x] Task 9.3: Counts and other facts in a card come from a command that was run for that purpose (for example `git rev-list --count HEAD`), never from a truncated listing; say so in the text
 - [x] Task 9.4: Text tests (the S02 card has no primer, no board note and no add-ons note at the default level, and the explain level still has them; the size of `next` does not grow), and update the ops-text-versus-code comparison
 
+## Phase 10: The first track after setup (owner feedback from a second real first run, 2026-11-19)
+
+After setup the owner saw: setup closing with "run /laneconductor:next", then `next` printing the whole lane primer (the after-setup state S04 had no short card). The owner's direction: show the result instead of telling the person to run `next`; before asking to create a track, offer to see the project on the board, and suggest a few tracks drawn from what was seen (privacy, security, anything a quick look of the code finds), plus the person's own.
+
+- [ ] Task 10.1: A short card for S04 (set up, no tracks yet): one line "Next: your first track", then up to four suggested tracks, each one line with the reason taken from a fact setup already read (README, package.json, .gitignore, the file layout, git history), the board line, and "or name your own"; no lane primer at the default level (the explain level keeps it)
+- [ ] Task 10.2: The suggestions are honest: only facts already read (a README that says no licence, no CI files, no lint config, a public-demo README, no SECURITY or LICENSE file, and so on), no claim of a finding that was not verified; the audit track is always offered as the last suggestion ("Audit: review the code for privacy, security and quality, and file each finding as its own track"); at most four items
+- [ ] Task 10.3: The board line: when the board add-on is installed, `/laneconductor:board` (it shows the project files that setup wrote and later the tracks); when it is not, one line with the add-on install command, shown and never run
+- [ ] Task 10.4: Picking a suggestion creates the track with the existing `new` procedure (search first, then create); picking several creates several; nothing is created before the person answers
+- [ ] Task 10.5: Text tests (the S04 card has the suggestions, the board line and the own-title option, no primer, at most four items, the audit item last) and keep the size of `next` from growing; update the ops-text-versus-code comparison
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.

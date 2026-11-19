@@ -28,3 +28,11 @@ The confirmation message of setup ran to about 35 lines, and most lines had noth
 - [x] Task 4.3: Facts such as commit counts come from a command run for that purpose, never from a truncated listing
 - [x] Task 4.4: Text tests (the confirmation has the required parts, no list of absent things, ends with the reply line, stays within the line limit) and keep the generated setup command's size from growing
 
+## Phase 5: Setup ends with the next step, not with "run next" (owner feedback, 2026-11-19)
+
+Setup's last step tells the person to run `/laneconductor:next` and not to name the step. Setup already knows it: the first track. It should show that step itself (the same short S04 card as `next`, track 10144 Phase 10) instead.
+
+- [ ] Task 5.1: Setup's closing message ends with the S04 first-track card (suggested tracks, the board line, own title) and no "run next" line; written once and shared with `next` so the two cannot differ
+- [ ] Task 5.2: Keep the committed-or-not question about the context files short and last-but-one; do not ask two questions at the end (the first-track choice and the commit question): ask the commit question only after the track choice, or fold it into the closing line
+- [ ] Task 5.3: Text tests (setup's closing has the card and no "Next: run" line) and keep the generated setup command's size from growing
+
