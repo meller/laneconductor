@@ -1,6 +1,6 @@
 # Why LaneConductor
 
-Facts about other products on this page were checked on 2026-11-17 and link to their source. Products change, so
+Facts about other products on this page were checked on 2026-11-17 and re-checked on 2026-11-19, and link to their source. Products change, so
 check the source before you rely on a detail.
 
 ## The short answer
@@ -8,7 +8,7 @@ check the source before you rely on a detail.
 LaneConductor is for anyone who works with an AI coding agent (today, Claude) and wants to **agree the plan first,
 keep it in the repository, and check the work against it**. Each piece of work is a track: a spec, a plan and tests as
 plain files in git, worked through lanes (plan, implement, review, quality gate, done), with a board that shows every
-track by lane. It runs on your own machine with your own Claude. It needs no tracker and no server.
+track by lane (the board is an optional add-on). It runs on your own machine with your own Claude. It needs no tracker, no database and no hosted server; the optional connector is a local program.
 
 It is **not** a product-management tool and it is **not** a ticket-to-pull-request agent. It is the layer between
 "we decided to build this" and "it is merged", kept as files next to the code.
@@ -17,7 +17,7 @@ It is **not** a product-management tool and it is **not** a ticket-to-pull-reque
 
 LaneConductor is a combination of two projects, plus a Kanban view:
 
-- **[Conductor](https://github.com/gemini-cli-extensions/conductor)**, a Gemini CLI extension. Its strength is
+- **[Conductor](https://github.com/gemini-cli-extensions/conductor)**, a plugin for AI coding agents, published in the `gemini-cli-extensions` GitHub organisation. Its strength is
   conventions: project context kept as Markdown files, and a spec and a plan for every track, so the context survives
   between sessions. The `conductor/` folder layout and the context files (`product.md`, `tech-stack.md`, the workflow
   files) follow it.
@@ -29,9 +29,9 @@ LaneConductor is a combination of two projects, plus a Kanban view:
 
 When this project started, its author did not find a Conductor for Claude or a Superpowers for Gemini, and wanted both
 at once, so this is the combination. That has changed: Conductor now lists Claude Code and Antigravity as supported
-hosts, and Superpowers lists Gemini CLI among more than fifteen supported agents (checked 2026-11-17). If you want
+hosts, and Superpowers lists Gemini CLI among more than fifteen supported agents (checked 2026-11-17 and 2026-11-19). If you want
 either one on its own, use it directly. LaneConductor is the two ideas working together, with lanes, a board and
-conflict-checked shared state on top.
+conflict-checked shared state on top (the last two are optional add-ons).
 
 ## LaneConductor and its sources
 
@@ -40,21 +40,21 @@ the project cannot do it.
 
 | | [Conductor](https://github.com/gemini-cli-extensions/conductor) | [Superpowers](https://github.com/obra/superpowers) | LaneConductor |
 |---|---|---|---|
-| Context files, and a spec and plan for every track | Yes (its core) | Not in its README | Yes |
+| Context files, and a spec and plan for every track | Yes (its core) | A spec and a plan are produced; no context files or per-track folder convention in its README | Yes |
 | Brainstorm before you build | Not in its README | Yes (its flagship skill) | Yes, adapted from Superpowers |
 | Test-driven development | A preference setting | A full skill | Mentioned in the plan and implement steps; no skill of its own |
 | Systematic debugging | Not in its README | A skill | **No** |
 | Code review | A review command | Skills for requesting and for receiving review | A review lane; nothing for receiving feedback |
-| Verify before calling it done | Not in its README | A skill | A quality-gate lane that runs your project's own checks |
-| Revert | By track, phase or task | Not in its README | A revert command (its depth is not compared here) |
-| Sub-agents and worktrees | Not in its README | Sub-agents per task; a worktrees skill | One sub-agent per track, in its own worktree |
-| Merge and deploy | Not in its README | A "finish the branch" skill | A merge lane and deploy procedures |
-| **Lanes and a board** | Not in its README | Not in its README | **Yes**: lanes, and a board of every track |
-| **Safe shared state** (writes checked against what you last read) | Not in its README | Not in its README | **Yes**, through the local connector |
+| Verify before calling it done | No separate verify step; its review command runs the tests | A skill | A quality-gate lane that runs your project's own checks |
+| Revert | By track, phase or task | Not in its README | A revert operation, asked for in plain words (its depth is not compared here) |
+| Sub-agents and worktrees | Not in its README | Sub-agents per task; a worktrees skill | One sub-agent per code track, in its own worktree (the optional `laneconductor-parallel` add-on, started only after you agree) |
+| Merge and deploy | Not in its README | A "finish the branch" skill | A merge step (the `done` lane's action) and deploy procedures |
+| **Lanes and a board** | Not in its README | Not in its README | **Yes**: lanes, and a board of every track (the board is the optional `laneconductor-board` add-on, a private snapshot) |
+| **Safe shared state** (writes checked against what you last read) | Not in its README | Not in its README | **Yes**, through the local connector (the optional `laneconductor-parallel` add-on) |
 | **Skills suggested per lane** (the lane guides name the skills that help; you can add your own per lane) | Not in its README | A skill system, but no lane map in its README | **Yes**, as suggestions |
 | **New-project interview and scaffold** | Setup command (greenfield and brownfield) | Not in its README | **Yes** |
 | Writing new skills | Not in its README | A skill | No |
-| Agents supported | Antigravity and Claude Code | More than fifteen | Claude Code and Cowork |
+| Agents supported | Antigravity and Claude Code | More than fifteen | Claude Code and Cowork; in claude.ai chat only the skill and commands load, with no connector or board script |
 
 How to read it: Conductor gives the conventions, Superpowers gives the working discipline, and LaneConductor adds the
 lanes, the board and the shared state that keeps several sessions from overwriting each other. Where Superpowers is
@@ -84,10 +84,14 @@ What the sources say about the others:
   after seven days of inactivity. Its documentation describes giving it context with prompts; it does not describe a
   plan document. ([Atlassian support](https://support.atlassian.com/rovo/docs/generate-code-from-a-work-item-in-jira/),
   [overview](https://support.atlassian.com/rovo/docs/work-with-rovo-dev-in-jira/))
-- **Atlassian's Rovo MCP server** lets MCP clients such as Claude search, create, update and transition Jira work
-  items and add comments, under your own Jira permissions. ([Atlassian](https://www.atlassian.com/blog/rovo/atlassian-rovo-mcp-ga))
+- **Atlassian's Rovo MCP server** lets MCP clients such as Claude search, create and update Jira work items; its list of
+  supported tools also includes transitioning a work item and adding or editing a comment. Atlassian's permission controls
+  apply, and organisation admins decide which clients and tools can connect.
+  ([announcement](https://www.atlassian.com/blog/rovo/atlassian-rovo-mcp-ga),
+  [supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/))
 - **Azure DevOps's remote MCP server** gives an assistant access to work items, pull requests, pipelines and test
-  plans; it was in public preview when checked.
+  plans. Microsoft's pages describe it as the recommended option over the local server, and say Claude Code needs a custom
+  Microsoft Entra app registration to use it.
   ([Microsoft Learn](https://learn.microsoft.com/en-us/azure/devops/mcp-server/remote-mcp-server))
 
 ## What LaneConductor adds, in one example
@@ -107,13 +111,14 @@ read, so two sessions cannot silently overwrite each other.
 
 ## Alone, or with a product tracker
 
-- **Small team or one person.** You can use LaneConductor alone. The backlog lane is your product list, a track is a
+- **Small team or one person.** You can use LaneConductor alone. The backlog lane (the place before plan) is your product list, a track is a
   feature, the board is the overview, and there is no gap between deciding and doing.
 - **Larger team.** When you need roadmaps, stakeholders and priorities across teams, a product tracker takes the
   product view and LaneConductor stays the engineering view. The tracker's connector and LaneConductor's connector work
   side by side in the same Claude session: one brings the product, the other plans and does the technical work.
-- **No tracker integration of our own.** LaneConductor does not ship a Jira, Linear or Azure DevOps connector. The
-  tracker vendors provide those (see the sources above), and Claude can use them next to LaneConductor in the same
+- **No tracker integration of our own.** The LaneConductor plugins ship no Jira, Linear or Azure DevOps connector (an old,
+  unmaintained Jira sync from the experimental tier remains in the repository, outside the plugins). Atlassian and
+  Microsoft provide connectors for Jira and Azure DevOps (see the sources above; Linear's was not checked here), and Claude can use them next to LaneConductor in the same
   session, for example "read PROJ-123, then plan it as a track". Nothing here depends on any tracker.
 
 ## Who it is for, and who it is not for
@@ -132,9 +137,10 @@ a solo developer, a small team, or an engineering team that also uses a product 
 
 ## Sources
 
-Checked 2026-11-17: [Conductor](https://github.com/gemini-cli-extensions/conductor),
+Checked 2026-11-17, re-checked 2026-11-19: [Conductor](https://github.com/gemini-cli-extensions/conductor),
 [Superpowers](https://github.com/obra/superpowers),
 [Jira Coding Agent: generate code from a work item](https://support.atlassian.com/rovo/docs/generate-code-from-a-work-item-in-jira/),
 [Jira Coding Agent overview](https://support.atlassian.com/rovo/docs/work-with-rovo-dev-in-jira/),
 [Atlassian Rovo MCP server](https://www.atlassian.com/blog/rovo/atlassian-rovo-mcp-ga),
+[Rovo MCP supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/),
 [Azure DevOps remote MCP server](https://learn.microsoft.com/en-us/azure/devops/mcp-server/remote-mcp-server).
