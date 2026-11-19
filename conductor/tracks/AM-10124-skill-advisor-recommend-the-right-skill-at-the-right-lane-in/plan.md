@@ -66,7 +66,7 @@ Packaging of our own generic skills (decision pending, see track 10129): either 
 
 ## Phase 7: A declined list the client lets us write (found by the CLI run of 2026-11-19; release 1.9.9)
 
-- [ ] Task 1: The declined list moves out of `.git/` (the client protects files inside .git, so the write was refused and the offer came back) to the personal settings file `.laneconductor.json`, a new key `skills.declined` (a list of catalog entry names), which is git-ignored and already documented in `ops/settings.md`; the procedure shows the exact change first, writes it only after the yes, and adds the `.gitignore` line for `.laneconductor.json` first (asking, as the board procedure does) when it is missing
-- [ ] Task 2: Reading it: a catalog entry named in `skills.declined` is not offered in this project; an old `.git/skill-advisor-declined.txt` is still read when present
-- [ ] Task 3: Update the settings table, `ops/suggest-skills.md`, the catalog text and the tests (TC-9 declined); the generated commands must not grow; repeat the headless decline and a fresh suggest-skills to see the offer stop
+- [x] Task 1: The declined list moves out of `.git/` (the client protects files inside .git, so the write was refused and the offer came back) to the personal settings file `.laneconductor.json`, a new key `skills.declined` (a list of catalog entry names), which is git-ignored and already documented in `ops/settings.md`; the procedure shows the exact change first, writes it only after the yes, and adds the `.gitignore` line for `.laneconductor.json` first (asking, as the board procedure does) when it is missing
+- [x] Task 2: Reading it: a catalog entry named in `skills.declined` is not offered in this project; an old `.git/skill-advisor-declined.txt` is still read when present
+- [x] Task 3: Update the settings table, `ops/suggest-skills.md`, the catalog text and the tests (TC-9 declined); the generated commands must not grow; repeat the headless decline and a fresh suggest-skills to see the offer stop
 
