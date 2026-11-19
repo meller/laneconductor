@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, buildAll, buildPlugin, MARKETPLACE_REL, RELS } from '../../scripts/build-plugin.mjs';
+import { REPO, buildAll, buildPlugin, MARKETPLACE_REL, RELS, pluginVersion } from '../../scripts/build-plugin.mjs';
 import { buildSkillPacks, readPacks, skillFolders, skillDescription, PACKS_REL } from '../../scripts/build-skill-packs.mjs';
 
 const SPEC_TABLE = {
@@ -127,8 +127,8 @@ test('the marketplace lists all eight plugins: the three first, then the five pa
     assert.deepEqual(e.author, { name: 'Asaf Meller' });
     assert.ok(fs.existsSync(path.join(REPO, e.source, '.claude-plugin/plugin.json')));
   }
-  const connector = readJson(path.join(REPO, 'connector/package.json')).version;
-  for (const rel of Object.values(RELS)) assert.equal(readJson(path.join(REPO, rel, '.claude-plugin/plugin.json')).version, connector, `${rel}: the three plugins keep the connector's version`);
+  // The three older plugins take their own version (pluginVersion: an override in versions.json, else the connector's); packs have theirs.
+  for (const [profile, rel] of Object.entries(RELS)) assert.equal(readJson(path.join(REPO, rel, '.claude-plugin/plugin.json')).version, pluginVersion(profile), `${rel}: the plugin carries its own version`);
 });
 
 test('docs/plugin-map.md lists each pack with the skills it holds', () => {

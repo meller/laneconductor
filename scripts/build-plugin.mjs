@@ -474,7 +474,7 @@ export function buildMarketplace(repo = REPO) {
   return json({
     name: MARKETPLACE,
     owner: { name: AUTHOR },
-    description: 'LaneConductor: the plan-first workflow for tracks kept as files in git, as a Markdown-only base plugin and two optional add-ons.',
+    description: 'LaneConductor: the plan-first workflow for tracks kept as files in git, as a Markdown-only base plugin, two optional add-ons (parallel work and a board) and five skill packs.',
     plugins: [
       {
         name: NAMES.base,
