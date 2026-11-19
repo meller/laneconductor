@@ -43,7 +43,7 @@ The owner submits; nothing here submits, posts or answers on the owner's behalf.
 
 ## Draft answers for the portal (for the owner to read, edit and paste; written 2026-11-19 from the repository, version 1.9.9)
 
-Each sentence below can be checked against the repository. The holds are paraphrased from earlier notes: paste the portal's exact wording and I will match each answer to it.
+Each sentence below can be checked against the repository. The two holds below use the portal's own wording from the run of 2026-11-19.
 
 Data handling:
 - What does it access? Only your own project's files: the track folders under `conductor/tracks/`, the other files in `conductor/` and the optional personal settings file `.laneconductor.json`. Claude reads and writes them in your session with your normal permission prompts. It does not read files elsewhere.
@@ -53,9 +53,13 @@ Data handling:
 - Code it runs? None ships: the plugin is Markdown only (one skill, slash commands, and one read-only agent whose tools are Read, Grep and Glob). A command may ask Claude to use git or a shell command in your own session, under your own permission prompts. It never runs an install by itself: it shows the install commands for you to run.
 - Privacy policy: https://github.com/meller/laneconductor/blob/main/docs/privacy.md
 
-Reviewer hold 1, a credential-read heuristic on plugin.json: plugin.json holds only metadata (name, displayName, version, description, author, homepage, repository, license, keywords, privacyPolicyUrl). It declares no configuration prompts, environment variables, servers or hooks, and nothing in the plugin reads credentials. (Match to the exact field the portal names.)
+Reviewer hold 1, "Uses a credential from the user's machine" (code MCP_FORWARDS_CREDENTIAL_ENV, reported against plugin.json; the portal's own detail, read 2026-11-19): "Across its surfaces this plugin reads the installer's .vercel (command deploy body) and can send data off the machine (command board body: https://github.com/meller/laneconductor). Read together that is a credential leaving the machine in two steps; held for review." Both pieces are false positives: `.vercel` appears in the deploy guide only in a list of lines the guide appends to the project's `.gitignore`, so the folder is NOT committed (nothing reads it, and the guide says it never asks for or reads a secret); the board command's URL is a plain "More: <repository>" documentation link, and the command sends nothing to it (the board is published as a private artifact only when the person approves, after a secret and personal-data scan). The plugin has no MCP server, no environment forwarding and no credentials.
 
-Reviewer hold 2, the publisher name resembling another: the publisher is an individual, Asaf Meller (https://github.com/meller). The repository github.com/meller/laneconductor and the homepage laneconductor.com are the same project. (Name the other publisher the portal mentions.)
+Reviewer hold 2, "Publisher name may be confused with another": "This repository's GitHub owner, 'meller', resembles directory connector publisher 'Relier' (look-alike characters). Held for review." The publisher is an individual, Asaf Meller (https://github.com/meller); the repository github.com/meller/laneconductor and the homepage laneconductor.com are the same project; there is no connection to a publisher named Relier.
+
+## Portal Validate result (run 2026-11-19 in the owner's signed-in browser, at the owner's request, nothing submitted)
+
+Repository https://github.com/meller/laneconductor, plugin path `plugins/laneconductor`, `main @ 06b8f55` (plugins 1.9.9): "Validation passed: 1 warning, 2 policy holds", 7 checks. Passed: repository fetched; 58 files, 616.1 kB, within the size limits; plugin.json found and valid; 1 skill, 1 agent, 23 commands; no MCP servers. Passed with warnings: directory lints; name and publisher checks. Warning: the field `privacyPolicyUrl` is unrecognised by Claude Code, which ignores it at load time, and the directory reads it for the listing ("No action needed"). Note: icon.png passed without a code check. Nothing blocks submission. Two policy holds, which a reviewer must release before a held version goes live: (1) uses a credential from the user's machine (see the draft answers); (2) the publisher name "meller" resembles the directory connector publisher "Relier".
 
 ## Risks and limits
 
