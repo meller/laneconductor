@@ -33,6 +33,14 @@ hosts, and Superpowers lists Gemini CLI among more than fifteen supported agents
 either one on its own, use it directly. LaneConductor is the two ideas working together, with lanes, a board and
 conflict-checked shared state on top (the last two are optional add-ons).
 
+Since then it has grown past the combination. In the base plugin: a `next` command that reads where a project stands and names the
+one next step, a new-project interview, a read-only plan reviewer, track types (dev, marketing, sales, support) with an owner
+action and a KPI check for work only a person can do, tracks you can keep private, and a skill advisor that suggests skills for
+the lane you are in. In the optional add-ons: sub-agents that work tracks in parallel, each in its own worktree, with
+conflict-checked writes (`laneconductor-parallel`), and a board of every track by lane, with type and priority
+(`laneconductor-board`). It stays an engineering tool: the plan, the work and the review for each track, kept as files next
+to your code.
+
 ## LaneConductor and its sources
 
 Based on each project's README and skill list on 2026-11-17. "Not in its README" means exactly that; it does not mean

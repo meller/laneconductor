@@ -42,7 +42,10 @@ LaneConductor combines two projects and adds a Kanban view:
 Both are credited, with the MIT notice, in [NOTICE](NOTICE).
 
 When this started, the author did not find a Conductor for Claude or a Superpowers for Gemini, and wanted both at once.
-Versions for other agents have appeared since; LaneConductor is the two ideas together, not a replacement for either.
+Versions for other agents have appeared since; LaneConductor is the two ideas together, not a replacement for either. Since then it has grown past the combination: a `next` command that names the one next step, a new-project interview, a read-only
+plan reviewer, track types (dev, marketing, sales, support) with owner actions and a KPI check, private tracks and a skill advisor,
+plus two optional add-ons for parallel work in worktrees (conflict-checked writes) and a board with type and priority. It stays an
+engineering tool, not a product tracker.
 
 **Who it is for:** anyone who works with an AI coding agent and wants the plan written down, in the repository, before
 the code. **Not for:** a team whose process lives entirely in Jira (or a similar tool) and that does not use AI agents.
