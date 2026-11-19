@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readPacks } from '../../scripts/build-skill-packs.mjs';
 import { REPO, RELS, NAMES, PROFILES, MARKETPLACE_REL, PLUGIN_REL, pluginFacts, buildPlugin, installCommands, sessionInstallCommands, installBlock, installsNote, RECOMMENDED, ADDONS, CATALOG_REL } from '../../scripts/build-plugin.mjs';
 
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -79,7 +80,9 @@ test('the entries\' install commands match the marketplace file', () => {
     assert.deepEqual(sessionInstallCommands(e.name), ['/plugin marketplace add meller/laneconductor', `/plugin install ${e.source.plugin}@${market.name}`]);
   }
   assert.equal(market.plugins[0].name, NAMES.base, 'the base comes first, then the add-ons in catalog order');
-  assert.deepEqual(market.plugins.slice(1).map((p) => p.name), ADDONS.map((e) => e.name));
+  assert.deepEqual(market.plugins.slice(1, 1 + ADDONS.length).map((p) => p.name), ADDONS.map((e) => e.name));
+  // The skill packs (track AM-10129) follow the add-ons; they are not catalog entries until the advisor catalog gets them (task 3.6, in a later base release).
+  assert.deepEqual(market.plugins.slice(1 + ADDONS.length).map((p) => p.name), readPacks(REPO).map((p) => p.name));
 });
 
 test('an entry that installs code says so plainly, everywhere the install commands are shown; installs_code matches what the folder really ships', () => {

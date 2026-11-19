@@ -1,0 +1,22 @@
+{
+  "name": "laneconductor-node-postgres",
+  "displayName": "LaneConductor Skills: Node.js and Postgres",
+  "version": "0.1.0",
+  "description": "Skills for Node.js apps on Postgres: local Postgres with Neon in production and the connection string in Secret Manager, Prisma inside Cloud Functions, an isolated test database, and a Makefile for local runs.",
+  "author": {
+    "name": "Asaf Meller",
+    "url": "https://github.com/meller"
+  },
+  "homepage": "https://laneconductor.com",
+  "repository": "https://github.com/meller/laneconductor",
+  "license": "Elastic-2.0",
+  "keywords": [
+    "laneconductor",
+    "skills",
+    "nodejs",
+    "postgres",
+    "prisma",
+    "neon"
+  ],
+  "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
+}

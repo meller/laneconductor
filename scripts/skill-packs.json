@@ -1,0 +1,44 @@
+{
+  "packs": [
+    {
+      "name": "laneconductor-nodejs-frontend",
+      "displayName": "LaneConductor Skills: Node.js Frontend",
+      "version": "0.1.0",
+      "description": "Skills for Node.js front ends: an installable Vite PWA with Workbox, and browser speech synthesis that is actually audible.",
+      "keywords": ["laneconductor", "skills", "nodejs", "vite", "pwa", "frontend"],
+      "skills": ["pwa-vite-workbox", "browser-tts-unlock-voice-binding"]
+    },
+    {
+      "name": "laneconductor-firebase",
+      "displayName": "LaneConductor Skills: Firebase",
+      "version": "0.1.0",
+      "description": "Skills for Firebase and one shared GCP project: a Hosting site and Functions codebase per product, cache busting after deploys, and Google-only sign-in.",
+      "keywords": ["laneconductor", "skills", "firebase", "gcp", "hosting", "auth"],
+      "skills": ["shared-gcp-firebase-site", "cache-buster", "firebase-google-sign-in"]
+    },
+    {
+      "name": "laneconductor-node-postgres",
+      "displayName": "LaneConductor Skills: Node.js and Postgres",
+      "version": "0.1.0",
+      "description": "Skills for Node.js apps on Postgres: local Postgres with Neon in production and the connection string in Secret Manager, Prisma inside Cloud Functions, an isolated test database, and a Makefile for local runs.",
+      "keywords": ["laneconductor", "skills", "nodejs", "postgres", "prisma", "neon"],
+      "skills": ["postgres-local-neon-prod-secret-manager", "prisma-in-cloud-functions", "isolated-test-database", "makefile-local-run"]
+    },
+    {
+      "name": "laneconductor-gemini",
+      "displayName": "LaneConductor Skills: Gemini",
+      "version": "0.1.0",
+      "description": "Skills for calling Gemini from Node.js: every LLM call through TokenTalos, Gemini on Vertex AI with Application Default Credentials, and image generation with retry and a GCS upload.",
+      "keywords": ["laneconductor", "skills", "gemini", "vertex-ai", "llm", "tokentalos"],
+      "skills": ["llm-through-tokentalos", "vertex-gemini-adc", "vertex-imagen-retry-gcs-fallback"]
+    },
+    {
+      "name": "laneconductor-skill-from-code",
+      "displayName": "LaneConductor Skills: Skill From Code",
+      "version": "0.1.0",
+      "description": "A skill that turns a pattern or a verified incident, shown by working code, into a new skill.",
+      "keywords": ["laneconductor", "skills", "skill-authoring"],
+      "skills": ["skill-from-code"]
+    }
+  ]
+}

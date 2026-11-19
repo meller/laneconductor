@@ -220,6 +220,20 @@ The suggestions come from a small public catalog, checked on 2026-11-18 (`connec
 
 Each plugin is installed from its own source with the platform's own install commands; LaneConductor does not bundle, wrap or copy it. If nothing in the catalog fits, it may name one generic finder, `find-skills` (`vercel-labs/skills`), as a third-party tool that LaneConductor has not vetted.
 
+## Skill packs
+
+Besides the process, the marketplace `meller/laneconductor` carries five small skill packs: one author's own conventions and the incidents behind them, grouped by technology, so you install only the stack you use. They are Markdown only (skills and template files: no script, hook or MCP server), advice and never orders, and each works on its own, without the base plugin. The same skills live in this repository under `skills/<name>/SKILL.md`; the format and how to attach them to lanes are in [docs/skills.md](docs/skills.md).
+
+| Pack | What it is for | Install |
+| :--- | :--- | :--- |
+| `laneconductor-nodejs-frontend` | An installable Vite PWA with Workbox; browser speech synthesis that is audible | `claude plugin install laneconductor-nodejs-frontend@laneconductor` |
+| `laneconductor-firebase` | One shared GCP project with a Hosting site and Functions codebase per product; cache busting after deploys; Google-only sign-in | `claude plugin install laneconductor-firebase@laneconductor` |
+| `laneconductor-node-postgres` | Local Postgres and Neon in production with the secret in Secret Manager; Prisma in Cloud Functions; an isolated test database; a Makefile for local runs | `claude plugin install laneconductor-node-postgres@laneconductor` |
+| `laneconductor-gemini` | Every LLM call through TokenTalos; Gemini on Vertex AI with Application Default Credentials; image generation with retry and a GCS upload | `claude plugin install laneconductor-gemini@laneconductor` |
+| `laneconductor-skill-from-code` | Turn a pattern or a verified incident, shown by working code, into a new skill | `claude plugin install laneconductor-skill-from-code@laneconductor` |
+
+Add the marketplace first with `claude plugin marketplace add meller/laneconductor`. Each pack's page lists its skills; `docs/plugin-map.md` lists them all.
+
 ## The experimental tier
 
 The earlier version of LaneConductor was a Postgres-backed Kanban dashboard (Vite and React), a sync daemon,

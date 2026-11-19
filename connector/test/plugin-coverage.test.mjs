@@ -261,5 +261,5 @@ test('TC-5/TC-9 shape: all slash commands live in the base; the add-ons ship no 
   assert.ok(!fs.existsSync(path.join(PARALLEL, 'commands')), `${PARALLEL} has a commands/ folder`);
   assert.deepEqual(fs.readdirSync(path.join(BOARD, 'commands')), ['refresh.md'], 'the board add-on ships only its own refresh command (track AM-10115 Phase 0)');
   for (const dir of [PARALLEL, BOARD]) assert.ok(!fs.existsSync(path.join(dir, 'skills')), `${dir} has a skills/ folder`);
-  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-parallel']);
+  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-firebase', 'laneconductor-gemini', 'laneconductor-node-postgres', 'laneconductor-nodejs-frontend', 'laneconductor-parallel', 'laneconductor-skill-from-code']);
 });

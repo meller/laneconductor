@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, NAMES, PROFILES, PLUGIN_MAP_REL, pluginFacts, buildPlugin, buildPluginMap, shortMap, CONNECTOR_TOOL_PREFIX } from '../../scripts/build-plugin.mjs';
+import { packsMapSection, readPacks } from '../../scripts/build-skill-packs.mjs';
 import { COMMANDS as CATALOG } from '../src/commands.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 
@@ -34,7 +35,7 @@ test('the facts are the real folders: commands, skills, agents, scripts, tools a
 });
 
 test('docs/plugin-map.md says exactly that: every provided name appears in its column, and every base command has a row with its dependency', () => {
-  assert.equal(map, buildPluginMap(facts));
+  assert.equal(map, buildPluginMap(facts) + packsMapSection(readPacks(REPO)), 'the three plugins, then the skill packs section');
   const row = (label) => map.split('\n').find((l) => l.startsWith(`| ${label} |`)).split(' | ');
   const cmds = row('Slash commands');
   for (const c of CATALOG) assert.ok(cmds[1].includes(`\`${c.name}\``), `${c.name} is a base command`);

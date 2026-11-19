@@ -50,6 +50,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMANDS, argumentHint, helpLines } from '../connector/src/commands.mjs';
 import { INLINED_COMMANDS, inlineBody } from './plugin-inline.mjs';
+import { buildSkillPacks, packMarketplaceEntries, packsMapSection, readPacks } from './build-skill-packs.mjs'; // the five skill packs (track AM-10129)
 import { REFERENCES, REFERENCE_COMMANDS, BOARD_SCRIPT_COMMANDS, referenceBlock, withNotice } from './plugin-references.mjs';
 import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, fullInstallBlock, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
@@ -495,6 +496,7 @@ export function buildMarketplace(repo = REPO) {
         author: { name: AUTHOR },
         ...ver('board'),
       },
+      ...packMarketplaceEntries(readPacks(repo)), // the skill packs, each with its own version
     ],
   });
 }
@@ -504,8 +506,10 @@ export function buildAll(repo = REPO) {
   const { plugins, map } = buildEverything(repo);
   const out = new Map();
   for (const p of PROFILES) for (const [r, f] of plugins[p]) out.set(`${RELS[p]}/${r}`, f);
+  const packs = buildSkillPacks(repo);
+  for (const [r, f] of packs.files) out.set(r, f);
   out.set(MARKETPLACE_REL, { content: Buffer.from(buildMarketplace(repo)), exec: false });
-  out.set(PLUGIN_MAP_REL, { content: Buffer.from(map), exec: false });
+  out.set(PLUGIN_MAP_REL, { content: Buffer.from(map + packsMapSection(packs.packs)), exec: false });
   return out;
 }
 
@@ -570,12 +574,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         process.exit(1);
       }
       console.log(`${PLUGIN_RELS.join(', ')}, ${MARKETPLACE_REL} and ${PLUGIN_MAP_REL} are up to date.`);
+      console.log(`${readPacks().length} skill packs (scripts/skill-packs.json) are covered by the same check.`);
     } else if (profile !== undefined || out) {
       if (!profile) throw new Error('--out needs --profile <base|parallel|board>');
       if (!out) throw new Error(`profile ${profile}: pass --out <dir> (outside plugins/)`);
       console.log(`wrote ${writeProfile(profile, out)} files (profile ${profile}) into ${path.resolve(out)}`);
     } else {
-      console.log(`wrote ${writeAll()} files under ${PLUGIN_RELS.join('/, ')}/, ${MARKETPLACE_REL} and ${PLUGIN_MAP_REL}`);
+      console.log(`wrote ${writeAll()} files under ${PLUGIN_RELS.join('/, ')}/, ${readPacks().length} skill packs under plugins/, ${MARKETPLACE_REL} and ${PLUGIN_MAP_REL}`);
     }
   } catch (e) {
     process.stderr.write(`${e.message}\n`);

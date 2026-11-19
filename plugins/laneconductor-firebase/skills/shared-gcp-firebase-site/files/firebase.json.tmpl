@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "source": "functions",
+    "codebase": "{{product}}",
+    "runtime": "nodejs22",
+    "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.log"]
+  },
+  "hosting": {
+    "target": "{{product}}",
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/**", "function": "{{function}}" },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}

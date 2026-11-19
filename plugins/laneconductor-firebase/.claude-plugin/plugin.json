@@ -1,0 +1,22 @@
+{
+  "name": "laneconductor-firebase",
+  "displayName": "LaneConductor Skills: Firebase",
+  "version": "0.1.0",
+  "description": "Skills for Firebase and one shared GCP project: a Hosting site and Functions codebase per product, cache busting after deploys, and Google-only sign-in.",
+  "author": {
+    "name": "Asaf Meller",
+    "url": "https://github.com/meller"
+  },
+  "homepage": "https://laneconductor.com",
+  "repository": "https://github.com/meller/laneconductor",
+  "license": "Elastic-2.0",
+  "keywords": [
+    "laneconductor",
+    "skills",
+    "firebase",
+    "gcp",
+    "hosting",
+    "auth"
+  ],
+  "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
+}

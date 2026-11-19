@@ -1,0 +1,37 @@
+import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
+
+/**
+ * {{product}} Firebase Functions entrypoint (skill postgres-local-neon-prod-secret-manager).
+ *
+ * Wraps the Express app (a createApp() factory with no top-level listen()) in a Functions v2 HTTPS
+ * function. The Neon connection string is the Secret Manager secret {{db_secret}} in
+ * {{gcp_project}}, bound with defineSecret and bridged into process.env.DATABASE_URL BEFORE the
+ * app module is imported: secret values exist only at runtime, and the DB client reads
+ * process.env.DATABASE_URL when its module loads. The secret must exist before the first deploy.
+ */
+const databaseUrl = defineSecret("{{db_secret}}");
+
+let appPromise = null;
+function getApp() {
+  if (!appPromise) {
+    process.env.DATABASE_URL = databaseUrl.value();
+    process.env.NODE_ENV = "production";
+    appPromise = import("./dist-server/src/app.js").then((mod) => mod.createApp());
+  }
+  return appPromise;
+}
+
+export const {{function}} = onRequest(
+  {
+    timeoutSeconds: 60,
+    memory: "512MiB",
+    region: "{{gcp_region}}",
+    secrets: [databaseUrl],
+    maxInstances: 3,
+  },
+  async (req, res) => {
+    const app = await getApp();
+    return app(req, res);
+  }
+);

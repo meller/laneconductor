@@ -1,0 +1,31 @@
+# LaneConductor Skills: Skill From Code
+
+A skill that turns a pattern or a verified incident, shown by working code, into a new skill.
+
+A skill pack for Claude Code, version 0.1.0, from the LaneConductor marketplace. It holds Markdown and template files only: no script, hook, MCP server or agent, and it sends nothing anywhere. It works on its own; LaneConductor is not required.
+
+## Skills
+
+- `skill-from-code`: Use when a verified solution to a hard problem should become one of these skills, when the user says save this as a skill, capture this, remember this convention or add this to my homebrew skills, or when a skill in the library is wrong, stale or unused and should be rewritten or retired.
+
+## Install
+
+```
+claude plugin marketplace add meller/laneconductor
+claude plugin install laneconductor-skill-from-code@laneconductor
+```
+
+## Update
+
+```
+claude plugin marketplace update laneconductor
+claude plugin update laneconductor-skill-from-code@laneconductor
+```
+
+## Advice, never orders
+
+These skills are one author's own conventions and the incidents behind them, observed in the author's own projects with LaneConductor. Claude may decide against one and say why. Names such as `<shared-project>` or `<product>` are placeholders you fill in for your own setup. See [docs/skills.md](https://github.com/meller/laneconductor/blob/main/docs/skills.md) for the format and for attaching skills to lanes.
+
+## License
+
+Elastic License 2.0; see [LICENSE](LICENSE). Privacy: https://github.com/meller/laneconductor/blob/main/docs/privacy.md. Questions and bugs: https://github.com/meller/laneconductor/issues

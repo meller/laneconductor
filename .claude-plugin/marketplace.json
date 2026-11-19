@@ -29,6 +29,51 @@
         "name": "Asaf Meller"
       },
       "version": "1.10.1"
+    },
+    {
+      "name": "laneconductor-nodejs-frontend",
+      "source": "./plugins/laneconductor-nodejs-frontend",
+      "description": "Skills for Node.js front ends: an installable Vite PWA with Workbox, and browser speech synthesis that is actually audible.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-firebase",
+      "source": "./plugins/laneconductor-firebase",
+      "description": "Skills for Firebase and one shared GCP project: a Hosting site and Functions codebase per product, cache busting after deploys, and Google-only sign-in.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-node-postgres",
+      "source": "./plugins/laneconductor-node-postgres",
+      "description": "Skills for Node.js apps on Postgres: local Postgres with Neon in production and the connection string in Secret Manager, Prisma inside Cloud Functions, an isolated test database, and a Makefile for local runs.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-gemini",
+      "source": "./plugins/laneconductor-gemini",
+      "description": "Skills for calling Gemini from Node.js: every LLM call through TokenTalos, Gemini on Vertex AI with Application Default Credentials, and image generation with retry and a GCS upload.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    },
+    {
+      "name": "laneconductor-skill-from-code",
+      "source": "./plugins/laneconductor-skill-from-code",
+      "description": "A skill that turns a pattern or a verified incident, shown by working code, into a new skill.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Asaf Meller"
+      }
     }
   ]
 }

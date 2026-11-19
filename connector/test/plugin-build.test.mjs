@@ -57,6 +57,11 @@ test('TC-1: --check exits 1 and names the file when any of the three plugins, th
       fs.copyFileSync(path.join(REPO, 'conductor', rel), path.join(tmp, 'conductor', rel));
     }
     for (const rel of PLUGIN_RELS) fs.cpSync(path.join(REPO, rel), path.join(tmp, rel), { recursive: true });
+    // The skill packs (track AM-10129): their sources, their list and their output.
+    fs.cpSync(path.join(REPO, 'skills'), path.join(tmp, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'scripts'), { recursive: true });
+    fs.copyFileSync(path.join(REPO, 'scripts/skill-packs.json'), path.join(tmp, 'scripts/skill-packs.json'));
+    for (const d of fs.readdirSync(path.join(REPO, 'plugins'))) if (!PLUGIN_RELS.includes(`plugins/${d}`)) fs.cpSync(path.join(REPO, 'plugins', d), path.join(tmp, 'plugins', d), { recursive: true });
     fs.mkdirSync(path.join(tmp, '.claude-plugin'), { recursive: true });
     fs.mkdirSync(path.join(tmp, 'docs'), { recursive: true });
     fs.copyFileSync(path.join(REPO, MARKETPLACE_REL), path.join(tmp, MARKETPLACE_REL));
@@ -92,10 +97,11 @@ test('TC-1: marketplace lists the base, then the two add-ons; each entry names i
   assert.match(version, /^\d+\.\d+\.\d+$/);
   const market = readJson(path.join(REPO, MARKETPLACE_REL));
   assert.equal(market.name, 'laneconductor');
-  assert.deepEqual(market.plugins.map((p) => p.name), ['laneconductor', 'laneconductor-parallel', 'laneconductor-board'], 'base first');
-  assert.deepEqual(market.plugins.map((p) => p.source), ['./plugins/laneconductor', './plugins/laneconductor-parallel', './plugins/laneconductor-board']);
+  assert.deepEqual(market.plugins.slice(0, 3).map((p) => p.name), ['laneconductor', 'laneconductor-parallel', 'laneconductor-board'], 'base first');
+  assert.deepEqual(market.plugins.slice(0, 3).map((p) => p.source), ['./plugins/laneconductor', './plugins/laneconductor-parallel', './plugins/laneconductor-board']);
   for (const p of market.plugins) assert.ok(!p.source.includes('..'));
-  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-parallel']);
+  // The five skill packs (track AM-10129) follow the three; skill-packs.test.mjs covers them.
+  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-firebase', 'laneconductor-gemini', 'laneconductor-node-postgres', 'laneconductor-nodejs-frontend', 'laneconductor-parallel', 'laneconductor-skill-from-code']);
   assert.deepEqual(PROFILES, ['base', 'parallel', 'board']);
   for (const [profile, dir] of Object.entries(DIRS)) {
     const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));
