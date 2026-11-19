@@ -1,7 +1,7 @@
 {
   "name": "laneconductor-gemini",
   "displayName": "LaneConductor Skills: Gemini",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Skills for calling Gemini from Node.js: every LLM call through TokenTalos, Gemini on Vertex AI with Application Default Credentials, and image generation with retry and a GCS upload.",
   "author": {
     "name": "Asaf Meller",

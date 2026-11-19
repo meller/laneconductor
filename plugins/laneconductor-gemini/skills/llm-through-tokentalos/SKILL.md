@@ -9,13 +9,13 @@ metadata:
   prerequisites:
     - The Vertex AI setup of the vertex-gemini-adc skill is in place (ADC login, API enabled, role granted by the user).
     - The app is Node (ESM package), or a non-Node app that can run the sidecar below.
-  verified: null
+  verified: 2026-11-19
 ---
 
 ## Why this works
 Observed in the author's own projects with LaneConductor: the author's apps send every model call
 through TokenTalos, a library the author maintains (`@meller/tokentalos`, MIT, on the public npm
-registry). It builds the prompt from named parts, applies formatting and safety features, calls
+registry). It builds the prompt from named parts, applies safety and formatting features, calls
 Gemini, and records tokens, cost and the full prompt and reply in a database table, so debugging
 and per-user cost are in one place. The author's rule, stated 2026-11-19: all LLM calls go through
 it. The bare SDK (see vertex-gemini-adc) is what sits underneath; use it directly only to
@@ -26,17 +26,30 @@ understand credentials or when the author says otherwise.
 - One service file exports an async `getClient()`: import the package lazily, construct one
   instance (`mode: 'standalone'`, a `projectId`, a `config`), `await init()`, cache the promise, and
   clear the cache when loading fails so the next call retries. Nothing else constructs a client.
-- Gemini through Vertex with ADC, no key: `llmProvider: 'gemini'`, `useVertex: true`, `project` from
-  `GOOGLE_CLOUD_PROJECT` or `GCP_PROJECT`, `defaultModel` from an env override (the author's apps
-  default to `gemini-3-flash-preview`).
-- Gemini 3 preview models are served from the `global` endpoint: give the model location its own env
-  var and map an unset or `us-central1` value to `global`, separate from the function's region.
-- Log usage in the app's own database: Postgres under a `tokentalos` schema (`TOKENTALOS_PG_SCHEMA`)
-  in deployment, SQLite (`TOKENTALOS_DB_TYPE`, a local path) on a developer machine.
+- Minimal setup, as the author's apps run it: `databaseType` (SQLite with a file path in
+  development, Postgres in deployment under the schema `tokentalos`, `TOKENTALOS_PG_SCHEMA`),
+  `llmProvider: 'gemini'`, `useVertex: true`, `project` from `GOOGLE_CLOUD_PROJECT` or `GCP_PROJECT`,
+  `location`, `defaultModel` from an env override (default `gemini-3-flash-preview`), no key, and the
+  three feature lists below. Gemini 3 preview models are served from `global`: map an unset or
+  `us-central1` location to `global`, separate from the function's region.
+- Privacy and safety options, all in `config`; a list you set REPLACES the library default:
+  - `securityFeatures`: `injection` and `secrets` scan every text part, on by default. Findings are
+    recorded as security alerts; `securityAction: 'warn'` (default) only records, `'reject'` makes the
+    call throw on a critical finding; `[]` turns scanning off.
+  - `formattingFeatures` (library default `pii`, `neutralize`): `pii` masks emails and similar
+    (`piiAction`: `mask` default, `warn` records only, `reject` throws); `neutralize` wraps every part
+    except `system` and `safety_guardrails` in `<external_input>` tags and adds a security note to
+    `system`; `compress` minifies whitespace and JSON.
+  - `intelligenceFeatures` (library default `cache`, `explain`): `cache` returns the stored reply for
+    an identical prompt without a call (`cached: true`).
+  - The author's apps set `['compress', 'neutralize']` (PII masking off), leave `securityFeatures`
+    unset (scanning on), and use `cache` only where a repeated answer is wanted, never in chat.
+- Gemini thinking defaults to the `MINIMAL` level (since 1.4.0; one app measured about 12 s against
+  27 s on a real prompt). Override per call with `options.thinkingLevel` or in config with
+  `llmThinkingLevel`; `null` sends no thinking config.
 - Call it with named parts: `execute({ provider: 'gemini', model, parts: { system, user_query } })`;
-  `history` and `context` are the other reserved part names. The result has `content` and `usage`
-  (input and output tokens, cost). The author's chat apps use the `compress` and `neutralize`
-  formatting features and no response cache, because a cache would replay an old answer.
+  `history` and `context` are the other reserved names. The result has `id`, `content`, `cached`,
+  `usage` (`input_tokens`, `output_tokens`, `cost_usd`) and `metadata`.
 - Keep the retry policy in the app: up to 3 retries with doubling backoff on a 429, one model
   fallback when the model is not found, and stop at once when the call was cancelled.
 - When `USE_CI_TEST_LLM=true`, return a deterministic stand-in with the same method shape; CI has no
@@ -61,14 +74,17 @@ understand credentials or when the author says otherwise.
    status yourself, because Claude cannot see your production logs.
 
 ## Pitfalls
-- TokenTalos is ESM-only. A backend compiled to CommonJS turns `import()` into `require()` and
-  fails; load it with a real dynamic import (`new Function('s', 'return import(s)')`), and give
-  tests an injectable loader because that trick has no import callback inside vitest.
-- Version 1.4.1 builds its Postgres pool from discrete fields only: host, port, user, password,
-  database. It takes no `DATABASE_URL` and has no `ssl` option, so parse the URL yourself and set
-  `PGSSLMODE=require` for a remote database.
-- TokenTalos stores the full prompt and reply. Its PII masking is off unless the `pii` feature is
-  listed, and it would not cover health data anyway; treat the usage table as sensitive.
+- Install the scoped name. The package README says `npm install tokentalos`, but that unscoped name
+  is not on npm; the package is `@meller/tokentalos`.
+- ESM-only: a backend compiled to CommonJS turns `import()` into `require()` and fails; load it with
+  a real dynamic import (`new Function('s', 'return import(s)')`), and give tests an injectable loader
+  because that trick has no import callback inside vitest.
+- Version 1.4.1 builds its Postgres pool from `pgHost`, `pgPort`, `pgUser`, `pgPassword` and
+  `pgDatabase` only (`pgPoolMax`, default 10, for small plans): no connection string, no `ssl`
+  option. Parse `DATABASE_URL` yourself and set `PGSSLMODE=require` for a remote database.
+- Every call stores the full prompt, the reply and each part's text (and its original text before
+  masking) in the usage tables. With `pii` off nothing is masked, and masking would not cover health
+  data anyway; treat the tables as sensitive.
 - A wrong model location failed every real call and nobody saw it: the function region was reused as
   the model location, but the model is only served on `global`; 404 in two other regions, 200 on
   `global`. Tests mock the LLM, so only production showed the generic "Not Found".
@@ -80,8 +96,8 @@ understand credentials or when the author says otherwise.
 - The tracking database pool is a module-level singleton shared by every instance in a process, and
   the package has no close. Each `init()` re-points it and orphans the previous pool, which is why
   per-user instances are cached and bounded.
-- Behind a connection pooler, `SET search_path` poisons shared backends; the package
-  schema-qualifies its queries and has `setSearchPath` as an opt-in (see the
+- Behind a connection pooler the package schema-qualifies its queries and issues no `SET search_path`
+  (1.4.1); `setSearchPath: true` restores it and is not pooler-safe (see the
   postgres-local-neon-prod-secret-manager skill for the direct-versus-pooled rule).
 - A response that was blocked or truncated has no text; the gateway throws instead of returning an
   empty string so the caller does not cache it. Keep that in any wrapper.
@@ -91,5 +107,8 @@ understand credentials or when the author says otherwise.
 ## Unproven
 - Proxy mode (a central TokenTalos server reached with an API key) is in the package README; none of
   the author's apps was seen using it, so this skill does not recommend it.
+- No option to keep prompt and reply text out of the usage tables was found in the 1.4.1 code.
+- One app's code comment says TokenTalos reads `DATABASE_URL` directly; the 1.4.1 code does not (see
+  the Postgres pitfall), so that comment may describe an older version.
 - That the gateway's current version range is what a new project should pin; one lock file resolves
   it from the public npm registry and no other project was checked.

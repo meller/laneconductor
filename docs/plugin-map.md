@@ -56,5 +56,5 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | `laneconductor-nodejs-frontend` | 0.1.0 | `pwa-vite-workbox`, `browser-tts-unlock-voice-binding` |
 | `laneconductor-firebase` | 0.1.0 | `shared-gcp-firebase-site`, `cache-buster`, `firebase-google-sign-in` |
 | `laneconductor-node-postgres` | 0.1.0 | `postgres-local-neon-prod-secret-manager`, `prisma-in-cloud-functions`, `isolated-test-database`, `makefile-local-run` |
-| `laneconductor-gemini` | 0.1.0 | `llm-through-tokentalos`, `vertex-gemini-adc`, `vertex-imagen-retry-gcs-fallback` |
+| `laneconductor-gemini` | 0.1.1 | `llm-through-tokentalos`, `vertex-gemini-adc`, `vertex-imagen-retry-gcs-fallback` |
 | `laneconductor-skill-from-code` | 0.1.0 | `skill-from-code` |
