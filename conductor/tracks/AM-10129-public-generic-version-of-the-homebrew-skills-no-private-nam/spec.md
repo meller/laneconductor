@@ -88,3 +88,26 @@ No new repository. The skills ship as a Markdown-only plugin in THIS repository'
 - ClawHub (the OpenClaw hub): a CLI publish with automated checks; it belongs to a different agent ecosystem and is not a priority.
 - Anthropic: its directory is for plugins and is reviewed by a human (track 10148 is our submission of the base plugin); the partner Skills directory is curated and not open to submissions; individuals can upload a skill to claude.ai (Settings, Capabilities, Skills).
 - The layout implication: a root `skills/` folder in this repository would make `npx skills add meller/laneconductor` work, and the generator would copy it into the plugin. The tool's telemetry is the registry's, not ours; our plugins still send nothing.
+
+## Decision: five plugins, grouped by technology (owner, 2026-11-19)
+
+One plugin with all 13 skills was rejected: every session would carry about 1,800 tokens of skill listings, and no one wants all of them. A plugin per skill was considered and dropped in favour of packs by technology. Each skill is in exactly one pack, so nothing loads twice.
+
+| Plugin | Skills | Stack the advisor can match |
+|---|---|---|
+| `laneconductor-nodejs-frontend` | `pwa-vite-workbox`, `browser-tts-unlock-voice-binding` | ui |
+| `laneconductor-firebase` | `shared-gcp-firebase-site`, `cache-buster`, `firebase-google-sign-in` | firebase |
+| `laneconductor-node-postgres` | `postgres-local-neon-prod-secret-manager`, `prisma-in-cloud-functions`, `isolated-test-database`, `makefile-local-run` | a new `postgres` tag |
+| `laneconductor-gemini` | `llm-through-tokentalos`, `vertex-gemini-adc`, `vertex-imagen-retry-gcs-fallback` | a new `gemini` tag |
+| `laneconductor-skill-from-code` | `skill-from-code` | none: offered when discovery finds nothing and a problem was then solved |
+
+Borderline placements, confirmed by the owner: `cache-buster` and `firebase-google-sign-in` in Firebase (deployment); `prisma-in-cloud-functions` and `makefile-local-run` in Node.js + Postgres.
+
+Skill discovery stays where it is: `/laneconductor:suggest-skills` is a command of the base plugin, not a plugin of its own. The five packs are entries in its catalog; `skill-from-code` is the other half of the pair (discovery finds existing skills, `skill-from-code` makes a new one from working code).
+
+Constraints:
+- The source stays one folder, `skills/`, which also serves `npx skills add meller/laneconductor`.
+- Markdown-only plugins: no script, hook, MCP server or `isolation` key.
+- The skills use `metadata` and `paths` in their frontmatter. That is fine for our marketplace; the directory portal accepts only `name`, `description`, `when_to_use` and `argument-hint`, so these packs are NOT submitted to Anthropic's directory unless the frontmatter is reduced first.
+- The base plugin's README stays within its 900-word limit and under review: the packs are described in the root README and `docs/plugin-map.md`, not in the base README.
+- Nothing is released before the directory decision on track 10148.

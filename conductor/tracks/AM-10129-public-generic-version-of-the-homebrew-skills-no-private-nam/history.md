@@ -6,3 +6,4 @@
 - 2026-11-19 ✅ `capture-solved-problem` renamed `problem-to-skill` (the owner: it connects a challenge to a skill). Older track text (10126, this track's comparison table) keeps the old name as history.
 - 2026-11-19 ✅ `problem-to-skill` renamed `skill-from-pattern` (the owner: a skill generator based on a pattern; it takes a convention or a verified incident).
 - 2026-11-19 ✅ `skill-from-pattern` renamed `skill-from-code` (the owner: every claim must be backed by working code). Final name unless the owner says otherwise.
+- 2026-11-19 ✅ Plan written: five plugins by technology (nodejs-frontend, firebase, node-postgres, gemini, skill-from-code), each skill in one pack; skill discovery stays a command of the base plugin; build in Phase 3; release only after the directory decision on 10148. Borderline placements confirmed by the owner.
