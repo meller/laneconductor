@@ -117,25 +117,26 @@ test('H2 silent in a project with no conductor/tracks/ (and writes nothing, not 
   assert.ok(!fs.existsSync(data));
 });
 
-test('H3 option off: Stop prints one line per session that the board is out of date, then nothing; it never blocks', () => {
-  const proj = project(); const data = tmp('lc-hook-data-');
-  silent(stop(proj, data), 'no marker yet');
-  post(proj, UPDATE, { track: '1', base: {}, markers: { Lane: 'implement' } }, data);
-  const first = stop(proj, data);
+test('H3 default on, explicit off: with no auto_update key and a stored board Stop asks Claude to refresh; only an explicit false (or the string "false") keeps it silent and leaves the marker', () => {
+  const dflt = project({ board: { artifact_url: 'https://claude.ai/artifact/abc' } }); const d1 = tmp('lc-hook-data-');
+  silent(stop(dflt, d1), 'no marker yet');
+  post(dflt, UPDATE, { track: '1', base: {}, markers: { Lane: 'implement' } }, d1);
+  const first = stop(dflt, d1);
   assert.equal(first.status, 0);
-  const out = JSON.parse(first.stdout);
-  assert.deepEqual(Object.keys(out), ['systemMessage'], 'a user-facing line only: no decision, nothing for Claude');
-  assert.match(out.systemMessage, /the board is out of date/);
-  assert.match(out.systemMessage, /\/laneconductor-board:refresh/);
-  assert.match(out.systemMessage, /board\.auto_update/);
-  silent(stop(proj, data), 'second Stop in the same session');
-  const other = stop(proj, data, { session_id: 's2' });
-  assert.match(JSON.parse(other.stdout).systemMessage, /out of date/, 'a new session says it once more');
-  assert.equal(markers(data).length, 1, 'the marker stays: only the option on clears it');
-  // auto_update must be exactly true; a string is not.
-  const strict = project({ board: { artifact_url: 'https://claude.ai/artifact/abc', auto_update: 'true' } }); const d2 = tmp('lc-hook-data-');
-  post(strict, UPDATE, { track: '1', base: {}, summary: 'x' }, d2);
-  assert.equal(JSON.parse(stop(strict, d2).stdout).decision, undefined);
+  assert.equal(JSON.parse(first.stdout).decision, 'block', 'the default is on');
+  assert.equal(markers(d1).length, 0);
+  for (const off of [false, 'false']) {
+    const proj = project({ board: { artifact_url: 'https://claude.ai/artifact/abc', auto_update: off } }); const data = tmp('lc-hook-data-');
+    post(proj, UPDATE, { track: '1', base: {}, summary: 'x' }, data);
+    silent(stop(proj, data), `auto_update ${JSON.stringify(off)}`);
+    assert.equal(markers(data).length, 1, 'the marker stays; nothing is printed, no nagging line');
+  }
+  // anything that is not false keeps the default on, including true and a string like "true"
+  for (const on of [true, 'true', 'yes']) {
+    const proj = project({ board: { artifact_url: 'https://claude.ai/artifact/abc', auto_update: on } }); const data = tmp('lc-hook-data-');
+    post(proj, UPDATE, { track: '1', base: {}, summary: 'x' }, data);
+    assert.equal(JSON.parse(stop(proj, data).stdout).decision, 'block', `auto_update ${JSON.stringify(on)}`);
+  }
 });
 
 test('H3 option on with the marker and a stored board: Stop asks Claude to continue once with one short instruction naming the refresh command, and clears the marker', () => {
@@ -160,15 +161,14 @@ test('H3 loop guard: with stop_hook_active true the hook does nothing and keeps 
   assert.equal(JSON.parse(stop(proj, data, { stop_hook_active: false }).stdout).decision, 'block');
 });
 
-test('H3 option on but no stored board: it cannot refresh, so it says so once like the option off; option on with no marker is silent', () => {
-  const noUrl = project({ board: { auto_update: true } }); const data = tmp('lc-hook-data-');
-  silent(stop(noUrl, data), 'no marker');
-  post(noUrl, UPDATE, { track: '1', base: {}, markers: { Lane: 'plan' } }, data);
-  const r = stop(noUrl, data);
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.decision, undefined);
-  assert.match(out.systemMessage, /run \/laneconductor:board/);
-  assert.equal(markers(data).length, 1);
+test('H3 no stored board: there is nothing to refresh, so Stop is silent whatever the option says, and the marker stays; no marker is silent too', () => {
+  for (const board of [{ auto_update: true }, {}, { auto_update: false }]) {
+    const noUrl = project({ board }); const data = tmp('lc-hook-data-');
+    silent(stop(noUrl, data), 'no marker');
+    post(noUrl, UPDATE, { track: '1', base: {}, markers: { Lane: 'plan' } }, data);
+    silent(stop(noUrl, data), `no URL, board ${JSON.stringify(board)}`);
+    assert.equal(markers(data).length, 1);
+  }
 });
 
 test('H3 .laneconductor.json missing, invalid or without a board key: silent, no crash, marker untouched', () => {

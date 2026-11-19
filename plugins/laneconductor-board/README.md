@@ -4,7 +4,7 @@ LaneConductor Board is an optional add-on for LaneConductor, which keeps a proje
 track under `conductor/tracks/`). It builds the board: one private page that shows every track by lane, with a needs-attention
 list, which Claude publishes as a private artifact.
 
-Version 1.10.0. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
+Version 1.10.1. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
 dependency on the base plugin or on the connector: it is one script and one page, and it works alone.
 
 | Plugin | Provides |
@@ -23,8 +23,7 @@ dependency on the base plugin or on the connector: it is one script and one page
   document and a small `manifest.json`). It needs a stored board; the base plugin's `board refresh` still publishes everything. The first publish, a conflict or a
   failure publishes everything.
 - two hooks (`hooks/hooks.json`, one script, `hooks/lc-board-hook.mjs`) that note when a track changed (Edit or Write of a track file, the connector's `create_track` and
-  `update_track`) in the plugin's data directory, never in your project. They do nothing else unless you set `board.auto_update: true` in `.laneconductor.json`: then, when
-  Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run the refresh command. With the option off, one line per session says the board is out of date.
+  `update_track`) in the plugin's data directory, never in your project. By default, when Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run the refresh command; set `board.auto_update: false` in `.laneconductor.json` to turn that off. With no stored board they do nothing at all.
   The hooks make no network request, run no other program and print no file text.
 
 The base plugin's commands are unchanged: it adds no other slash commands. You can also run the script yourself:

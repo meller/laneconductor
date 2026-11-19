@@ -2,9 +2,9 @@
 // LaneConductor Board hooks (track AM-10115 Phase 0, H2 and H3). One script, two events:
 //   post  (PostToolUse on the connector's create_track / update_track and on Edit / Write): when a track's files changed, record a
 //         "board is stale" marker. Silent otherwise.
-//   stop  (Stop): when the marker is set and `board.auto_update` is true in the project's .laneconductor.json and `board.artifact_url`
-//         is stored, clear the marker and ask Claude to run the board refresh once. Without the option, say once per session that the
-//         board is out of date. Never blocks for any other reason.
+//   stop  (Stop): ON BY DEFAULT (owner, 2026-11-19). When the marker is set and `board.artifact_url` is stored in the project's
+//         .laneconductor.json, clear the marker and ask Claude to run the board refresh once. Only `board.auto_update: false` turns it
+//         off; with no stored board there is nothing to refresh. In both cases it is silent. Never blocks for any other reason.
 // The marker lives in the plugin's data directory (CLAUDE_PLUGIN_DATA, Claude Code exports it to hook processes), keyed by a hash of the
 // project path; never inside the working tree or .git. No network, no child process, no file bodies and no secrets printed, exit 0 always.
 import fs from 'node:fs';
@@ -91,21 +91,11 @@ function stop(input) {
     const board = readJson(path.join(root, '.laneconductor.json'))?.board;
     if (!board || typeof board !== 'object') return; // no readable settings: nothing to do, nothing to say
     const url = str(board.artifact_url);
-    if (board.auto_update === true && url) {
-      if (input.stop_hook_active === true) return; // already continuing because of a stop hook: never loop (the marker stays for the next turn)
-      fs.rmSync(marker, { force: true });
-      process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now (it publishes only the changed files), then stop. Nothing else is needed.` })}\n`);
-      return;
-    }
-    // Option off (or no stored board): one line per session, then silence.
-    const dir = stateDir();
-    const once = path.join(dir, `warned-${hash(`${str(input.session_id) ?? 'no-session'}|${root}`)}`);
-    if (fs.existsSync(once)) return;
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(once, '');
-    prune(dir);
-    const hint = url ? 'set board.auto_update to true in .laneconductor.json to refresh it automatically' : 'no board is stored yet: run /laneconductor:board';
-    process.stdout.write(`${JSON.stringify({ systemMessage: `LaneConductor: the board is out of date (a track changed). Run ${REFRESH}, or ${hint}.` })}\n`);
+    const off = board.auto_update === false || board.auto_update === 'false'; // only an explicit false turns the default off
+    if (!url || off) return; // no stored board to refresh, or the person turned it off: nothing to do, nothing to say
+    if (input.stop_hook_active === true) return; // already continuing because of a stop hook: never loop (the marker stays for the next turn)
+    fs.rmSync(marker, { force: true });
+    process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now (it publishes only the changed files), then stop. Nothing else is needed.` })}\n`);
     return;
   }
 }
