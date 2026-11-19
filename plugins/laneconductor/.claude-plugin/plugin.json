@@ -1,7 +1,7 @@
 {
   "name": "laneconductor",
   "displayName": "LaneConductor",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "LaneConductor: the plan-first process for tracks kept as files in git, in Markdown only: a skill, slash commands and a read-only plan reviewer. Optional add-ons add parallel work in worktrees and a board.",
   "author": {
     "name": "Asaf Meller",
