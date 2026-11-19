@@ -133,3 +133,6 @@ reset_*.mjs
 scratch/*.cjs
 scratch/check_prod_*.* 
 scratch/delete_prod_*.* 
+
+# Skills library: the local list of private names for the privacy gate (never committed)
+.homebrew-deny.local.txt

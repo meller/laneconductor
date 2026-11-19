@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# {{product}}: store the production Neon connection string in Secret Manager.
+# Run by the owner; the value is never given to an assistant and is never printed.
+#   bash scripts/store-database-url.sh
+# Neon console -> the project -> Connect -> copy the POOLED connection string (host contains "-pooler").
+# Paste it at the hidden prompt. It is stored as the secret {{db_secret}} in {{gcp_project}}.
+# The function binds it with defineSecret; `firebase deploy` grants the function's service account read access.
+set -euo pipefail
+P={{gcp_project}}; NAME={{db_secret}}
+printf "Paste the Neon connection string (hidden), then Enter: "
+read -rs URL; echo
+[ -n "$URL" ] || { echo "Nothing pasted. Nothing done."; exit 1; }
+case "$URL" in *[[:space:]]*) echo "The pasted text contains spaces or line breaks: copy only the connection string. Nothing done."; exit 1;; esac
+case "$URL" in postgres://*|postgresql://*) ;; *) echo "That does not start with postgres:// or postgresql://. Nothing done."; exit 1;; esac
+gcloud secrets describe "$NAME" --project="$P" >/dev/null 2>&1 || gcloud secrets create "$NAME" --project="$P" --replication-policy=automatic >/dev/null
+printf %s "$URL" | gcloud secrets versions add "$NAME" --project="$P" --data-file=- >/dev/null
+echo "Stored $NAME in $P."

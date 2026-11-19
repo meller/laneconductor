@@ -1,0 +1,145 @@
+# {{product}} - local dev bootstrap (skill makefile-local-run)
+#
+# Usage: make <target>
+#
+# `make dev` takes a fresh clone (no .env, no node_modules, no database) to a running local app
+# with seeded data, with no manual step in between.
+
+.PHONY: help dev db-local db-seed db-reset db-test install-all env-file test-all stop-all deploy
+
+.DEFAULT_GOAL := help
+
+# --- Variables ---------------------------------------------------------------
+# Parsed from .env when present; fall back to the local Postgres convention otherwise.
+ENV_FILE := .env
+DB_NAME_DEFAULT := $(subst -,_,{{product}})
+DB_URL := $(shell test -f $(ENV_FILE) && grep -E '^DATABASE_URL=' $(ENV_FILE) | tail -1 | cut -d '=' -f2-)
+DB_URL := $(if $(DB_URL),$(DB_URL),postgresql://postgres:postgres@localhost:5432/$(DB_NAME_DEFAULT))
+
+# Strip credentials/query string, then split host:port/name out of the URL.
+DB_URL_NO_CREDS := $(shell echo "$(DB_URL)" | sed -E 's#^[a-zA-Z]+://([^@]*@)?##')
+DB_HOSTPORT := $(shell echo "$(DB_URL_NO_CREDS)" | cut -d '/' -f1)
+DB_HOST := $(if $(word 1,$(subst :, ,$(DB_HOSTPORT))),$(word 1,$(subst :, ,$(DB_HOSTPORT))),localhost)
+DB_PORT := $(if $(word 2,$(subst :, ,$(DB_HOSTPORT))),$(word 2,$(subst :, ,$(DB_HOSTPORT))),5432)
+DB_NAME := $(shell echo "$(DB_URL_NO_CREDS)" | cut -d '/' -f2- | cut -d '?' -f1)
+DB_NAME := $(if $(DB_NAME),$(DB_NAME),$(DB_NAME_DEFAULT))
+DB_USER := $(shell echo "$(DB_URL)" | sed -nE 's#^[a-zA-Z]+://([^:@/]+).*#\1#p')
+DB_USER := $(if $(DB_USER),$(DB_USER),postgres)
+
+# The suite's own database (skill isolated-test-database): vitest forces this same name, so a
+# test run can never truncate the dev database.
+TEST_DB_NAME := $(DB_NAME)_test
+
+CLIENT_PORT := 5173
+API_PORT := 3001
+
+# --- help --------------------------------------------------------------------
+
+help: ## Show this help
+	@echo "{{product}} - local dev commands"
+	@echo ""
+	@echo "  make dev          One-command bootstrap: install, migrate, seed, run"
+	@echo "  make db-local     Create + migrate the local $(DB_NAME_DEFAULT) database"
+	@echo "  make db-seed      Seed the local database (idempotent)"
+	@echo "  make db-reset     Drop, recreate, migrate and re-seed the local database"
+	@echo "  make db-test      Create + migrate the separate $(TEST_DB_NAME) database used by the tests"
+	@echo "  make install-all  npm install (skipped if node_modules/ already present)"
+	@echo "  make test-all     Run the unit/integration suite, then the e2e suite"
+	@echo "  make deploy       Deploy ONLY this product to production (run by the human)"
+	@echo "  make stop-all     Kill anything listening on the dev ports ($(CLIENT_PORT)/$(API_PORT))"
+	@echo "  make help         Show this help (default)"
+
+# --- install-all -------------------------------------------------------------
+
+install-all: ## Install npm dependencies (no-op if node_modules/ already present)
+	@if [ -d node_modules ]; then \
+		echo "node_modules/ already present - skipping npm install"; \
+	else \
+		npm install; \
+	fi
+
+# --- env-file (internal) -----------------------------------------------------
+
+env-file: ## Create .env from .env.example if .env is absent (never overwrites)
+	@if [ -f $(ENV_FILE) ]; then \
+		echo ".env already exists - leaving it untouched"; \
+	else \
+		cp .env.example $(ENV_FILE); \
+		echo ".env created from .env.example"; \
+	fi
+
+# --- db-local ----------------------------------------------------------------
+
+db-local: env-file ## Create (if missing) and migrate the local database
+	@command -v psql >/dev/null 2>&1 && command -v createdb >/dev/null 2>&1 || \
+		{ echo "psql/createdb not found - install the PostgreSQL client tools (e.g. 'apt install postgresql-client') and try again."; exit 1; }
+	@pg_isready -h $(DB_HOST) -p $(DB_PORT) >/dev/null 2>&1 || \
+		{ echo "Postgres is not reachable at $(DB_HOST):$(DB_PORT) - start Postgres and try again."; exit 1; }
+	@PGPASSWORD=$${PGPASSWORD:-postgres} psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -lqt 2>/dev/null | cut -d '|' -f1 | grep -qw $(DB_NAME) && \
+		echo "database '$(DB_NAME)' already exists" || \
+		{ PGPASSWORD=$${PGPASSWORD:-postgres} createdb -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) $(DB_NAME) && echo "database '$(DB_NAME)' created"; }
+	npx prisma migrate deploy
+	npx prisma generate
+
+# --- db-seed -----------------------------------------------------------------
+# The seed command must be idempotent: `make dev` runs it on every start, and a non-idempotent
+# seed that exits 1 on the second run breaks `make dev` after the first.
+
+db-seed: db-local ## Seed the local database (idempotent)
+	npm run db:seed
+
+# --- db-reset ----------------------------------------------------------------
+
+db-reset: env-file ## Drop, recreate, migrate and re-seed the local database
+	@case "$(DB_HOST)" in localhost|127.0.0.1) ;; *) echo "refusing to reset a non-local database ($(DB_HOST))"; exit 1;; esac
+	@echo "Resetting database '$(DB_NAME)' - all local data will be destroyed."
+	npx prisma migrate reset --force
+	$(MAKE) db-seed
+
+# --- db-test -----------------------------------------------------------------
+
+db-test: env-file ## Create (if missing) and migrate the test database
+	@case "$(DB_HOST)" in localhost|127.0.0.1) ;; *) echo "refusing to touch a non-local database ($(DB_HOST))"; exit 1;; esac
+	@pg_isready -h $(DB_HOST) -p $(DB_PORT) >/dev/null 2>&1 || \
+		{ echo "Postgres is not reachable at $(DB_HOST):$(DB_PORT) - start Postgres and try again."; exit 1; }
+	@PGPASSWORD=$${PGPASSWORD:-postgres} psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -lqt 2>/dev/null | cut -d '|' -f1 | grep -qw $(TEST_DB_NAME) && \
+		echo "database '$(TEST_DB_NAME)' already exists" || \
+		{ PGPASSWORD=$${PGPASSWORD:-postgres} createdb -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) $(TEST_DB_NAME) && echo "database '$(TEST_DB_NAME)' created"; }
+	DATABASE_URL="postgresql://postgres:postgres@localhost:$(DB_PORT)/$(TEST_DB_NAME)" npx prisma migrate deploy
+
+# --- dev ---------------------------------------------------------------------
+
+dev: install-all db-local db-seed ## One-command bootstrap: install, migrate, seed, run (foreground)
+	@echo ""
+	@echo "Starting {{product}} - client http://localhost:$(CLIENT_PORT)  api http://localhost:$(API_PORT)"
+	@echo "   Ctrl-C to stop."
+	@echo ""
+	# Nothing else loads .env into the API process, so export it here. Unset any inherited PORT
+	# (hosting/preview tools set one) so the API falls back to its own default instead of
+	# colliding with the client port.
+	unset PORT; set -a; . ./$(ENV_FILE); set +a; npm run dev
+
+# --- test-all ----------------------------------------------------------------
+
+test-all: db-test ## Run the unit/integration suite, then the e2e suite
+	npm test
+	npm run test:e2e
+
+# --- stop-all ----------------------------------------------------------------
+
+stop-all: ## Kill anything listening on the dev ports
+	@for port in $(CLIENT_PORT) $(API_PORT); do \
+		pids=$$(lsof -ti:$$port 2>/dev/null); \
+		if [ -n "$$pids" ]; then \
+			echo "Stopping process(es) on port $$port: $$pids"; \
+			kill $$pids 2>/dev/null || true; \
+		fi; \
+	done
+
+# --- deploy ------------------------------------------------------------------
+# Scoped to this product only: the GCP project is shared with sibling products.
+# Run by the human (it deploys); never bare `firebase deploy`.
+
+deploy: ## Deploy ONLY this product (Firebase Hosting + Functions)
+	npm run build
+	firebase deploy --project={{gcp_project}} --only hosting:{{product}},functions:{{product}}:{{function}}

@@ -1,0 +1,16 @@
+{
+  "name": "homebrew-skills-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Checker and privacy gate for the homebrew skills (format, secrets, optional references, deny list).",
+  "type": "module",
+  "scripts": {
+    "check": "node bin/check.mjs",
+    "gate": "node bin/gate.mjs",
+    "test": "node --test test/tools.test.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "yaml": "2.9.1"
+  }
+}
