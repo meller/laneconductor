@@ -149,13 +149,12 @@ Everything else in LaneConductor works without it. More: https://github.com/mell
 
 ### `ops/settings.md`
 
-`.laneconductor.json` is an optional settings file at the root of a project. It is personal, not shared: it holds at most a
-handful of choices, and one of them (the board URL) is private. Nothing in LaneConductor needs it. Setup never creates it, never
-looks for it and never reads it; a project works the same with or without it, and so does a project that still has an older
-file with other keys in it. Only the commands that read a key in the table below open it.
+`.laneconductor.json` is an optional settings file at the root of a project. It is personal, not shared: a handful of choices,
+one of them (the board URL) private. Nothing needs it. Setup never creates, looks for or reads it; a project works the same with
+or without it. Only the commands that read a key below open it.
 
 A file is created only when a person makes a choice that belongs in it (a different push policy), when Claude first stores the
-board URL (`ops/board.md`, step 3b, which asks first), or when a person asks to keep a `next` level (`ops/next.md`, which asks first). Keep the file valid JSON and every key you did not mean to change as it was.
+board URL (`ops/board.md`, step 3b, which asks first), when a person asks to keep a `next` level (`ops/next.md`, which asks first), or when a person says "don't ask again" to a skill offer (which asks first). Keep the file valid JSON and every key you did not mean to change as it was.
 
 #### Keys
 
@@ -168,6 +167,7 @@ board URL (`ops/board.md`, step 3b, which asks first), or when a person asks to 
 | `board.include_conversation` | `true` adds `conversation.md` to the board documents | off | the board script |
 | `project.name` | a string | the folder name | the board script |
 | `next.level` | `auto`, `explain`, `short` | `auto` | the `next` command only (`ops/next.md`) |
+| `skills.declined` | a list of skill-catalog entry names | none | the skill offers (`ops/suggest-skills.md`) |
 
 Example:
 
@@ -177,12 +177,11 @@ Example:
 
 #### Rules
 
-- Unknown keys are ignored without a message and are never rewritten or removed: an older file keeps working untouched.
-- A value that is not valid for its key (a state branch that is not a safe branch name, a push policy that is not listed) is
+- Unknown keys are ignored and never rewritten or removed, so an older file keeps working untouched.
+- A value that is not valid for its key (an unsafe state branch, an unlisted push policy), or a file that is not valid JSON, is
   reported once by the tool that reads it, and the default is used.
-- A file that is not valid JSON is reported once by the tools that read it, and the defaults are used.
 - `board.artifact_url` is private, so the file belongs in `.gitignore`. The board procedure adds the line `.laneconductor.json`
   before it stores a URL, after asking. Setup adds nothing for it.
-- A missing file, an unreadable file or an unknown `next.level` means `auto`; `next` works the same with no settings file at all.
-- `next.level` is written only when the person asks to keep a level, after asking; the `.gitignore` line is added first, as for the board URL.
+- A missing or unreadable file or an unknown `next.level` means `auto`.
+- `next.level` (the person asks to keep a level) and `skills.declined` (the person says "don't ask again") are written only after a yes to the exact change shown, with the `.gitignore` line first, as for the board URL. The older `.git/skill-advisor-declined.txt` is still read.
 - To remove the file: delete it. Every key falls back to its default.

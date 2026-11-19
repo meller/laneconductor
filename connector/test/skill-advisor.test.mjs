@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, NAMES, RECOMMENDED, ADDONS, installsNote } from '../../scripts/build-plugin.mjs';
-import { OFFER_RULES, SHORT_RULE, DECLINED_FILE, entryLine, laneOfferBlock, typeOfferBlock, skillsCatalogBlock, skillAdvisorReadmeBlock, skillTipsBlock } from '../../scripts/plugin-texts.mjs';
+import { OFFER_RULES, SHORT_RULE, DECLINED_FILE, DECLINED_KEY, entryLine, laneOfferBlock, typeOfferBlock, skillsCatalogBlock, skillAdvisorReadmeBlock, skillTipsBlock } from '../../scripts/plugin-texts.mjs';
 import { COMMANDS, GROUPS, helpText } from '../src/commands.mjs';
 
 const BASE = path.join(REPO, RELS.base);
@@ -102,13 +102,32 @@ test('TC-5, TC-6 at the moment of intent: a prerequisite asks install-first-or-c
 test('TC-7 install first, carry on, do not ask again: the three answers', () => {
   assert.match(OFFER_RULES, /\*Install first\*: show the commands, say nothing has been changed yet, say to run them and then `\/reload-plugins`, and when the person is back start the step again from the top with the skill present/);
   assert.match(OFFER_RULES, /\*Carry on\*: start the step at once and do not repeat the offer this session/);
-  assert.match(OFFER_RULES, /\*Do not ask again\*: show the line you would add and, after the yes, append the entry's name to the declined file/);
-  assert.equal(DECLINED_FILE, 'skill-advisor-declined.txt');
-  assert.match(OFFER_RULES, /inside the directory that `git rev-parse --git-common-dir` prints/);
-  assert.match(OFFER_RULES, /it is inside `\.git`, so it is never committed/);
-  assert.match(SHORT_RULE, /`skill-advisor-declined\.txt` in the directory `git rev-parse --git-common-dir` prints/);
-  assert.match(SHORT_RULE, /"Do not ask again": after a yes, add the entry name to the declined file/);
+  assert.equal(DECLINED_KEY, 'skills.declined');
+  assert.equal(DECLINED_FILE, 'skill-advisor-declined.txt', 'the previous location, still read');
+  // Phase 7: the client refuses writes inside the repository's hidden directory, so the list lives in the personal settings file; the old file is still read, never written.
+  assert.match(OFFER_RULES, /\*Do not ask again\*: show the exact change \(`\.laneconductor\.json` and the new `skills\.declined` list\) and write it only after the yes: create the file with only that key if it is missing, keep every other key and valid JSON; first see that `\.gitignore` lists `\.laneconductor\.json`, adding the line only after asking, as the board procedure does\. On a failed write, skip it this session\./);
+  assert.match(OFFER_RULES, /never an entry named in `skills\.declined` of `\.laneconductor\.json` \(the older `\.git\/skill-advisor-declined\.txt`, one name per line, is read too\)/);
+  assert.match(SHORT_RULE, /never one in `skills\.declined` of `\.laneconductor\.json` \(or older `\.git\/skill-advisor-declined\.txt`\)/);
+  assert.match(SHORT_RULE, /"Do not ask again": show the change; on a yes add it there \(`\.gitignore` first, asked\)/);
+  assert.ok(!/git-common-dir/.test(OFFER_RULES + SHORT_RULE), 'the old lookup of the common directory is gone');
+  assert.match(skillFile('ops/next.md'), /named in `skills\.declined` of `\.laneconductor\.json`/);
+  assert.match(skillFile('ops/settings.md'), /\| `skills\.declined` \| a list of skill-catalog entry names \|/);
   assert.ok(skillFile('ops/suggest-skills.md').includes(OFFER_RULES));
+});
+
+test('TC-9 declined (Phase 7): the list is `skills.declined` in the personal settings file, listed in the settings table; no shipped text sends the write inside the repository hidden directory; the old file is only read', () => {
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  for (const f of walk(BASE).filter((x) => x.endsWith('.md'))) {
+    const text = fs.readFileSync(f, 'utf8');
+    assert.ok(!/git-common-dir/.test(text), `${path.relative(BASE, f)} still looks up the common git directory`);
+    for (const m of text.matchAll(/skill-advisor-declined\.txt/g)) assert.match(text.slice(Math.max(0, m.index - 30), m.index), /older `\.git\/$/, `${path.relative(BASE, f)} names the old file only as the older location`);
+  }
+  const settings = skillFile('ops/settings.md');
+  assert.match(settings, /^\| `skills\.declined` \| a list of skill-catalog entry names \| none \|/m);
+  assert.match(settings, /`skills\.declined` \(the person says "don't ask again"\) are written only after a yes to the exact change shown, with the `\.gitignore` line first, as for the board URL\. The older `\.git\/skill-advisor-declined\.txt` is still read/);
+  const cmd = COMMANDS.find((c) => c.name === 'suggest-skills');
+  assert.match(JSON.stringify(cmd), /`skills\.declined` in my git-ignored `\.laneconductor\.json`, only when I say so/);
+  for (const lane of Object.keys(LANE_FILES)) assert.ok(skillFile(LANE_FILES[lane]).includes('skills.declined'), `${lane}: the guide carries the declined key`);
 });
 
 test('TC-8 quiet: nothing missing means no message, at most two items, never twice in a session, a trivial track gets one line', () => {
@@ -264,7 +283,7 @@ test('a Type: marketing track gets the offer at plan and at implement, and at cr
 test('REQ-7 disclosure: the READMEs say nothing is installed without a yes, from which sources, and what it runs', () => {
   const block = skillAdvisorReadmeBlock();
   assert.match(block, /\*\*It installs nothing without your yes and never runs an install itself\*\*/);
-  assert.match(block, /it runs only `claude plugin list` and `git rev-parse --git-common-dir` and reads `\.claude\/skills\/` and `~\/\.claude\/skills\/`/);
+  assert.match(block, /it runs only `claude plugin list` and reads `\.claude\/skills\/` and `~\/\.claude\/skills\/`\. Your "do not ask again" goes in `\.laneconductor\.json`, after a yes/);
   assert.match(block, /A plugin that installs a program or a hosted connection says so first/);
   for (const e of RECOMMENDED) assert.ok(block.includes(`\`${e.source.add}\``), `${e.source.add}: the source is named`);
   assert.ok(block.split(/\s+/).length < 110, 'short: the base README stays under 900 words');

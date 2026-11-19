@@ -72,7 +72,7 @@ export const COMMANDS = [
     procedure: 'Suggest skills: {{option}} (nothing given means what fits the work in front of you). Read only: change no track file, install nothing and push nothing. The procedure is the skill file `ops/suggest-skills.md`; read it in full first and follow it.\n\n'
       + '1. Detect which skills are installed (the skills list this session shows, the plugin list the client gives, the skills folder of the project and the skills folder of the user), read the stack from `conductor/tech-stack.md` and the marker files, and the lane and `**Type**` of the track in focus.\n'
       + '2. Compare with the catalog in the file for that lane, Type and stack and recommend only what is missing: at most two, each in one or two plain sentences with the reason and the source, each install command alone in its own bash block. Say plainly when an entry installs a local program.\n'
-      + '3. Never run an install: show the commands and let me run them. `dry-run` prints the offer and writes nothing; `all` lists the whole catalog. An entry I decline is remembered per project outside the repository history, only when I say so.',
+      + '3. Never run an install: show the commands and let me run them. `dry-run` prints the offer and writes nothing; `all` lists the whole catalog. An entry I decline goes into `skills.declined` in my git-ignored `.laneconductor.json`, only when I say so.',
   },
   {
     name: 'help', group: 'start here', title: 'Help',

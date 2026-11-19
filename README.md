@@ -196,7 +196,7 @@ second-opinion style: use them if installed, say so if one is missing.
 
 LaneConductor can suggest a skill that fits the lane you are in, the kind of track and the project's stack: when you ask (`/laneconductor:suggest-skills`), at the start of a lane, when a track is a marketing, sales or support one, and at the end of setup. **It installs nothing without your yes, and it never runs an install itself.** A suggestion is plain text with the install commands shown; you run them yourself, or use your client's own plugin browser.
 
-What it does run, only to look: `claude plugin list` (read only) and `git rev-parse --git-common-dir`, and it reads `.claude/skills/` of the project and `~/.claude/skills/` to see what you already have. If you say "do not ask again" for a suggestion, it writes one line to a file inside `.git/` (never committed); it changes no settings and no permissions.
+What it does run, only to look: `claude plugin list` (read only), and it reads `.claude/skills/` of the project and `~/.claude/skills/` to see what you already have. If you say "do not ask again" for a suggestion, it shows the change and, after your yes, adds the entry name to `skills.declined` in your personal `.laneconductor.json` (it asks before adding that file to `.gitignore`); it changes no other settings and no permissions.
 
 The suggestions come from a small public catalog, checked on 2026-11-18 (`connector/plugin-extras/recommended-plugins.json`, validated by `node scripts/check-catalog.mjs --online`). Every source is a public GitHub repository, and an entry whose plugin installs a program or a connection to a hosted service says so plainly before you install it:
 

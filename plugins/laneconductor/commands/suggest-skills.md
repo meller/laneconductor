@@ -31,7 +31,7 @@ The arguments (all optional):
   none), only what is missing.
 - `all`: the whole catalog, grouped by lane, with what is installed marked.
 - `dry-run`: the same as nothing, but a rehearsal: print the offer with its commands and change nothing, ask nothing and write
-  nothing (no declined list entry, no settings). Use it to see what would be offered.
+  nothing (no declined entry). Use it to see what would be offered.
 - a lane name (`plan`, `implement`, `review`, `quality-gate`, `merge`, `deploy`): what fits that lane.
 
 ## How it works
@@ -41,7 +41,8 @@ The arguments (all optional):
    (`firebase.json`, a Vite config, `wrangler.toml` and the like). Read the track's `index.md` for its `**Type**` (`dev` when it has
    none) and its lane, and for a UI track also the plan (screens or pages).
 3. **Compare with the catalog** for the lane, the Type and the stack: keep the entries that fit and whose skills are not all
-   installed. Leave out any entry the person declined for this project and any you already offered in this session.
+   installed. Read the declined list first (`skills.declined` in `.laneconductor.json` and the
+   older `.git/skill-advisor-declined.txt`, each with the Read tool, if present): leave out those entries and any you already offered in this session.
 4. **Offer at most two**, with the reason and the source, as the rules say. When nothing is missing, say nothing (for the command
    itself: say in one line that nothing is missing).
 
@@ -53,10 +54,10 @@ The arguments (all optional):
 
 1. **Look first.** A skill counts as installed when any of these is true: it is in the skills list this session shows you (that list already covers project, user and plugin skills, and a plugin skill can appear as `plugin:skill`); `claude plugin list` (read only; run it once per session, only when the list is not enough, as a command of its own and never chained with other commands, which makes the client ask for permission) shows its plugin as enabled; or a folder with its name exists in `.claude/skills/` of the project or in `~/.claude/skills/`. A skill listed under an older name counts too. When it is installed, say so in one line ("you have `<skill>` installed, use it before writing the content") and use it.
 2. **Offer only what is missing**, from the candidates below that fit the lane, the track's `**Type**` (`dev` when it has none) and the project's stack: read `conductor/tech-stack.md` and look for the marker files named under "Stack tags". When nothing is missing, say nothing.
-3. **Be quiet.** At most two items per offer: our own entries before third-party ones, `prerequisite` before `helps`. Never the same entry twice in a session, and never an entry on the project's declined list: the file `skill-advisor-declined.txt` inside the directory that `git rev-parse --git-common-dir` prints (one entry name per line; it is inside `.git`, so it is never committed). A trivial track gets at most the one-line tip, and a suggestion in the middle of a step (a failing test and `systematic-debugging`) is one line.
+3. **Be quiet.** At most two items per offer: our own entries before third-party ones, `prerequisite` before `helps`. Never the same entry twice in a session, and never an entry named in `skills.declined` of `.laneconductor.json` (the older `.git/skill-advisor-declined.txt`, one name per line, is read too). A trivial track gets at most the one-line tip, and a suggestion in the middle of a step (a failing test and `systematic-debugging`) is one line.
 4. **Say it in one or two plain sentences**: what it is, why it helps here, where it comes from, and what it installs (use the note under its name: an entry that installs a program says so plainly; a Markdown-only one adds knowledge only). Then each install command alone in its own bash block, one command per block, no leading `$`, so the desktop app shows a Run button. In a session the person can type `/plugin install <plugin>@<marketplace>` instead (inline text, not a block); that opens the plugin's details for review.
 5. **Level.** `prerequisite`: say the result will be better with it and ask, in the same sentence, whether to install it first or carry on. `helps`: a one-line tip. Either way the work is not blocked: with no answer, carry on.
-6. **The answer.** *Install first*: show the commands, say nothing has been changed yet, say to run them and then `/reload-plugins`, and when the person is back start the step again from the top with the skill present. *Carry on*: start the step at once and do not repeat the offer this session. *Do not ask again*: show the line you would add and, after the yes, append the entry's name to the declined file; with no git directory, just do not offer it again this session.
+6. **The answer.** *Install first*: show the commands, say nothing has been changed yet, say to run them and then `/reload-plugins`, and when the person is back start the step again from the top with the skill present. *Carry on*: start the step at once and do not repeat the offer this session. *Do not ask again*: show the exact change (`.laneconductor.json` and the new `skills.declined` list) and write it only after the yes: create the file with only that key if it is missing, keep every other key and valid JSON; first see that `.gitignore` lists `.laneconductor.json`, adding the line only after asking, as the board procedure does. On a failed write, skip it this session.
 7. **Never run an install yourself.** The commands are shown; the person runs them, or uses the client's own plugin browser. If one fails, report the command and its output, retry nothing silently and work around nothing by editing settings or permissions. To share a plugin with collaborators, offer to add it to `enabledPlugins` in the project's `.claude/settings.json` only when the person asks: show the exact change first, say it turns the plugin on for them but does not download it (each person runs the install once with `--scope project`), and write it only after a yes.
 
 ## After the person says yes
@@ -70,7 +71,7 @@ An install is shown with the default scope. To keep a plugin to this repository 
 install command; for everyone who works in the repository, `--scope project` (then each person runs the install once per clone).
 `claude plugin details <name>` shows what an installed plugin adds to every session, after it is installed.
 
-Where the client has its own plugin browser or install card (the desktop app does), you may point at it instead of the commands for
+Where the client has its own plugin browser or install card, you may point at it instead of the commands for
 a plugin in the catalog: the person clicks, and nothing is installed without that click.
 
 ## The starter set
@@ -78,13 +79,12 @@ a plugin in the catalog: the person clicks, and nothing is installed without tha
 At the end of new-project, offer three or four from the catalog that fit the project's stack and Type, none already
 installed: the core process skills, a design skill when the project has a UI, the stack's pack. Offer them once, with the commands in
 their own bash blocks and a one-line reason each. The person installs them now or says later; on "later" nothing is recorded and each
-one is offered again at its own moment (when a screen is planned, a deploy is asked for, and so on). The text is in `ops/new-project.md`.
+one is offered again at its own moment. The text is in `ops/new-project.md`.
 
 ## The add-ons are entries like any other
 
 `laneconductor-parallel` and `laneconductor-board` are in the catalog with the same fields and the same offer pattern as the
-rest: when the person asks for parallel work, worktrees or a board, offer the add-on the way any entry is offered. There is no special
-wording or special case for them.
+rest: when the person asks for parallel work, worktrees or a board, offer the add-on the way any entry is offered.
 
 ## The catalog
 
@@ -128,5 +128,4 @@ npx skills add vercel-labs/skills --skill find-skills -a claude-code
 
 - A second opinion, never an order: every offer says why, and the work goes on whatever the answer.
 - Never run an install command. Show it; the person runs it.
-- Never edit settings or permissions to make an install work, and never retry a failed install silently.
 - Nothing private in an offer: only the catalog's public sources.

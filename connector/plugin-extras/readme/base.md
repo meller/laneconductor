@@ -91,8 +91,7 @@ folders under `conductor/`, plus the optional settings file `.laneconductor.json
 
 ## Where it works
 
-In Claude Code and Cowork, and in claude.ai chat, where the skill and the commands load as skills and Claude edits the track files
-directly.
+In Claude Code, Cowork and claude.ai chat, where Claude edits the track files directly.
 
 ## License and support
 

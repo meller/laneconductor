@@ -35,7 +35,7 @@ policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
 
 ## Skill suggestions: nothing is installed without your yes
 
-`/laneconductor:suggest-skills` and the start of each lane may suggest a skill. **It installs nothing without your yes and never runs an install itself**: it shows the commands for you to run. To look, it runs only `claude plugin list` and `git rev-parse --git-common-dir` and reads `.claude/skills/` and `~/.claude/skills/`. Sources, all public: `meller/laneconductor`, `anthropics/claude-plugins-official`, `cloudflare/skills`, `coreyhaines31/marketingskills`, `anthropics/knowledge-work-plugins`. A plugin that installs a program or a hosted connection says so first.
+`/laneconductor:suggest-skills` and the start of each lane may suggest a skill. **It installs nothing without your yes and never runs an install itself**: it shows the commands for you to run. To look, it runs only `claude plugin list` and reads `.claude/skills/` and `~/.claude/skills/`. Your "do not ask again" goes in `.laneconductor.json`, after a yes. Sources, all public: `meller/laneconductor`, `anthropics/claude-plugins-official`, `cloudflare/skills`, `coreyhaines31/marketingskills`, `anthropics/knowledge-work-plugins`. A plugin that installs a program or a hosted connection says so first.
 
 ## Optional add-ons
 
@@ -132,8 +132,7 @@ folders under `conductor/`, plus the optional settings file `.laneconductor.json
 
 ## Where it works
 
-In Claude Code and Cowork, and in claude.ai chat, where the skill and the commands load as skills and Claude edits the track files
-directly.
+In Claude Code, Cowork and claude.ai chat, where Claude edits the track files directly.
 
 ## License and support
 

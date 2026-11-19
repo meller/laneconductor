@@ -207,7 +207,7 @@ The board is also named when it is installed. At the explain level in S02 and S0
 
 ## A skill tip
 
-After a ranked card (not the first card), add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`). Say nothing when nothing is missing or the person declined it (the file `skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints); never show a command here.
+After a ranked card (not the first card), add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`). Say nothing when nothing is missing or the person declined it (named in `skills.declined` of `.laneconductor.json`); never show a command here.
 
 <!-- generated: current track -->
 

@@ -18,7 +18,7 @@ const TMP = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-settings-
 after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 let n = 0;
 const BOARD = path.join(REPO, 'connector/bin/lc-board.mjs');
-const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'project.name', 'next.level'];
+const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'project.name', 'next.level', 'skills.declined'];
 const SETTINGS_SRC = path.join(REPO, '.claude/skills/laneconductor/ops/settings.md');
 
 function repo(settings, { branch = 'main' } = {}) {
@@ -32,7 +32,7 @@ function repo(settings, { branch = 'main' } = {}) {
   return dir;
 }
 
-test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the seven keys, says optional and personal, and names the .gitignore line', () => {
+test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the eight keys, says optional and personal, and names the .gitignore line', () => {
   const built = buildPlugin(REPO, 'base');
   const f = (built.files ?? built).get('skills/laneconductor/ops/settings.md');
   assert.ok(f, 'the base ships ops/settings.md');

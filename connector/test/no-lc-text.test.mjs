@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, RELS, PROFILES, buildPlugin } from '../../scripts/build-plugin.mjs';
 import { noLcHits, SUBCOMMANDS } from './helpers/no-lc.mjs';
+import { OFFER_RULES, SHORT_RULE } from '../../scripts/plugin-texts.mjs';
 
 const walk = (dir, skip = () => false) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
   const p = path.join(dir, e.name);
@@ -65,7 +66,9 @@ test('the settings file is named only where the base explains it: ops/settings.m
   const base = path.join(REPO, RELS.base);
   const files = walk(base, skipNoise).filter((p) => TEXT.test(p));
   const allowed = new Set(['skills/laneconductor/ops/settings.md', 'skills/laneconductor/ops/board.md', 'skills/laneconductor/ops/next.md', 'skills/laneconductor/SKILL.md', 'commands/next.md', 'commands/board.md', 'README.md']);
-  const named = files.filter((f) => read(f).includes('.laneconductor.json')).map((f) => path.relative(base, f));
+  // The skill advisor (Phase 7 of its track) keeps the declined list in `skills.declined`, so the texts that carry its offer rule name the file too.
+  const offerRules = [OFFER_RULES, SHORT_RULE];
+  const named = files.filter((f) => read(f).includes('.laneconductor.json')).filter((f) => !offerRules.some((t) => read(f).includes(t))).map((f) => path.relative(base, f));
   assert.deepEqual(named.filter((r) => !allowed.has(r)), [], 'a text outside the allowed list names the settings file');
   for (const r of ['setup/setup.md', 'setup/scaffold.md', 'setup/templates.md', 'ops/new-project.md']) assert.ok(!read(path.join(skill, r)).includes('.laneconductor.json'), `${r} never names the settings file`);
   assert.ok(!read(path.join(base, 'commands/setup.md')).includes('.laneconductor.json'));

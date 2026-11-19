@@ -25,7 +25,7 @@ The arguments (all optional):
   none), only what is missing.
 - `all`: the whole catalog, grouped by lane, with what is installed marked.
 - `dry-run`: the same as nothing, but a rehearsal: print the offer with its commands and change nothing, ask nothing and write
-  nothing (no declined list entry, no settings). Use it to see what would be offered.
+  nothing (no declined entry). Use it to see what would be offered.
 - a lane name (`plan`, `implement`, `review`, `quality-gate`, `merge`, `deploy`): what fits that lane.
 
 ## How it works
@@ -35,7 +35,8 @@ The arguments (all optional):
    (`firebase.json`, a Vite config, `wrangler.toml` and the like). Read the track's `index.md` for its `**Type**` (`dev` when it has
    none) and its lane, and for a UI track also the plan (screens or pages).
 3. **Compare with the catalog** for the lane, the Type and the stack: keep the entries that fit and whose skills are not all
-   installed. Leave out any entry the person declined for this project and any you already offered in this session.
+   installed. Read the declined list first (`skills.declined` in `.laneconductor.json` and the
+   older `.git/skill-advisor-declined.txt`, each with the Read tool, if present): leave out those entries and any you already offered in this session.
 4. **Offer at most two**, with the reason and the source, as the rules say. When nothing is missing, say nothing (for the command
    itself: say in one line that nothing is missing).
 
@@ -56,7 +57,7 @@ An install is shown with the default scope. To keep a plugin to this repository 
 install command; for everyone who works in the repository, `--scope project` (then each person runs the install once per clone).
 `claude plugin details <name>` shows what an installed plugin adds to every session, after it is installed.
 
-Where the client has its own plugin browser or install card (the desktop app does), you may point at it instead of the commands for
+Where the client has its own plugin browser or install card, you may point at it instead of the commands for
 a plugin in the catalog: the person clicks, and nothing is installed without that click.
 
 ## The starter set
@@ -64,13 +65,12 @@ a plugin in the catalog: the person clicks, and nothing is installed without tha
 At the end of new-project, offer three or four from the catalog that fit the project's stack and Type, none already
 installed: the core process skills, a design skill when the project has a UI, the stack's pack. Offer them once, with the commands in
 their own bash blocks and a one-line reason each. The person installs them now or says later; on "later" nothing is recorded and each
-one is offered again at its own moment (when a screen is planned, a deploy is asked for, and so on). The text is in `ops/new-project.md`.
+one is offered again at its own moment. The text is in `ops/new-project.md`.
 
 ## The add-ons are entries like any other
 
 `laneconductor-parallel` and `laneconductor-board` are in the catalog with the same fields and the same offer pattern as the
-rest: when the person asks for parallel work, worktrees or a board, offer the add-on the way any entry is offered. There is no special
-wording or special case for them.
+rest: when the person asks for parallel work, worktrees or a board, offer the add-on the way any entry is offered.
 
 ## The catalog
 
@@ -84,5 +84,4 @@ fallback below rather than guessing another source.
 
 - A second opinion, never an order: every offer says why, and the work goes on whatever the answer.
 - Never run an install command. Show it; the person runs it.
-- Never edit settings or permissions to make an install work, and never retry a failed install silently.
 - Nothing private in an offer: only the catalog's public sources.
