@@ -33,8 +33,8 @@
 
 For a new project the right start is the brainstorm and the new-project workflow with suggested skills, not the existing-project setup.
 
-- [ ] Task 5.1: Check, with a headless run on an empty folder, that `next` names `/laneconductor:new-project`, that the workflow's interview is a brainstorm (options and decisions explored before any file is written), and that it ends with the first-track card and the starter set of suggested skills; fix any gap
-- [ ] Task 5.2: Keep the closing of new-project consistent with the closing of setup (the same first-track card, one question at the end)
+- [x] Task 5.1: Check, with a headless run on an empty folder, that `next` names `/laneconductor:new-project`, that the workflow's interview is a brainstorm (options and decisions explored before any file is written), and that it ends with the first-track card and the starter set of suggested skills; fix any gap
+- [x] Task 5.2: Keep the closing of new-project consistent with the closing of setup (the same first-track card, one question at the end)
 
 ## Phase 6: A brand-new project starts from the card (owner direction, 2026-11-19; release 1.9.5)
 

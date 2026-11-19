@@ -40,10 +40,10 @@ Setup's last step tells the person to run `/laneconductor:next` and not to name 
 
 Setup reads the README and `package.json`. For an existing project it should also read the project's own plan, so the owner sees the value at once: it looks for `docs/plan.md`, `ROADMAP.md`, `TODO.md` and roadmap, next-steps or status sections of the README, and says in the confirmation what it found ("Found your plan in docs/plan.md: 6 items"). The closing card then leads with those items (track 10144 Phase 11).
 
-- [ ] Task 6.1: Setup's reading step looks for the project's plan documents and counts their items; the confirmation names the file and the count in one line, and says nothing when there is none
-- [ ] Task 6.2: The plan items are carried into the closing card (written once, shared with `next`); the project definition files (product.md, user-stories.md) may use them as source for facts, never inventing any
-- [ ] Task 6.3: An empty folder or a project with no code goes to `/laneconductor:new-project` (a brainstorm interview, then the scaffold, first tracks and suggested skills), not to the existing-project path
-- [ ] Task 6.4: Text tests and a size check (setup must not grow)
+- [x] Task 6.1: Setup's reading step looks for the project's plan documents and counts their items; the confirmation names the file and the count in one line, and says nothing when there is none
+- [x] Task 6.2: The plan items are carried into the closing card (written once, shared with `next`); the project definition files (product.md, user-stories.md) may use them as source for facts, never inventing any
+- [x] Task 6.3: An empty folder or a project with no code goes to `/laneconductor:new-project` (a brainstorm interview, then the scaffold, first tracks and suggested skills), not to the existing-project path
+- [x] Task 6.4: Text tests and a size check (setup must not grow)
 
 ## Phase 7: Setup writes first, and `go` is the consent (owner direction, 2026-11-19; release 1.9.5)
 
