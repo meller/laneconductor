@@ -74,6 +74,10 @@ lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-p
 the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
 imports no older tracks silently ([setup/setup.md](setup/setup.md)).
 
+**Private or committed tracks.** "Make tracks private" means adding the missing ones of `conductor/tracks/`, `conductor/tracks-summary.md` and `conductor/advice-log/` to `.gitignore`;
+if git already tracks those files, offer `git rm -r --cached` for them and show the command, never run it without a yes. "Commit my tracks" means removing those three lines: show the diff and ask before editing `.gitignore`.
+With private tracks the connector writes the files and skips the commit, and says so.
+
 ## Work without a track
 
 When the person asks for real work (it changes files, or takes more than a quick answer) and no track is in play, say so in one sentence and offer three ways in, in plain text: update the nearest existing track (search first: `list_tracks` when the connector tools are there, else the folders under `conductor/tracks/`; the default wording is "Update track N?"), create a new track, or go on without a track. Never block: when the work is clearly small, go ahead without asking. Create or change a track only after a yes. A question, reading, a one-line or typo fix gets no offer, and "no track" once, or a choice to go on without one, means no more track offers this session.

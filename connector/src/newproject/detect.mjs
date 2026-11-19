@@ -6,6 +6,7 @@
 // scaffold renders an honest placeholder for it. Everything it used is listed in `evidence`, so the person can correct a wrong guess.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const exists = (dir, rel) => fs.existsSync(path.join(dir, rel));
 const readText = (dir, rel) => { try { return fs.readFileSync(path.join(dir, rel), 'utf8'); } catch { return null; } };
@@ -84,6 +85,30 @@ function scanExisting(dir) {
     if (lane) existing.tracks.lanes[lane] = (existing.tracks.lanes[lane] ?? 0) + 1;
   }
   return existing;
+}
+
+const OPEN_LICENCE = /\b(MIT License|Apache License|GNU (Affero |Lesser )?General Public License|BSD [23]-Clause|ISC License|Mozilla Public License|The Unlicense|Creative Commons)\b/i;
+const PUBLIC_README = /\bpublic(ly)?\s+(demo|repo|repository|project)\b|\bpublic demo\b|\bopen[- ]source\b|\bopen-sourced\b/i;
+
+/**
+ * Whether the tracks are committed with the code or private (git-ignored). Decided from facts, never asked: private when there is a public
+ * signal (the README says public, public demo or open source; an open-source LICENSE file; a package.json `license` other than UNLICENSED or
+ * proprietary) or the repository has no remote yet (nothing to share); committed when there is a remote and no public signal.
+ * @returns {{ mode: 'private'|'committed', reason: string }} the reason is the clause that follows "because" in the declared line
+ */
+export function decideTracks(dir) {
+  const root = path.resolve(dir);
+  const readmeFile = firstExisting(root, ['README.md', 'readme.md', 'README.rst', 'README']);
+  const readme = readmeFile ? readText(root, readmeFile) : null;
+  if (readme && PUBLIC_README.test(readme)) return { mode: 'private', reason: `the ${readmeFile} says this is public` };
+  const licFile = firstExisting(root, ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'COPYING', 'licence', 'LICENCE']);
+  if (licFile && OPEN_LICENCE.test(readText(root, licFile) ?? '')) return { mode: 'private', reason: `${licFile} is an open-source licence` };
+  const lic = readJson(root, 'package.json')?.license;
+  if (typeof lic === 'string' && lic.trim() && !/^(UNLICENSED|proprietary|SEE LICENSE IN)/i.test(lic.trim())) return { mode: 'private', reason: `package.json says the licence is ${lic.trim()}` };
+  const remote = spawnSync('git', ['remote'], { cwd: root, encoding: 'utf8' });
+  const hasRemote = remote.status === 0 && remote.stdout.trim() !== '';
+  if (!hasRemote) return { mode: 'private', reason: 'the repository has no remote yet, so there is nothing to share' };
+  return { mode: 'committed', reason: 'there is a remote and nothing says the project is public' };
 }
 
 /**
@@ -183,6 +208,9 @@ export function detectProject(dir) {
   const srcDirs = ['src', 'lib', 'app', 'server', 'packages', 'cmd'].filter((d) => exists(root, d));
   if (srcDirs.length) evidence.push(`source folders: ${srcDirs.join(', ')}`);
 
+  const tracks = decideTracks(root);
+  answers.tracks = tracks.mode;
+  evidence.push(`tracks ${tracks.mode === 'private' ? 'private (git-ignored)' : 'committed'}: ${tracks.reason}`);
   const existing = scanExisting(root);
   if (existing.conductor) {
     const t = existing.tracks;

@@ -13,49 +13,44 @@ does and why it comes next, and teaches the lane model a little at a time. Use i
 ## When to use it
 
 - The person types `/laneconductor:next`, or says one of the phrases above. You may start it unprompted when they are plainly lost.
-- It is read only: no claim, no marker, no file, no install, no push. The one write it may do is the personal level setting (see
+- It is read only: no claim, no marker, no file, no install, no push; the one write is the personal level setting (see
   "Levels"), after asking. If the person says "go", run the command it named as if they had typed it.
-- It names exactly one step; other candidates go in one line (at most three, then "and N more").
+- It names one step; other candidates go in one line (at most three, then "and N more").
 
 ## Gather
 
 Read in this order; stop as soon as the state is clear. The procedure is the same with or without the parallel add-on.
 
-1. **Is this a repository?** Look for `.git` (`git rev-parse --is-inside-work-tree`, read only). Note the default and the current
+1. **Is this a repository?** `git rev-parse --is-inside-work-tree` (read only). Note the default and the current
    branch, and whether the folder holds anything besides `.git`. For the number of commits run `git rev-list --count HEAD`.
 2. **Is the project set up?** Look for `conductor/`, `conductor/workflow.json` and `conductor/tracks/`.
 3. **List the tracks.** Glob `conductor/tracks/*/index.md`, skipping archived folders (`_duplicate-*`, `_quarantine-*`). One Grep
-   for the header markers across them is enough; open a track's own files only for the candidates the card names.
+   for the header markers is enough; open a track's own files only for the candidates the card names.
    With the parallel add-on, call `list_tracks` instead (filters `lane`, `lane_status`; `lane: done` with `lane_status: queue` shows
-   the gated tracks), then `get_track` for the track you name, for `valid.next` and the freshness line. If it says stale or
-   possibly stale, say so in one line before the card. The add-on is never required. It also reports `blocked_by` (the numbers not
-   yet `done:success`) and `ready_to_resume`: use them for S09 and S10; without it, work them out from `Waiting On Tracks` and
-   `Depends On` as the table says.
+   the gated tracks), then `get_track` for the track you name, for `valid.next` and the freshness line. Say so in one line before the card only when its reasons need the person: `behind_upstream`, `unpushed_local_commits`, `dirty_state_files`, a stale claim. No upstream (`no_upstream`) or a rebuilt summary (`track_summary_regenerated`) is normal: no line. The add-on is never required. It also reports `blocked_by` (the numbers not
+   yet `done:success`) and `ready_to_resume`: use them for S09 and S10; without it, work them out from `Waiting On Tracks` and `Depends On`.
 4. **Read these markers**, header block only, the first one wins when a marker is repeated (and the track is damaged, S21):
    `Lane`, `Lane Status`, `Progress`, `Phase`, `Depends On`, `Waiting On Tracks`, `Waiting for reply`, `Priority`, `Part Of`, `Merge Mode`,
    `PR URL`, `Owner Action`, `Owner Action Due`, `KPI Check After`. Match lane names by meaning (a project may still say `planning` and `in-progress`: use `conductor/workflow.json`, or
    `valid.guide_lanes`), and write the project's own lane names in the card.
 4b. **Today's date.** S22 and S23 compare days: take today as a UTC calendar day from the system or the freshness line.
-   If you do not know it, ask the person for it; never guess. With the add-on, `list_tracks` and `get_track` report `overdue` and `ready_to_measure` themselves
-   (in UTC); without it, compare the days yourself. Due today is not overdue.
+   If you do not know it, ask the person for it; never guess. With the add-on, `list_tracks` and `get_track` report `overdue` and `ready_to_measure` (UTC); without it, compare the days yourself. Due today is not overdue.
 5. **Where a finished lane goes next** is never guessed from the raw file: use `valid.next` of `get_track`, or read
-   `conductor/workflow.json` with the grammar of `ops/lanes-and-statuses.md`. Say it in one clause.
+   `conductor/workflow.json` with `ops/lanes-and-statuses.md`. Say it in one clause.
 6. **Git facts, read only.** For a track in `done:queue`: does a local branch for it exist (`git branch --list`), and is it an
    ancestor of the default branch (`git merge-base --is-ancestor`)? When no branch exists, does the default branch have a commit
    for it (`git log --grep` on `(track-N)`)? A commit counts only when its subject is NOT one of the connector's own state commits,
-   `chore(track-N): <tool> ...` where `<tool>` is one of its three write tools (create a track, update it, append to its
-   conversation), as in `chore(track-12): <tool> index.md`: those record the track's files, not shipped work.
+   `chore(track-N): <tool> ...` (`<tool>`: one of its three write tools), as in `chore(track-12): <tool> index.md`: those record files, not shipped work.
    For a track that is `running`: the time of the last commit that touched its folder or a branch named for it
    (`git log -1 --format=%ct -- <folder>`, `git for-each-ref`). A fact you cannot establish is not guessed: ask one question instead.
 7. **Comments.** `conversation.md` is not committed: read it only when it exists here, and never rely on it. The committed signal
    for a reply that waits is the marker `Waiting for reply: yes`. When the file exists and its last entry is the human's
-   (`> **human**:`) with no later `system` or agent entry, the track counts as waiting for a reply even if the marker says no.
-8. **Stub files.** A `plan.md` is a stub when it is missing (a track made by hand holds only its `index.md`), contains the
-   placeholder "Plan to be written in the plan lane", or has no checkbox. A `test.md` is a stub when it is missing, contains
-   "(Test cases to be added)", or has no test case line. A file with real content (phases, checkbox tasks, `TC-` lines, ticked or
-   not) is NOT a stub: look for the checkbox and the `TC-` line, not for completeness.
-9. **A project summary** (`conductor/tracks-summary.md`) may preselect tracks in a very large project (about 100 tracks or more),
-   but every track the card names is confirmed from its own `index.md`. Its "Needs attention" list is a lint list, not advice.
+   (`> **human**:`) with no later `system` or agent entry, the track waits for a reply even if the marker says no.
+8. **Stub files.** A `plan.md` is a stub when it is missing, contains the placeholder "Plan to be written in the plan lane", or has
+   no checkbox. A `test.md` is a stub when it is missing, contains "(Test cases to be added)", or has no test case line. A file with
+   real content (phases, checkbox tasks, `TC-` lines, ticked or not) is NOT a stub: look for the checkbox and the `TC-` line, not for completeness.
+9. **A project summary** (`conductor/tracks-summary.md`) may preselect tracks in a very large project (about 100 tracks or more);
+   confirm every track the card names from its own `index.md`. Its "Needs attention" list is a lint list, not advice.
 
 ## States
 
@@ -68,27 +63,27 @@ the epic's own file holds no child status.
 | Id | The project shows | The card names | Command |
 |----|-------------------|----------------|---------|
 | S01 | The folder is not a git repository | Setup, which offers `git init` first (explain level: also the three paths of S02) | `/laneconductor:setup` |
-| S02 | A repository (or any folder with files) with no `conductor/` folder | The front door. Default level: the first card (see "The first card"). Explain level: three paths. (a) Continue this project: `setup` reads the stack, asks only to confirm, writes the `conductor/` files, never overwrites. (b) Start a new project: a short interview, then the scaffold and a first track. (c) Look around: four sentences on what LaneConductor is (the plan-first process, tracks as files in git, five lanes, nothing to install but this plugin) and the list from `help`; nothing is written. A repository with history defaults to (a); an empty folder defaults to (b). Then the add-ons and the board (see "The front door") | `/laneconductor:setup`, `/laneconductor:new-project`, `/laneconductor:help` |
+| S02 | A repository (or any folder, even an empty one) with no `conductor/` folder | The front door. Default level: the first card (see "The first card"). Explain level: three paths. (a) Continue this project: `setup` reads the stack, asks only to confirm, writes the `conductor/` files, never overwrites. (b) Start a new project: a short interview, then the scaffold and a first track. (c) Look around: four sentences on what LaneConductor is (the plan-first process, tracks as files in git, five lanes, nothing to install but this plugin) and the list from `help`; nothing is written. A repository with history defaults to (a); an empty or nearly empty folder (no code, no plan document) defaults to (b). Then the add-ons and the board (see "The front door") | `/laneconductor:setup`, `/laneconductor:new-project`, `/laneconductor:help` |
 | S03 | `conductor/` exists but `workflow.json` or `tracks/` is missing | Finish the scaffold: setup again, it skips what exists. Explain level: then the add-ons and the board (see "The front door") | `/laneconductor:setup` |
 | S04 | Set up, and no track folder under `conductor/tracks/` | Create the first track. Default level: the first-track card (see "The first-track card"). Explain level: the primer, the card, then the add-ons except the board (see "The front door") | `/laneconductor:new <title>` |
 | S05 | A track (with no `Owner Action`, see S22) waits for a human reply: `Waiting for reply: yes`, or `Lane Status: waiting` with no `Waiting On Tracks` and no unmet `Depends On` (a question or an approval), or the last comment is the human's and unanswered | Answer it: show the last comment in two lines, say what the track needs, offer the answer path (a comment, then resume with `move`) | `/laneconductor:comment N <your answer>` |
 | S06 | A track is in `failure` in its lane (`implement:failure`, `plan:failure`, `quality-gate:failure`) or is `done:failure` (a merge that failed) | Read its last comment, then offer a retry and a replan and recommend one by lane (implement failure: retry implement; plan, review and quality-gate failure: replan; done failure: fix the cause, then merge again) | `/laneconductor:implement N`, `/laneconductor:plan N` or `/laneconductor:merge N` |
-| S07 | A track is `running` and looks abandoned: the last commit on its folder or branch is older than 6 hours | Ask, do not decide: "N has said it is running for H hours with no commit; is something still working on it?" If the answer is no, resume by setting `Lane Status` back to `queue`, then run the lane again | `/laneconductor:move N <lane>:queue` |
+| S07 | A track is `running` and looks abandoned: the last commit on its folder or branch is older than 6 hours | Ask, do not decide: "N says it is running for H hours with no commit; is something still working on it?" If not, set `Lane Status` back to `queue`, then run the lane again | `/laneconductor:move N <lane>:queue` |
 | S08 | A track is `running` and recent | Say so and leave it alone ("N is being worked on; start nothing on it"); the card goes on to the next candidate | none |
-| S09 | `waiting` on tracks (`Waiting On Tracks`, else `Depends On`) and every named track is `done:success` | Resume it: the dependencies shipped; say which. Setting `queue` and clearing the parking markers is the resume; run the lane after | `/laneconductor:move N <lane>:queue` |
-| S10 | The track names tracks it waits on (`Waiting On Tracks`, else `Depends On`) and at least one is not `done:success`, and it is `waiting` or `queue` (a `queue` track too: blocked is never the step; a track that is `running`, in `failure` or waiting for a reply is read as S05 to S08 first). `done:queue` is gated, not shipped, and does not count | Not a candidate. Named in the "also" line as blocked by those tracks; if the blocker is itself a candidate, it is ranked as usual | none |
+| S09 | `waiting` on tracks (`Waiting On Tracks`, else `Depends On`) and every named track is `done:success` | Resume it: the dependencies shipped; say which. Setting `queue` and clearing the parking markers is the resume | `/laneconductor:move N <lane>:queue` |
+| S10 | The track names tracks it waits on (`Waiting On Tracks`, else `Depends On`) and at least one is not `done:success`, and it is `waiting` or `queue` (a track that is `running`, in `failure` or waiting for a reply is read as S05 to S08 first). `done:queue` is gated, not shipped, and does not count | Not a candidate: named in the "also" line as blocked by those tracks; a blocker that is itself a candidate is ranked as usual | none |
 | S11 | `done:queue` and the track's branch is not merged (or that cannot be established) | Merge it: it passed the quality gate and is not shipped. The merge command asks before any merge or push | `/laneconductor:merge N` |
 | S12 | `done:queue` and its branch exists and is already an ancestor of the default branch, or no branch exists and the default branch has a commit for it that is not one of the connector's own state commits (`chore(track-N): <tool> ...`, see step 6) | It looks merged: ask the person to confirm, then record it | `/laneconductor:move N done:success` |
 | S13 | `done:waiting` (a pull request is open) | The pull request waits for a person to merge it: show `PR URL`; once it is merged, record it | `/laneconductor:move N done:success` |
 | S14 | `quality-gate:queue`, or `review:success` when the workflow does not move on by itself | Run the quality gate: it evaluates and never fixes | `/laneconductor:quality-gate N` |
-| S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. When the parallel add-on is installed, recommend one sub-agent per track in its own worktree | `/laneconductor:review N` |
-| S16 | `implement:queue`, or `plan:success` (plan done, parked) with a real plan and real test cases | Implement it from its plan. When the parallel add-on is installed, recommend one sub-agent per track in its own worktree; without it, in this session or by hand in a worktree | `/laneconductor:implement N` |
+| S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. With the parallel add-on, recommend one sub-agent per track in its own worktree | `/laneconductor:review N` |
+| S16 | `implement:queue`, or `plan:success` (plan done, parked) with a real plan and real test cases | Implement it from its plan. With the parallel add-on, recommend one sub-agent per track in its own worktree; without it, in this session or by hand in a worktree | `/laneconductor:implement N` |
 | S17 | `implement:queue` or `plan:success`, but `plan.md` or `test.md` is missing or still the empty stub from track creation | Plan it first: there is nothing to implement from. This overrides S16 | `/laneconductor:plan N` |
-| S18 | `plan:queue` | Plan it: the plan lane writes the spec, the plan and the test cases, and no code; plan before code so the work is agreed and testable first | `/laneconductor:plan N` |
+| S18 | `plan:queue` | Plan it: the plan lane writes the spec, the plan and the test cases, and no code, so the work is agreed and testable first | `/laneconductor:plan N` |
 | S19 | The only tracks that are not shipped are in `backlog` | Pick one to start: show up to three, recommend the oldest, and say that moving it to `plan:queue` starts it | `/laneconductor:move N plan:queue` |
-| S20 | Every track is `done:success`, or none is ready | Nothing waits. Offer `new` for something new, `board` to look at the whole project, `status` for the list | `/laneconductor:new <title>` |
+| S20 | Every track is `done:success`, or none is ready | Nothing waits. First "What is still in the plan" below: the plan's items that have no track. None left: offer `new`, `board` to look at the whole project, `status` for the list | `/laneconductor:new <title>` |
 | S21 | A track's markers cannot be read: a repeated `Lane` block, no `Lane`, a lane or status that is not in the workflow, two folders with one number | Name each such track and the fault in one line each, read it by its first marker, never rank it above a readable track; if every candidate is unreadable, the step is to fix the first one by hand | none (or `status`) |
-| S22 | `Lane Status: waiting` (also `done:waiting`) with an `Owner Action`: a step only the person can do (post, record, approve, submit). Read before S05, even when `Waiting for reply` is yes or a dependency is unmet | Do the owner action: quote it, say its `Owner Action Due` day (`overdue since <day>`, `due today`, or `no due date` when it is missing or not a real `YYYY-MM-DD`) and point to the `## Draft` section of `spec.md` for the kit. The agent posts, sends and spends nothing for the person. When it is done, the person comments and the agent clears both owner markers and starts the run window | `/laneconductor:comment N <what you did>` |
+| S22 | `Lane Status: waiting` (also `done:waiting`) with an `Owner Action`: a step only the person can do (post, record, approve, submit). Read before S05, even when `Waiting for reply` is yes or a dependency is unmet | Do the owner action: quote it, say its `Owner Action Due` day (`overdue since <day>`, `due today`, or `no due date` when it is missing or not a real `YYYY-MM-DD`) and point to the `## Draft` section of `spec.md` for the kit. The agent posts, sends and spends nothing for the person. When it is done, the person comments and the agent clears both markers and starts the run window | `/laneconductor:comment N <what you did>` |
 | S23 | `Lane Status: waiting` with no `Owner Action`, no reply asked for and no unmet dependency, and `KPI Check After` is today or earlier (a `YYYY-MM-DD` day, or a UTC timestamp not later than now) | Measure the KPI: the run window ended. The quality gate reads the KPI from its source or asks for the number, and never invents one | `/laneconductor:quality-gate N` |
 
 In the commands, `N` is the track number. A shell command (an install command) goes alone in its own
@@ -106,27 +101,25 @@ Apply to the readable candidates of S05 to S19 and S22 and S23, first difference
 5. **Lane order, latest lane first.** `done:queue` (merge), then quality-gate, review, implement, plan. Nearly shipped work comes before work not begun.
 6. **Number.** Lowest track number first (the oldest request first).
 
-With more than two tracks in S22, add one line after the card: "You have N open owner actions: finish one before starting another." It is advice: it never changes the order or blocks anything.
+With more than two tracks in S22, add one line after the card: "You have N open owner actions: finish one before starting another." It is advice only: it changes no order.
 
-A `running` track (S08) and a blocked one (S10) are skipped and named in the "also" line. When several tracks tie at the top, name
-the first and list the rest in one line. When you chose between several, say the rule in one sentence ("I picked this one because
-a human reply comes first").
+A `running` track (S08) and a blocked one (S10) are skipped and named in the "also" line. When several tie at the top, name
+the first and list the rest in one line. When you chose between several, say the rule in one sentence ("a human reply comes first").
 
 With a track number as the argument ("what's next for N"), give the same card restricted to that track.
 
 ## The card
 
-Always: the step with its command; one sentence on what it will do (and, in one clause, where the track goes when it
-finishes); one sentence on why it comes next; the other candidates in one line (none: left out); one pointer to the lane statuses and transitions, in words (never a file path); and the closing offer "Say go and I will run it here", except when the command asks for confirmation itself (`setup`, `new-project`, `merge`, `deploy`): the card then ends with the command, so the person confirms once. The card never names a
+Always: the step with its command; one sentence on what it will do (and in one clause where the track goes when it
+finishes); one sentence on why it comes next; the other candidates in one line (none: left out); one pointer to the lane statuses, in words (never a file path); and the closing offer "Say go and I will run it here", except when the command asks for confirmation itself (`setup`, `new-project`, `merge`, `deploy`): the card then ends with the command, so the person confirms once. The card never names a
 track number outside the track it is about, and never mentions work that does not exist yet (the first-track card's suggestions apart).
 
-The explain form of the card (the step, then what and why in full):
+The explain form of the card:
 
 > **Next: plan track N, "<title>".** Run `/laneconductor:plan N`.
-> **What it does:** the plan lane writes the spec, the plan and the test cases for this track, and no code; when it finishes
-> the track waits at `plan:success`.
-> **Why now:** nothing is built before the work is agreed and testable, and this is the oldest track still waiting.
-> Also waiting: N2 (implement), N3 (review). More on the lanes: `/laneconductor:workflow` shows the lane statuses and where each lane sends a track. Say go and I will run it here.
+> **What it does:** writes the spec, the plan and the test cases, and no code; the track then waits at `plan:success`.
+> **Why now:** nothing is built before the work is agreed and testable, and this is the oldest track waiting.
+> Also waiting: N2 (implement), N3 (review). More on the lanes: `/laneconductor:workflow`. Say go and I will run it here.
 
 ## The first card
 
@@ -136,27 +129,38 @@ In S01 to S03 nothing is ranked. At the default level the card is these three li
 > It reads this project's stack and commands, then writes the `conductor/` files after your ok.
 > More (the lanes, the other paths, the board and the add-ons): `/laneconductor:next explain`.
 
-The step is the table's default (S02: `setup`, or `new-project` for an empty folder). No why line, no primer, no paths, no board or add-ons note, no "Say go". Add a line only for something to act on: a stale project-level skill (see below) or a stale freshness line.
+The step is `setup`. In an empty or nearly empty folder (no code, no plan document; a README or licence alone does not count) it is a new project: line 1 is "**Next: start a new project.** `/laneconductor:new-project`" and line 2 "A short brainstorm about the idea, then the scaffold, first tracks and suggested skills." No why line, no primer, no paths, no board or add-ons note, no "Say go". Add a line only for something to act on (a stale project-level skill, see below, or a stale freshness line).
 
 ## The first-track card
 
-S04 at the default level, and the close of `setup`. Fill each line from this project; nothing is created before the person answers:
+S04 at the default level, and the close of `setup` and `new-project`. Nothing is created before the person answers. With a plan (below) the card leads with it:
 
-> **Next: your first track.**
-> 1. Choose a licence: the README says none is chosen
-> 2. Add CI that runs `npm test`: no CI files
-> 3. Audit: review the code for privacy, security and quality, and file each finding as its own track
+> **Next: your first track.** From your plan in `docs/plan.md`:
+> 1. A publish checklist
+> 2. An /openapi.json door
+> 3. A /prompt paste pack
+> 4. Plugin packaging
+> 2 more in `docs/plan.md`. Open question there: browse-only dry-run variants? (not filed)
+> 5. Choose a licence: the README says none is chosen
+> 6. Audit: review the code for privacy, security and quality, and file each finding as its own track
 > The project on a board: `/laneconductor:board` (the files setup wrote, later the tracks).
-> Reply with numbers, or tell me a title of your own.
+> Reply with numbers, "all 6 plan items", or tell me a title of your own.
 
-- **Suggestions**: at most four, one line each: the title, then the fact behind it in a few words. Use only facts you have read (setup's reading, or a read-only look at the README, `package.json`, `.gitignore`, the file layout, `git log`); claim no finding you did not check. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track.
+- **The plan** (read only, one look; setup's reading counts): `docs/plan.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`, `docs/roadmap*.md`, and README sections on the roadmap, next steps, status, todo or what is missing. Items, in the file's order and words, cut to one line: unticked checkboxes, else bullets or numbered lines, else `###` headings, of the sections on what is still to come; never a ticked, struck-through or "done" one. A decision or question still open (a heading with decision, open or question, or a line ending "?") is an open question, not an item.
+- **With a plan**: the lead names the file (an item from another file ends with its name); at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
+- **Without a plan**, only generic suggestions, at most four, one line each: the title, then the fact behind it in a few words. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track. The reply line has no "all".
+- **Never invent**: every line is text from a file (named) or a fact a command or a read checked.
 - **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you. Skip it when setup's starter set offered the board.
 
 ```bash
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
 
-- **The answer**: numbers or a title. For each, follow `new`: search first (a fitting track is offered an update), then create.
+- **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked.
+
+## What is still in the plan
+
+In S20, before the offer to create a track: look for the plan as above and drop the items that already have a track. Compare the plain text (lower case, no punctuation or numbers, words of four letters or more) of an item with each track's title and problem (`spec.md`, else the `index.md` summary): all the item's words in one track: it has a track, leave it out; at least half of them, or all of a title's words in the item: show it ending "(may already be a track)". Show the card led "**Next: what is still in your plan.**", with no generic suggestions and no audit. None left, or no plan: the S20 offer.
 
 ## Levels
 
@@ -175,24 +179,24 @@ There are three levels: `auto` (the default), `explain` and `short`.
 - `auto` is stateless: it behaves as `short` in S01 to S04 (the first card, with its pointer to `next explain`; in S04 the first-track card), as `explain` whenever the project is young, meaning fewer than three tracks are
   in review, quality-gate or done, and as `short` otherwise.
 
-`next explain` and `next short` (or the same words said aloud) set the level for that answer whatever the setting says. The saved level is read from `next.level` in the optional personal settings file `.laneconductor.json`; a missing file, an unreadable file or an unknown value means `auto`, with no message (one line when
+`next explain` and `next short` (or the same words said aloud) set the level for that answer whatever the setting says. The saved level is `next.level` in the optional personal settings file `.laneconductor.json`; a missing or unreadable file or an unknown value means `auto`, with no message (one line when
 the file is not valid JSON).
 
 If the person asks to keep a level ("always short", "keep explaining"), ask before writing. If `.laneconductor.json` does not
 exist, say you will create it holding only `next.level` and add the line `.laneconductor.json` to `.gitignore` (it is personal);
-do both only after a yes, and keep every other key of an existing file. On no, write nothing. Nothing else is ever stored.
+do both only after a yes, keeping every other key of an existing file. On no, write nothing. Nothing else is ever stored.
 
 ## The front door
 
 At the explain level in S02, S03 and S04 the card is followed, once per session, by the optional add-ons that fit this
-project and are not installed. Show them; never run an install. An add-on that is installed (the board has one more sentence, below), already offered in this session (by setup, for example) or declined is not offered. At the default level, and in later runs with tracks, add-ons are not offered on the card: they come up when the person asks for parallel work, a board or a worktree. Detect an installed add-on as the first-track card says (a chained command makes the client ask for permission); if you still cannot tell and the person says it is installed already, take their word.
+project and are not installed. Show them; never run an install. One that is installed, already offered in this session (by setup, for example) or declined is not offered. At the default level, and in later runs with tracks, add-ons are not offered on the card: they come up when the person asks for parallel work, a board or a worktree. Detect an installed add-on as the first-track card says; if you still cannot tell and the person says it is installed already, take their word.
 
-The board is the one add-on that is also named when it is installed. At the explain level in S02 and S03 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop: open the board, copy the step, run it here, refresh.
+The board is also named when it is installed. At the explain level in S02 and S03 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop: open the board, copy the step, run it here, refresh.
 
 Show each entry's commands alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs.
 
-- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor` It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
-- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
+- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor`
+- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor`
 
 When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing.
 
@@ -204,7 +208,7 @@ claude plugin marketplace add meller/laneconductor && claude plugin install lane
 
 ## A skill tip
 
-After a ranked card (not the first card), add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`, `~/.claude/skills/`; an older name counts). Say nothing when nothing is missing or the person declined it (the file `skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints), and never show a command here.
+After a ranked card (not the first card), add at most ONE line, once per session, when a skill that fits the step's lane and the track's `**Type**` is not installed: "Tip: `<skill>` (<one clause on why>) is not installed; `/laneconductor:suggest-skills` shows how." Look first (the skills list, `claude plugin list`, `.claude/skills/`). Say nothing when nothing is missing or the person declined it (the file `skill-advisor-declined.txt` in the directory `git rev-parse --git-common-dir` prints); never show a command here.
 
 **The current track** is, in this order: the track named in the prompt (a number or a title); the track a branch is named after (`git branch --show-current`, matched to its folder under `conductor/tracks/`); the track this session has running (`**Lane Status**: running`, and with the connector `**Run By**` names this client). With one in play, its lane, `**Type**` and stack apply; with none, no track is in play and skill offers go by the stack only (a KPI block belongs to a marketing or sales track, so there is none to write).
 
@@ -220,21 +224,18 @@ Skills that fit each step's lane:
 
 ## A stale project-level skill
 
-The plugin supplies the skill itself. A copy or a link at `.claude/skills/laneconductor` in the project is left over from an older
-install (often a link into the home directory, sometimes committed, so broken for clones) and is out of date.
-Look read only: Glob `.claude/skills/laneconductor`, `test -L .claude/skills/laneconductor` for a link, and
-`git ls-files .claude/skills/laneconductor` to see whether git tracks it.
+The plugin supplies the skill itself. A copy or link at `.claude/skills/laneconductor` is left over from an older install and is out of date.
+Look read only: Glob it, `test -L` for a link, `git ls-files` to see whether git tracks it.
 
-If it exists, say so in one sentence: "This project has its own copy of the LaneConductor skill (`.claude/skills/laneconductor`);
-the plugin already supplies it, so the copy is stale." Say it after the card (one extra line in later runs). Offer its removal and
-show the exact command alone in its own bash block; never run it. For a link that git does not track:
+If it exists, say after the card (one extra line in later runs): "This project has its own copy of the LaneConductor skill (`.claude/skills/laneconductor`);
+the plugin already supplies it, so the copy is stale." Offer its removal, the command alone in its own bash block; never run it. For a link that git does not track:
 
 ```bash
 rm .claude/skills/laneconductor
 ```
 
 For a folder that git does not track, `rm -r .claude/skills/laneconductor`. For one that git tracks, `git rm .claude/skills/laneconductor`
-(`git rm -r` for a folder); say that removing it then needs a commit, and ask before making one.
+(`git rm -r` for a folder); removing it then needs a commit: ask before making one.
 
 ## Rules
 
@@ -270,10 +271,7 @@ gate (the full suites, then the deploy) is `quality-gate:running`, not `implemen
 Only the quality gate moves a track to `done`. Nothing moves a track to `done:success` straight after implementing.
 
 The other two statuses in the done lane are work somebody still has to finish: `done:failure` is a merge that failed, `done:waiting` is a
-pull request that is open. Only `done:success` is quiet. With the connector, `list_tracks` hides only `done:success` unless
-`include_done` is set, and adds `merged` to a done track whose `track-NNN` branch exists (true when the state branch contains it; no field
-when there is no such branch, because the files cannot tell merged-and-deleted from never branched). The board lists `done:queue`,
-`done:failure` and `done:waiting` under Needs attention, each with its reason.
+pull request that is open. Only `done:success` is quiet: the connector's `list_tracks` hides only that (unless `include_done` is set) and the board lists the others under Needs attention, each with its reason.
 
 ### Transitions
 
@@ -289,22 +287,8 @@ Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. 
 | missing from the lane | the file's top-level `defaults.on_success` / `defaults.on_failure`, read the same way; no automatic move when the file has none (an explicit `null` never falls back) |
 | `stay` or `stop` | no automatic move. Older files carry these words; they are read, never written, so do not put them in a file |
 
-An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. These fields are leftovers of the older format and
+An unknown current lane is an error; do not guess. Names are compared ignoring case and spaces. Fields of the older format
 are ignored: `auto_action`, `parallel_limit`, `max_retries`, `global`, `primary_model`, `hooks`.
-
-Worked examples. This project's own file (current format):
-
-| Lane | on_success | on_failure |
-|------|-----------|-----------|
-| plan | `plan:success` (stays, parked) | `backlog:queue` |
-| implement | `review:queue` | `implement:failure` |
-| review | `quality-gate:queue` | `implement:queue` |
-| quality-gate | `done:queue` | `plan:queue` |
-| done | none | `done:failure` |
-
-An older file (the older format: bare targets, old lane names): `in-progress` with `"on_success": "review"` and `"on_failure": "in-progress"`
-resolves to `review:queue` on success and `in-progress:failure` on failure (the failure target names the same lane); `planning` with
-`"on_success": "backlog"` resolves to `backlog:queue`; `done` and `backlog` with `null` targets have no automatic move.
 
 In Claude Code, type it as `/laneconductor:next`; the commands in the card are written in that form.
 

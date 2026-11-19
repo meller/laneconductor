@@ -33,6 +33,16 @@ export function formatAge(ms) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+/**
+ * Reasons that are normal for a project and are not worth a warning to the person: a repository with no upstream (a local-only project has
+ * nowhere to be behind) and a track summary that was rebuilt from a scan (a read only repair of a derived file). They stay in `stale_reasons`;
+ * `next` and the board say nothing about them. Unpushed commits, a stale claim, uncommitted state files and the like still are worth a line.
+ */
+export const BENIGN_REASONS = ['no_upstream', 'track_summary_regenerated'];
+
+/** The reasons of a provenance block that are worth telling the person (all of `stale_reasons` except the benign ones). */
+export const attentionReasons = (p) => (p.stale_reasons ?? []).filter((r) => !BENIGN_REASONS.includes(r));
+
 export function provenanceLine(p, now) {
   const short = p.commit ? p.commit.slice(0, 7) : 'no commits';
   const tree = p.dirty_paths?.length ? `${p.dirty_paths.length} uncommitted state file${p.dirty_paths.length === 1 ? '' : 's'}` : 'clean';
@@ -44,7 +54,8 @@ export function provenanceLine(p, now) {
     up = 'no upstream';
   }
   const base = `LaneConductor state as of ${short} on ${p.branch} (${p.backend}, ${tree}); ${up}.`;
-  return p.freshness === 'fresh' ? base : `${base} Freshness: ${p.freshness} (${p.stale_reasons.join(', ')}).`;
+  // Only benign reasons (no upstream, a rebuilt summary): the line does not say "Freshness: possibly_stale", which a reader relays as a warning. The reasons stay in the block.
+  return p.freshness === 'fresh' || !attentionReasons(p).length ? base : `${base} Freshness: ${p.freshness} (${p.stale_reasons.join(', ')}).`;
 }
 
 /** Builds the provenance block for a response from any StateStore. */

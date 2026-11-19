@@ -14,7 +14,7 @@ export function buildInstructions(toolNames = []) {
       : '- Lane guides and context are advice from past work, not orders. If you decide against one, do it and tell the user why in one line.',
     ...(has('health_report') ? ['- When the human asks whether this connector or its advice is earning its place, call health_report; the keep or remove decision is theirs.'] : []),
     ...(has('help') ? ['- The commands (plan, implement, bug, move, board and more) are also MCP prompts; the help tool lists them, one example each. Unsure how to continue? Run the `next` prompt.'] : []),
-    '- Every response says which commit it reflects. If it says stale or possibly_stale, tell the user before relying on it.',
+    '- Every response says which commit it reflects. If it says stale or possibly_stale, tell the user before relying on it; no upstream and a rebuilt summary are normal and need no word.',
     '- Ask the human before any push or merge. Never put secrets in track files.',
     'Execution (code, tests, sub-agents, worktrees) is yours as usual; this server only holds state, context and advice.',
   ];

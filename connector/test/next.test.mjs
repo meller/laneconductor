@@ -263,7 +263,8 @@ const BAD_BASE = /make install|laneconductorrc|\bworkers?\b|collection|daemon/i;
 function textRuleHits(text, { allowBacklog = false } = {}) {
   const hits = [];
   text.split('\n').forEach((line, i) => {
-    const l = allowBacklog ? line.replace(/`?backlog`?|S19/g, '') : line;
+    // The plan documents the card looks for (ROADMAP.md, docs/roadmap*.md, a roadmap section) are file names to read, not a promise of unshipped work.
+    const l = (allowBacklog ? line.replace(/`?backlog`?|S19/g, '') : line).replace(/`?ROADMAP\.md`?|`?docs\/roadmap\*\.md`?|sections on the roadmap/g, '');
     if (BAD_BASE.test(l)) hits.push(`${i + 1}: forbidden word: ${line.trim().slice(0, 80)}`);
     if (/\blegacy\b/i.test(l)) hits.push(`${i + 1}: legacy: ${line.trim().slice(0, 80)}`);
     if (/\b10\d\d\d\b/.test(l)) hits.push(`${i + 1}: track number: ${line.trim().slice(0, 80)}`);

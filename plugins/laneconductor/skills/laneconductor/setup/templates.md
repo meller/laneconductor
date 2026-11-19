@@ -50,10 +50,8 @@ Tracks with `**Maps To**` referencing a metric above will appear here automatica
 **`conductor/quality-gate.md` template.** Replace every `<...>` with a real
 command discovered in the scan; **delete any line whose command this project
 doesn't actually have** rather than leaving an aspirational one. Note the
-boxes are left **unchecked** and there is **no pre-filled verdict** — this
-file is a checklist to run, not a report. (An earlier version of this
-template shipped every box pre-ticked with `Status: PASS` already filled in,
-which invited agents to rubber-stamp it; that is why this warning exists.)
+boxes are left **unchecked** and there is **no pre-filled verdict**: this
+file is a checklist to run, not a report (a pre-ticked one invites rubber-stamping).
 ```markdown
 # Quality Gate
 
@@ -75,10 +73,9 @@ which invited agents to rubber-stamp it; that is why this warning exists.)
 
 ## Test Layers (which tests for which change)
 
-> Guidance for developing, not for the gate. Run the layer a change needs,
-> not everything after every step; the full layer runs ONCE before the track
-> is done (this is what the lane executes). Fill the commands and the table
-> from what the project really has; delete rows it does not need.
+> Guidance for developing, not for the gate. Run the layer a change needs;
+> the full layer runs ONCE before the track is done (this is what the lane
+> executes). Fill the commands from what the project really has; delete rows it does not need.
 
 | Layer | Command | Cost |
 |-------|---------|------|
@@ -96,15 +93,14 @@ which invited agents to rubber-stamp it; that is why this warning exists.)
 | A shared rule (used by many places, or with a second copy elsewhere) | area + the copy-parity tests + the simulator or property tests |
 | Server / schema | the server area tests; for a schema change the migration check |
 
-Rules: the full layer runs once before done (not after every step, not twice:
-a test that passes only on a second run is a bug to fix); a new rule gets a
-failing test first; record which commands ran and their counts in the track's
-`conversation.md`; fix a flaky test by waiting for the real condition, never
-with a longer fixed delay or a skip.
+Rules: the full layer runs once before done (a test that passes only on a
+second run is a bug to fix); a new rule gets a failing test first; record which
+commands ran, with counts, in the track's `conversation.md`; fix a flaky test by
+waiting for the real condition, never with a longer delay or a skip.
 
 ## End-to-End / Real-Product Checks
 
-> Required for any track touching UI or a user-facing flow. Unit tests
+> Required for any track touching UI or a user-facing flow: unit tests
 > cannot detect a feature that was never wired up.
 
 - [ ] E2E suite: `<e.g. npx playwright test>` (Expected: all specs pass —
@@ -188,9 +184,7 @@ Edit it directly or via `/laneconductor workflow set`.
 See `conductor/workflow.json` for lane transitions, parallel limits, and model overrides.
 ```
 
-**`conductor/workflow.json` default** (create it during scaffold from this text; there is no canonical
-repository to copy from when only the plugin is installed, and none is needed). No model names are set:
-the project picks its own.
+**`conductor/workflow.json` default** (create it during scaffold from this text; no repository to copy from is needed). No model names are set.
 ```json
 {
   "global": { "total_parallel_limit": 3 },
@@ -205,11 +199,11 @@ the project picks its own.
 }
 ```
 
-**Optional `skills` object in `conductor/workflow.json`** (not part of the default above, which stays as it is). It
-names your own skills per lane; the lane guides tell Claude to read it and use the listed skills in addition to the
+**Optional `skills` object in `conductor/workflow.json`** (not part of the default above). It
+names your own skills per lane; the lane guides read it and use the listed skills in addition to the
 ones they suggest. Keys are lane guide names (`plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`),
 values are lists of skill names. A skill that is not installed is mentioned and skipped; nothing here is an order.
-Leave the key out and nothing changes; every reader of `workflow.json` ignores keys it does not know.
+Leave the key out and nothing changes.
 ```json
 { "skills": { "implement": ["my-firebase-deploy"], "review": ["my-review-checklist"] } }
 ```

@@ -379,3 +379,63 @@ export function nextCard(result, facts) {
     primer: PRIMER.map((p) => clip(p, CARD_MAX.text)),
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// The project's own plan (track AM-10144, Phase 11): the first-track card and the S20 card lead with the items of the plan documents.
+// The procedure an agent follows is "The first-track card" and "What is still in the plan" of ops/next.md; these two pure functions are
+// that reading and that comparison, so the rules are testable. Nothing is invented: every item is a line of the text it came from.
+// ---------------------------------------------------------------------------------------------------------------------------
+
+/** The plan documents, in the order they are looked for (docs/roadmap*.md and README sections on the roadmap, next steps, status, todo or what is missing follow). */
+export const PLAN_FILES = ['docs/plan.md', 'PLAN.md', 'ROADMAP.md', 'TODO.md'];
+const DONE_HEADING = /\b(done|shipped|completed|released|finished|history|changelog)\b/i;
+const QUESTION_HEADING = /\b(decisions?|open|questions?|unresolved)\b/i;
+const oneLine = (s) => clip(s.replace(/\*\*|__|`/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim(), 100);
+
+/**
+ * The items and the open questions of one plan document. Items, in the file's own order: the unticked checkboxes, else the bullet or numbered lines,
+ * else the `###` headings, of the sections that are not about what is done. A decision or question still open (under a heading with "decision",
+ * "open", "question" or "unresolved", or a line ending in "?") is a question, never an item. A ticked, struck-through or "done" line is skipped.
+ * @returns {{ items: string[], questions: string[] }}
+ */
+export function planItems(text) {
+  const boxes = []; const bullets = []; const heads = []; const questions = [];
+  let skip = false; let ask = false;
+  for (const raw of String(text ?? '').split(/\r?\n/)) {
+    const h = /^(#{1,6})\s+(.*\S)\s*$/.exec(raw);
+    if (h) {
+      const heading = h[2];
+      skip = DONE_HEADING.test(heading); ask = QUESTION_HEADING.test(heading);
+      if (h[1].length === 3 && !skip && !ask) (/\?\s*$/.test(heading) ? questions : heads).push(oneLine(heading));
+      continue;
+    }
+    const m = /^\s*(?:[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?(.*\S)\s*$/.exec(raw);
+    if (!m || skip) continue;
+    const body = m[2];
+    if (m[1] && /x/i.test(m[1])) continue;
+    if (/^~~.*~~$/.test(body) || /\b(done|shipped)\b\s*[.)]?$/i.test(body)) continue;
+    if (ask || /\?\s*$/.test(body)) { questions.push(oneLine(body)); continue; }
+    (m[1] ? boxes : bullets).push(oneLine(body));
+  }
+  return { items: boxes.length ? boxes : bullets.length ? bullets : heads, questions };
+}
+
+const wordsOf = (s) => new Set(String(s ?? '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter((w) => w.length >= 4));
+/**
+ * Whether a plan item already has a track, compared conservatively on plain text (lower case, no punctuation or digits, words of four letters or more):
+ * `has` when all the item's words are in one track's title and problem; `maybe` ("may already be a track") when at least half of the item's words are
+ * in one, or all of a track title's words are in the item; else `none`. `tracks` are `{ title, problem }`.
+ */
+export function planCoverage(item, tracks) {
+  const words = wordsOf(item);
+  if (!words.size) return 'none';
+  let best = 'none';
+  for (const t of tracks) {
+    const title = wordsOf(t.title);
+    const all = new Set([...title, ...wordsOf(t.problem)]);
+    const inAll = [...words].filter((w) => all.has(w)).length;
+    if (inAll === words.size) return 'has';
+    if (inAll * 2 >= words.size || (title.size && [...title].every((w) => words.has(w)))) best = 'maybe';
+  }
+  return best;
+}
