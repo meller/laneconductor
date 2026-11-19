@@ -1,5 +1,5 @@
 ---
-name: capture-solved-problem
+name: problem-to-skill
 description: "Use when a verified solution to a hard problem should become one of these skills, when the user says save this as a skill, capture this, remember this convention or add this to my homebrew skills, or when a skill in the library is wrong, stale or unused and should be rewritten or retired."
 when_to_use: "The problem was just solved and verified, a future project would hit it again, and it is a convention of the owner or a pitfall that cost real time."
 metadata:
