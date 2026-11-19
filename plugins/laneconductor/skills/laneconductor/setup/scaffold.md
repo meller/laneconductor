@@ -11,68 +11,28 @@ the files: no interview about the project beyond what the files below need. Plai
 
 ## setup scaffold generate
 
-The no-questions variant: another tool already scanned the project, talked with the person and got confirmation. Read
-`conductor/.setup-scaffold-context.json`:
-```json
-{
-  "project": { "name": "...", "git_remote": "...", "has_existing_code": true },
-  "scan": ["package.json: ...", "README: ...", "Framework signals: next.config.js"],
-  "brainstorm_summary": "user: ...\nassistant: ..."
-}
-```
-If `brainstorm_summary` is present it is the agreed understanding of the project and wins over the
-scan snippets, which are supplementary.
+The no-questions variant: another tool already scanned the project and got the person's confirmation. Read
+`conductor/.setup-scaffold-context.json` (`project` with `name`, `git_remote`, `has_existing_code`; `scan`, a list of snippets;
+`brainstorm_summary`). The summary, when present, is the agreed understanding and wins over the scan snippets.
 
-Generate these files, creating `conductor/` directories as needed (templates are in
-`templates.md`):
-
-- `conductor/product.md`: what the product does, who uses it, key features, the problem it solves
-- `conductor/tech-stack.md`: languages, frameworks, data stores, infrastructure, key libraries
-- `conductor/workflow.md`: commit strategy, branching, testing approach, review process
-- `conductor/workflow.json`: the default lanes in `templates.md`
-- `conductor/product-guidelines.md`: brand, style and UX principles (placeholders if unknown)
-- `conductor/design-language.md`: design tokens (infer from Tailwind/CSS-variable config, a
-  component-library theme or token files; placeholders if unknown)
-- `conductor/kpis.md`: north-star metrics, from `brainstorm_summary` if it states goals
-- `conductor/user-stories.md`: personas and journeys; a TODO stub if the summary has no journey
-  language (do not invent personas that were not discussed)
-- `conductor/quality-gate.md`: the project's own verification commands. Derive every command
-  from what the scan found (`package.json` scripts, test runner, lint config, e2e framework). A
-  gate naming commands the project does not have is worse than none: it gets skipped or faked.
-- `conductor/tracks/`, and `conductor/code_styleguides/` when the project has lint or format config to describe
+Create the files of "Create the files" (the project steps: the file list, the `.gitignore` lines, what is never created), tailored from the context, with templates from `templates.md` and these notes: `product.md` says what the product does, who uses it, the key features and the problem it solves; `tech-stack.md` the languages, frameworks, data stores, infrastructure and key libraries; `workflow.md` the commit strategy, branching, testing approach and review process; `product-guidelines.md` the brand, style and UX principles; `design-language.md` the design tokens (infer them from Tailwind/CSS-variable config, a component-library theme or token files); `kpis.md` the north-star metrics, from `brainstorm_summary` if it states goals; `user-stories.md` the personas and journeys, a TODO stub if the summary has no journey language (invent no personas); `quality-gate.md` the project's own verification commands, each derived from what the scan found (`package.json` scripts, test runner, lint config, e2e framework): a gate naming commands the project does not have is worse than none, it gets skipped or faked; `code_styleguides/` only when the project has lint or format config to describe. Unknown stays a placeholder.
 
 ## setup scaffold (interactive)
 
 Ask first: "Does this project have existing code? (yes/no)".
 
-**Existing code.** Read `package.json`, `README.md`, the source directories, CI and lint config,
-and infer: `product.md` (README, app name, entry points, routes), `tech-stack.md` (dependencies,
-framework patterns), `workflow.md` (`.git` log patterns, CI files, test setup),
-`code_styleguides/` (`.eslintrc`, `.prettierrc`, `tsconfig.json` when present), and the design
-language and `product-guidelines.md` stubs as above. Write `user-stories.md`
-content only if concrete journeys surface in the README or scan. Then ask one KPI question: "What
-does success look like? What are your 2-3 north-star metrics and rough targets?" and use the
-answer for `kpis.md` (stub rows from the README if skipped). Show what you inferred and ask only to confirm it.
+**Existing code.** Read `package.json`, `README.md`, the source directories, CI and lint config, and infer: `product.md`
+(README, app name, entry points, routes), `tech-stack.md` (dependencies, framework patterns), `workflow.md` (the commit log, CI
+files, test setup), `code_styleguides/` (`.eslintrc`, `.prettierrc`, `tsconfig.json` when present), and the design language and
+`product-guidelines.md` stubs as above. Write `user-stories.md` only if concrete journeys surface in the README or scan. Then ask
+one KPI question: "What does success look like? What are your 2-3 north-star metrics and rough targets?" and use the answer for
+`kpis.md` (stub rows from the README if skipped). Show what you inferred and ask only to confirm it.
 
-**New project.** Ask a short questionnaire: what it does and for whom; language, framework and
-data; TDD, commit strategy and branching; brand or style standards; the same KPI question
-(for example "500 signups by Q2", "HN front page"); and optionally any key user journeys. Generate
-all the files above from the answers.
+**New project.** Ask a short questionnaire: what it does and for whom; language, framework and data; TDD, commit strategy and
+branching; brand or style standards; the same KPI question (for example "500 signups by Q2"); and optionally key user journeys.
+Generate the files from the answers.
 
-Both create `conductor/{tracks/, product.md, product-guidelines.md, design-language.md, tech-stack.md, user-stories.md,
-workflow.md, kpis.md, quality-gate.md}` and `conductor/workflow.json` (the default in `templates.md`). Also:
-
-- **`.gitignore`**: append whichever of these lines are missing (create the file if it does not exist):
-  ```
-  conductor/tracks/**/conversation.md
-  conductor/tracks/**/conversation.json
-  .worktrees/
-  ```
-  `conversation.md` and `.json` hold comment threads that are per machine and noisy to review; `.worktrees/` holds git worktree
-  checkouts, which must never be tracked in the main tree (without this rule they end up committed as submodule-style gitlinks).
-  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking. The same holds for
-  `history.md`, the run log of a track: it is tracked, so it is never ignored. Every track the scaffold creates gets an empty
-  `history.md` (one header line, `# History: Track INITIALS-NNN`) beside its other files.
+Both create the files of "Create the files" (the `workflow.json` default is in `templates.md`). Never ignore `conductor/tracks/**/index.md` or `history.md` (the run log of a track): both are tracked. Every track the scaffold creates gets an empty `history.md` (one header line, `# History: Track INITIALS-NNN`).
 
 ## Older tracks
 
@@ -99,14 +59,6 @@ for each such folder:
 5. Leave the original `README.md` where it is.
 6. Print `✅ Imported N tracks -> conductor/tracks/NNN-*/`.
 
-## Check the basics
+## Close
 
-After scaffolding, check that git is present (`git rev-parse --is-inside-work-tree`, note `main` vs `master`) and that the test
-and lint commands in `conductor/quality-gate.md` really run. Report each problem as `⚠️ <description>` and offer to make a track for
-the fixes; create it only on a yes.
-
-## Offer the board
-
-At the end of scaffolding, ask once: "Create a private board for this project (every track by lane,
-refreshed when you ask)?" On yes, follow [../ops/board.md](../ops/board.md) from "No URL: create".
-On no, do nothing; the human can ask for it later ("show the board"). Never create it unasked.
+End as `setup` does: about three lines on what you created, then the first-track card of `ops/next.md` (the board line is in it) and no other question. A problem you saw in the basics (a repository missing, a test or lint command that does not run) is a suggestion in that card.

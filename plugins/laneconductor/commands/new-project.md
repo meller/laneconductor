@@ -4,27 +4,22 @@ argument-hint: "[name or idea]"
 ---
 New project: `$ARGUMENTS` (nothing given means ask me). This runs only because I named it.
 
-This command carries its whole procedure below: it is the text of the skill file `ops/new-project.md`, in full. Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the text are references only.
+This command carries its whole procedure below: it is the text of the skill file `ops/new-project.md`, in full, with the first-track card of `ops/next.md`. Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: it is outside the project, and a read there is asked about or denied. Skill file paths in the text are references only.
 
 Start a project from a short conversation: interview, scaffold, first tracks. Run it only when the person asks for it by
-name. Nothing is committed without their yes, and nothing is ever pushed. It needs no installer and no database.
+name. Nothing is committed without their yes, and nothing is ever pushed.
 
 Do the scaffold by hand, as step 3 describes: the result is the same as the add-on's scaffold script gives. Do not search for that script (it lives in
 the add-on's install folder, outside the project) and do not recommend the add-on for this.
-
-If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
-choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
-permanent setting for every project and are not needed. Never ask anyone to change their permission settings for LaneConductor.
 
 ## 1. Detect the situation
 
 - Empty or new folder: a new project. Ask for a name if the argument gave none.
 - An existing repository (a `.git`, or files other than `conductor/`): offer only the `conductor/` scaffold (`/laneconductor:setup`
-  takes this path). Read what is there first ("Existing repository" below) and ask less. Never overwrite an existing file; the
-  scaffold skips what exists.
+  takes this path). Read what is there first ("Existing repository" below) and ask less. Never overwrite a file.
 - `conductor/tracks` already holds tracks (an older LaneConductor, or another tool): say what you found (how many, in which
-  naming form, which lanes) and import nothing. Offer only the missing `conductor/` context files and leave every track as it is;
-  importing older tracks is a separate yes (`setup/scaffold.md`, "Older tracks"). `new` creates tracks.
+  naming form, which lanes), import nothing, offer only the missing `conductor/` context files and leave every track as it is;
+  importing them is a separate yes (`setup/scaffold.md`, "Older tracks"). `new` creates tracks.
 
 ### Existing repository
 
@@ -33,7 +28,6 @@ Keep the interview short. Instead of the nine questions of step 2, read the proj
 - The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config
   files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder
   `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
-- Read the files yourself; do not look for a script to do it.
 
 Show the result as ONE message in this form, at most twelve lines, everything filled in (for a public-looking repository):
 
@@ -44,14 +38,14 @@ Show the result as ONE message in this form, at most twelve lines, everything fi
 > Tracks: committed with the code, or private (out of git, not shared)? I recommend private: the README says this is a public demo.
 > Reply ok, or tell me what differs.
 
-One line each; only the commands that exist. Recommend private for a repository that looks public (a README that says public demo, no licence yet), committed otherwise. Add a line only for something unusual or that needs a decision (an existing `conductor/` folder, a stale project-level skill, a conflict). Say nothing about what does not exist or does not apply: no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts (a count you do state comes from a command run for that purpose, `git rev-list --count HEAD`, never from a truncated listing). Write nothing until that reply; it is the yes.
+Recommend private for a repository that looks public (a README that says public demo, no licence yet), committed otherwise. Add a line only for something unusual or that needs a decision (an existing `conductor/` folder, a stale project-level skill, a conflict). Say nothing about what does not exist or does not apply: no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts (a count you do state comes from a command run for that purpose, `git rev-list --count HEAD`, never from a truncated listing). Write nothing until that reply; it is the yes.
 Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.
 
 ## 2. Interview
 
-Follow the style of `lanes/brainstorm.md`: ONE question per message, adaptive, short, in chat
-(not through `conversation.md`; there is no track yet). Offer a likely default with each question so a one-word answer
-is enough. Cover, in this order, and skip what the person already told you or the repository shows:
+Follow the style of `lanes/brainstorm.md`: ONE question per message, adaptive, short, in chat (there
+is no track yet, so no `conversation.md`). Offer a likely default with each question so a one-word answer is enough. Cover, in
+this order, and skip what the person told you or the repository shows:
 
 1. What is it for, and who uses it
 2. The three key features
@@ -63,8 +57,8 @@ is enough. Cover, in this order, and skip what the person already told you or th
 8. Testing (which commands really exist, or will exist in the walking skeleton)
 9. Constraints (budget, deadline, compliance, things to avoid)
 
-Stop early when the answers are enough to scaffold; say "That is enough to start" and move on. Ask for 2 to 4 letter
-initials for track ids last, only if the folder has none to reuse. Record the answers as you go: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
+Stop early when the answers are enough to scaffold; say "That is enough to start". Ask for 2 to 4 letter initials for track
+ids last, only if the folder has none to reuse. Record the answers as you go: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
 testing, other), `constraints`, `commands` (typecheck, lint, test, build, coverage, audit, e2e: ONLY commands that
 exist), `kpis`, `journeys`, `initials`.
 
@@ -80,8 +74,7 @@ in "Reference: scaffold" at the end of this command (from the skill files `setup
 - Every file is tailored from the answers; what was not discussed is an honest placeholder, never an invented value.
 - `quality-gate.md` names only commands that really exist in the chosen stack, with unchecked boxes and no verdict.
 - `.gitignore` gets `conductor/tracks/**/conversation.md`, `conductor/tracks/**/conversation.json` and `.worktrees/`.
-- `git init` only when the folder is not a repository. Do not create skill symlinks, `.claude/MEMORY.md` or a deploy
-  stub, and do not touch a database.
+- `git init` only when the folder is not a repository. No skill symlinks, `.claude/MEMORY.md`, deploy stub or database.
 
 ## 4. First tracks
 
@@ -92,15 +85,15 @@ When the add-on's connector tools are present and the project already has its `c
 
 ## 5. Say what else fits this project
 
-After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say for each, in one short paragraph, why it fits.
+After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say in a sentence why each fits.
 Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
 nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
 If the person says later, record nothing: each item is offered again at its own moment, as `/laneconductor:suggest-skills` describes.
 
-How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run). Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you still cannot tell and the person says it is installed, take their word.
+How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes. Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you cannot tell, take the person's word.
 
 - `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor` It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
-- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and finding its files means searching the plugin install folder, which is outside the project and not read here: offer it as an option, once, and say it can be ignored if it is already installed. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
+- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
 - `frontend-design` (prerequisite; stack ui): skills frontend-design. Markdown only. `claude plugin install frontend-design@claude-plugins-official` It fits when the project has a front end (React, Vue, Vite, HTML pages) or tracks that plan screens.
 - `marketing-skills` (prerequisite; Type marketing/sales): skills content-strategy, launch (was launch-strategy), copywriting, social (was social-content), sales-enablement, cold-email, prospecting, revops, analytics (was analytics-tracking), ab-testing (was ab-test-setup). Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills` It fits when the project's tracks are marketing or sales work (copy, launch, outreach), or it is a product that needs a website and a launch.
 - `superpowers`: skills brainstorming, writing-plans, test-driven-development, systematic-debugging, subagent-driven-development, using-git-worktrees, requesting-code-review, receiving-code-review, verification-before-completion, finishing-a-development-branch. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official` It fits when the project writes code: it adds the brainstorm, plan, test-first, debugging and review skills the lanes use.
@@ -108,7 +101,7 @@ How to offer: show an entry's install commands, each alone in its own bash block
 - `firebase` (stack firebase): Firebase tools: Firestore, auth, functions, hosting, and hosting deploys. Installs an MCP server (firebase-tools, via npx) that can change your Firebase project. `claude plugin install firebase@claude-plugins-official` It fits when the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack.
 - `cloudflare` (stack cloudflare): skills cloudflare. Installs a connection to Cloudflare's hosted MCP server, plus skills. `claude plugin marketplace add cloudflare/skills`, `claude plugin install cloudflare@cloudflare` It fits when the project has `wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare in its tech stack.
 
-When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing. You only show it, never run an install command yourself, and install nothing unless the person says yes. It is for use inside this session, where the base is already installed.
+When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing.
 
 Both add-ons in one line:
 
@@ -116,11 +109,13 @@ Both add-ons in one line:
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
 
-## 6. Summarize and ask before any commit
+## 6. Summarize and close
 
-Print what was created (counts and folders, the track numbers and titles), what the person has to do themselves (listed,
-never done by you), and the line "Next: run `/laneconductor:next`" (it names the one next step; do not name the step yourself). Ask: "Commit this
-scaffold?". On yes, `git add` the created paths by name (never `git add -A`) and make one commit
+Print what was created (counts and folders, the track numbers and titles) and what the person has to do themselves (listed,
+never done by you). Then name the next step, with no "Next: run `/laneconductor:next`" line: for an existing repository, which has no
+track yet, the first-track card (at the end of this command); for a new
+project, planning its walking skeleton (`/laneconductor:plan` with its number). End with the line
+"Say commit when you want the conductor files committed." and no other question. On "commit", `git add` the created paths by name (never `git add -A`) and make one commit
 `chore: add the LaneConductor scaffold`. Do not push, and do not offer to; if they ask, say what would be pushed and
 ask again.
 
@@ -128,6 +123,26 @@ ask again.
 
 - Never request, read or handle a credential, token or key. Sign-in and secrets are the person's steps.
 - One question at a time; never ask what the repository already answers.
+
+## The first-track card
+
+S04 at the default level, and the close of `setup`. Fill each line from this project; nothing is created before the person answers:
+
+> **Next: your first track.**
+> 1. Choose a licence: the README says none is chosen
+> 2. Add CI that runs `npm test`: no CI files
+> 3. Audit: review the code for privacy, security and quality, and file each finding as its own track
+> The project on a board: `/laneconductor:board` (the files setup wrote, later the tracks).
+> Reply with numbers, or tell me a title of your own.
+
+- **Suggestions**: at most four, one line each: the title, then the fact behind it in a few words. Use only facts you have read (setup's reading, or a read-only look at the README, `package.json`, `.gitignore`, the file layout, `git log`); claim no finding you did not check. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track.
+- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you. Skip it when setup's starter set offered the board.
+
+```bash
+claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
+```
+
+- **The answer**: numbers or a title. For each, follow `new`: search first (a fitting track is offered an update), then create.
 
 If the laneconductor-parallel add-on's tools are present (`mcp__plugin_laneconductor-parallel_lc__create_track`), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass `update_track` the `base` from `get_track` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.
 
@@ -148,68 +163,28 @@ the files: no interview about the project beyond what the files below need. Plai
 
 #### setup scaffold generate
 
-The no-questions variant: another tool already scanned the project, talked with the person and got confirmation. Read
-`conductor/.setup-scaffold-context.json`:
-```json
-{
-  "project": { "name": "...", "git_remote": "...", "has_existing_code": true },
-  "scan": ["package.json: ...", "README: ...", "Framework signals: next.config.js"],
-  "brainstorm_summary": "user: ...\nassistant: ..."
-}
-```
-If `brainstorm_summary` is present it is the agreed understanding of the project and wins over the
-scan snippets, which are supplementary.
+The no-questions variant: another tool already scanned the project and got the person's confirmation. Read
+`conductor/.setup-scaffold-context.json` (`project` with `name`, `git_remote`, `has_existing_code`; `scan`, a list of snippets;
+`brainstorm_summary`). The summary, when present, is the agreed understanding and wins over the scan snippets.
 
-Generate these files, creating `conductor/` directories as needed (templates are in
-`templates.md`):
-
-- `conductor/product.md`: what the product does, who uses it, key features, the problem it solves
-- `conductor/tech-stack.md`: languages, frameworks, data stores, infrastructure, key libraries
-- `conductor/workflow.md`: commit strategy, branching, testing approach, review process
-- `conductor/workflow.json`: the default lanes in `templates.md`
-- `conductor/product-guidelines.md`: brand, style and UX principles (placeholders if unknown)
-- `conductor/design-language.md`: design tokens (infer from Tailwind/CSS-variable config, a
-  component-library theme or token files; placeholders if unknown)
-- `conductor/kpis.md`: north-star metrics, from `brainstorm_summary` if it states goals
-- `conductor/user-stories.md`: personas and journeys; a TODO stub if the summary has no journey
-  language (do not invent personas that were not discussed)
-- `conductor/quality-gate.md`: the project's own verification commands. Derive every command
-  from what the scan found (`package.json` scripts, test runner, lint config, e2e framework). A
-  gate naming commands the project does not have is worse than none: it gets skipped or faked.
-- `conductor/tracks/`, and `conductor/code_styleguides/` when the project has lint or format config to describe
+Create the files of "Create the files" (the project steps: the file list, the `.gitignore` lines, what is never created), tailored from the context, with templates from `templates.md` and these notes: `product.md` says what the product does, who uses it, the key features and the problem it solves; `tech-stack.md` the languages, frameworks, data stores, infrastructure and key libraries; `workflow.md` the commit strategy, branching, testing approach and review process; `product-guidelines.md` the brand, style and UX principles; `design-language.md` the design tokens (infer them from Tailwind/CSS-variable config, a component-library theme or token files); `kpis.md` the north-star metrics, from `brainstorm_summary` if it states goals; `user-stories.md` the personas and journeys, a TODO stub if the summary has no journey language (invent no personas); `quality-gate.md` the project's own verification commands, each derived from what the scan found (`package.json` scripts, test runner, lint config, e2e framework): a gate naming commands the project does not have is worse than none, it gets skipped or faked; `code_styleguides/` only when the project has lint or format config to describe. Unknown stays a placeholder.
 
 #### setup scaffold (interactive)
 
 Ask first: "Does this project have existing code? (yes/no)".
 
-**Existing code.** Read `package.json`, `README.md`, the source directories, CI and lint config,
-and infer: `product.md` (README, app name, entry points, routes), `tech-stack.md` (dependencies,
-framework patterns), `workflow.md` (`.git` log patterns, CI files, test setup),
-`code_styleguides/` (`.eslintrc`, `.prettierrc`, `tsconfig.json` when present), and the design
-language and `product-guidelines.md` stubs as above. Write `user-stories.md`
-content only if concrete journeys surface in the README or scan. Then ask one KPI question: "What
-does success look like? What are your 2-3 north-star metrics and rough targets?" and use the
-answer for `kpis.md` (stub rows from the README if skipped). Show what you inferred and ask only to confirm it.
+**Existing code.** Read `package.json`, `README.md`, the source directories, CI and lint config, and infer: `product.md`
+(README, app name, entry points, routes), `tech-stack.md` (dependencies, framework patterns), `workflow.md` (the commit log, CI
+files, test setup), `code_styleguides/` (`.eslintrc`, `.prettierrc`, `tsconfig.json` when present), and the design language and
+`product-guidelines.md` stubs as above. Write `user-stories.md` only if concrete journeys surface in the README or scan. Then ask
+one KPI question: "What does success look like? What are your 2-3 north-star metrics and rough targets?" and use the answer for
+`kpis.md` (stub rows from the README if skipped). Show what you inferred and ask only to confirm it.
 
-**New project.** Ask a short questionnaire: what it does and for whom; language, framework and
-data; TDD, commit strategy and branching; brand or style standards; the same KPI question
-(for example "500 signups by Q2", "HN front page"); and optionally any key user journeys. Generate
-all the files above from the answers.
+**New project.** Ask a short questionnaire: what it does and for whom; language, framework and data; TDD, commit strategy and
+branching; brand or style standards; the same KPI question (for example "500 signups by Q2"); and optionally key user journeys.
+Generate the files from the answers.
 
-Both create `conductor/{tracks/, product.md, product-guidelines.md, design-language.md, tech-stack.md, user-stories.md,
-workflow.md, kpis.md, quality-gate.md}` and `conductor/workflow.json` (the default in `templates.md`). Also:
-
-- **`.gitignore`**: append whichever of these lines are missing (create the file if it does not exist):
-  ```
-  conductor/tracks/**/conversation.md
-  conductor/tracks/**/conversation.json
-  .worktrees/
-  ```
-  `conversation.md` and `.json` hold comment threads that are per machine and noisy to review; `.worktrees/` holds git worktree
-  checkouts, which must never be tracked in the main tree (without this rule they end up committed as submodule-style gitlinks).
-  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking. The same holds for
-  `history.md`, the run log of a track: it is tracked, so it is never ignored. Every track the scaffold creates gets an empty
-  `history.md` (one header line, `# History: Track INITIALS-NNN`) beside its other files.
+Both create the files of "Create the files" (the `workflow.json` default is in `templates.md`). Never ignore `conductor/tracks/**/index.md` or `history.md` (the run log of a track): both are tracked. Every track the scaffold creates gets an empty `history.md` (one header line, `# History: Track INITIALS-NNN`).
 
 #### Older tracks
 
@@ -236,17 +211,9 @@ for each such folder:
 5. Leave the original `README.md` where it is.
 6. Print `✅ Imported N tracks -> conductor/tracks/NNN-*/`.
 
-#### Check the basics
+#### Close
 
-After scaffolding, check that git is present (`git rev-parse --is-inside-work-tree`, note `main` vs `master`) and that the test
-and lint commands in `conductor/quality-gate.md` really run. Report each problem as `⚠️ <description>` and offer to make a track for
-the fixes; create it only on a yes.
-
-#### Offer the board
-
-At the end of scaffolding, ask once: "Create a private board for this project (every track by lane,
-refreshed when you ask)?" On yes, run the `/laneconductor:board` command, which carries that procedure.
-On no, do nothing; the human can ask for it later ("show the board"). Never create it unasked.
+End as `setup` does: about three lines on what you created, then the first-track card of `ops/next.md` (the board line is in it) and no other question. A problem you saw in the basics (a repository missing, a test or lint command that does not run) is a suggestion in that card.
 
 ### `setup/templates.md` (the file templates)
 

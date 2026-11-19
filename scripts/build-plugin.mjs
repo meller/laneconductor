@@ -55,13 +55,13 @@ import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, fullInstallBlock, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
   DISPLAY, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
   RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits, toolRef, toolsUsedBy,
-  RECOMMEND_MARKER, setupRecommendBlock, NEXT_JOURNEY, skillAdvisorReadmeBlock,
+  RECOMMEND_MARKER, setupRecommendBlock, frontDoorBlock, NEXT_JOURNEY, skillAdvisorReadmeBlock,
 } from './plugin-texts.mjs';
 
 export {
   ADD_ONS_MD, PLUGINS_CACHE, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, BASE_HABITS, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX, MARKETPLACE_ADD_COMMAND, MIGRATION_UNINSTALL_COMMAND,
   NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND, RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits,
-  toolRef, toolsUsedBy, RECOMMEND_MARKER, setupRecommendBlock, NEXT_JOURNEY,
+  toolRef, toolsUsedBy, RECOMMEND_MARKER, setupRecommendBlock, frontDoorBlock, NEXT_JOURNEY,
 };
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

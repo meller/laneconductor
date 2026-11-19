@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO, RELS, NAMES, PROFILES, RECOMMENDED, ADDONS, CATALOG_REL, buildPlugin, setupRecommendBlock } from '../../scripts/build-plugin.mjs';
+import { REPO, RELS, NAMES, PROFILES, RECOMMENDED, ADDONS, CATALOG_REL, buildPlugin, setupRecommendBlock, frontDoorBlock } from '../../scripts/build-plugin.mjs';
 import { STARTER, FULL_INSTALL, FULL_UPDATE, ADDONS_INSTALL, oneLineInstall, fullInstallBlock, BUNDLES, MARKETPLACE, MARKETPLACE_SOURCE } from '../../scripts/plugin-texts.mjs';
 
 const catalog = JSON.parse(fs.readFileSync(path.join(REPO, CATALOG_REL), 'utf8'));
@@ -76,7 +76,7 @@ test('the generated texts carry the block: ops/next.md (S02-S04 through "The fro
   const files = ['skills/laneconductor/ops/next.md', 'skills/laneconductor/setup/setup.md', 'skills/laneconductor/ops/new-project.md', 'commands/setup.md', 'commands/next.md', 'commands/new-project.md'];
   for (const f of files) {
     const text = generated(`${RELS.base}/${f}`);
-    const shared = f.includes('next') ? setupRecommendBlock(ADDONS) : setupRecommendBlock(); // next keeps the add-ons offer of the front door; setup and new-project carry the starter set
+    const shared = f.includes('next') ? frontDoorBlock(ADDONS) : setupRecommendBlock(); // next keeps the add-ons offer of the front door (its entries and the one line); setup and new-project carry the starter set
     const both = shared.slice(shared.indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
     assert.ok(text.includes(both), `${f} carries the one-line part of the shared block`);
     if (f.startsWith('skills/')) assert.ok(text.includes(shared), `${f} carries the shared block`);

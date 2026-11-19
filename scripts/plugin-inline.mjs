@@ -52,15 +52,19 @@ function edit(text, rel, pairs) {
   return out;
 }
 
+/** The first-track card is written once, in `ops/next.md`; `setup` and `new-project` carry that same section (a command cannot read the skill file), so the three cannot differ. */
+const CARD_HEADING = '## The first-track card';
+const cardOf = (readSkill) => section(readSkill('ops/next.md'), CARD_HEADING);
+
 /** The scaffold script belongs to the add-on and lives in its install folder; finding it is a search outside the project, so the inline text does the scaffold by hand. */
 function newProjectText(text) {
   return edit(text, 'ops/new-project.md', [
     [/The scaffold script named below[\s\S]*?Do not recommend the\nadd-on for this\./,
       'Do the scaffold by hand, as step 3 describes: the result is the same as the add-on\'s scaffold script gives. Do not search for that script (it lives in\nthe add-on\'s install folder, outside the project) and do not recommend the add-on for this.'],
-    [/- If the scaffold script is present[\s\S]*?yourself the same way\./, '- Read the files yourself; do not look for a script to do it.'],
+    [/\n- If the scaffold script is present[\s\S]*?yourself the same way\./, ''],
     [/Do not add the walking-skeleton track to an existing project: pass `--no-first-track` to the scaffold script, or skip it by hand,\nand suggest planning the first real track instead\./,
       'Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.'],
-    [/Record the answers as you go, as the JSON that\nthe scaffold script reads: /, 'Record the answers as you go: '],
+    [/Record the answers as you go, as the JSON that\s+the scaffold script reads: /, 'Record the answers as you go: '],
     [/Run `node <path to the scaffold script>[\s\S]*?apply these rules over them:/,
       'Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are\nin "Reference: scaffold" at the end of this command (from the skill files [../setup/scaffold.md](../setup/scaffold.md) and [../setup/templates.md](../setup/templates.md)); apply these rules over them:'],
     ['The scaffold script writes it.', 'Create it by hand as [tracks.md](tracks.md) describes.'],
@@ -69,15 +73,15 @@ function newProjectText(text) {
 
 /** The recommendation block says an add-on counts as installed when a Glob under the plugin cache finds its script; that Glob is a read outside the project, so the inline text does not use it. */
 const detectNoGlob = (text) => text.replace(/its connector tools exist \(.*?\), or its agent/g, 'its connector tools are among your tools, or its agent').replace(/It counts as installed when Glob `[^`]+` under `~\/\.claude\/plugins\/cache` \(installed plugins only\) finds `[^`]+`\./g,
-  'It has no tool or agent to look for, and finding its files means searching the plugin install folder, which is outside the project and not read here: offer it as an option, once, and say it can be ignored if it is already installed.');
+  'It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already.');
 
 const SOURCES = {
-  setup: 'the skill file `setup/setup.md`, then the existing-repository path of `ops/new-project.md` (in "The path in detail"), with the recommendation block',
-  'new-project': 'the skill file `ops/new-project.md`, in full',
+  setup: 'the skill file `setup/setup.md`, then the existing-repository path of `ops/new-project.md` (in "The path in detail"), with the recommendation block and the first-track card of `ops/next.md`',
+  'new-project': 'the skill file `ops/new-project.md`, in full, with the first-track card of `ops/next.md`',
   next: 'the skill file `ops/next.md`, in full, then what it needs from `ops/lanes-and-statuses.md` (in "Reference")',
   'suggest-skills': 'the skill file `ops/suggest-skills.md`, in full, with the catalog',
 };
-const notice = (name) => `This command carries its whole procedure below: it is the text of ${SOURCES[name]}. Do not Glob or Read the plugin's install folder (\`~/.claude/plugins/...\`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the text are references only.`;
+const notice = (name) => `This command carries its whole procedure below: it is the text of ${SOURCES[name]}. Do not Glob or Read the plugin's install folder (\`~/.claude/plugins/...\`) to carry it out: it is outside the project, and a read there is asked about or denied. Skill file paths in the text are references only.`;
 
 /**
  * The body of one inlined command. `readSkill(rel)` returns the text of a skill file as the base plugin ships it (the generated
@@ -93,12 +97,13 @@ export function inlineBody(name, readSkill) {
       [/Follow `ops\/new-project\.md`, its existing-repository path \(the folder has a `\.git`, or files other than\n`conductor\/`\), and when the folder is empty its new-project path\. In short:/,
         'Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`); when the folder is empty, the new-project\npath of `ops/new-project.md` applies and `/laneconductor:new-project` is the command for it. In short:'],
       [/follow\n`setup\/scaffold\.md` \(templates in `setup\/templates\.md`\)/, 'follow the scaffold text under "Reference: scaffold" at the end (`setup/scaffold.md`, templates in `setup/templates.md`)'],
+      [/\(`ops\/next\.md`, "The first-track card": written once, shared with\s+`next`; it holds/, '(at the end of this command; it holds'],
     ]);
     return [
       'Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it. Look for no program other than `git`, and read no settings file.',
       notice('setup'),
       detectNoGlob(main.replace(/\s+$/, '')),
-      `## The path in detail\n\nFrom \`ops/new-project.md\`: how to read the project and what the confirmation message holds, then how the files are created.\n\n${shift(section(np, '## Detect the situation'), 1)}\n\n${shift(section(np, '## Create the files'), 1)}`,
+      `## The path in detail\n\n${shift(section(np, '## Detect the situation'), 1)}\n\n${shift(section(np, '## Create the files'), 1)}\n\n${cardOf(readSkill)}`,
     ].join('\n\n');
   }
   if (name === 'new-project') {
@@ -106,7 +111,7 @@ export function inlineBody(name, readSkill) {
     return [
       'New project: `$ARGUMENTS` (nothing given means ask me). This runs only because I named it.',
       notice('new-project'),
-      detectNoGlob(np.replace(/\s+$/, '')),
+      detectNoGlob(`${edit(np, 'ops/new-project.md', [[/If your client asks "Allow this read outside[\s\S]*?for LaneConductor\.\n\n/, ''], [/\(`ops\/next\.md`, "The first-track card": written once, shared with `next` and `setup`\)/, '(at the end of this command)']]).replace(/\s+$/, '')}\n\n${cardOf(readSkill)}`),
     ].join('\n\n');
   }
   if (name === 'next') {

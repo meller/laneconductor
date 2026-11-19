@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO, RELS, INLINED_COMMANDS, REFERENCES, REFERENCE_COMMANDS, BOARD_SCRIPT_COMMANDS, buildPlugin, setupRecommendBlock } from '../../scripts/build-plugin.mjs';
+import { REPO, RELS, INLINED_COMMANDS, REFERENCES, REFERENCE_COMMANDS, BOARD_SCRIPT_COMMANDS, buildPlugin, setupRecommendBlock, frontDoorBlock } from '../../scripts/build-plugin.mjs';
 
 const BASE = path.join(REPO, RELS.base);
 const SKILL = path.join(REPO, '.claude/skills/laneconductor');
@@ -28,11 +28,14 @@ test('setup carries the interview, the existing-repository path, the permission 
   const t = cmd('setup');
   for (const part of ['## What setup does', '## What else fits this project', '## setup scaffold', '## The path in detail', '#### Existing repository', '### Create the files',
     'Reply ok, or tell me what differs', 'Write nothing until that reply', 'allows it this one time', 'Never ask anyone to change their permission settings',
-    'offer a STARTER SET', 'Next: run `/laneconductor:next`']) {
+    'offer a STARTER SET', '## The first-track card', 'Say commit when you want the conductor files committed']) {
     assert.ok(t.includes(part), `setup lacks: ${part}`);
   }
   assert.ok(t.includes(setupRecommendBlock().split('\n').slice(0, 3).join('\n')), 'the generated recommendation block is inlined');
   assert.ok(t.includes('claude plugin install laneconductor-parallel@laneconductor'), 'the install commands of the add-ons');
+  // The close is the first-track card (the one section of ops/next.md, carried here), with no "run next" line.
+  assert.ok(t.includes(src('ops/next.md').match(/## The first-track card[\s\S]*?(?=\n## Levels)/)[0].split('<!--')[0]), 'the first-track card of ops/next.md, word for word');
+  assert.doesNotMatch(t.replace(/no "Next: run `\/laneconductor:next`" line/, ''), /Next: run `\/laneconductor:next`/, 'no "run next" line is asked for');
   // The existing-repository section of new-project is there word for word (the single source).
   const existing = src('ops/new-project.md').match(/Show the result as ONE message[\s\S]*?\nDo not add the walking-skeleton/)[0].split('\n')[0];
   assert.ok(t.includes(existing), 'the one-message text of ops/new-project.md');
@@ -48,13 +51,13 @@ test('next carries the gather steps, every state row, the rank, the card, the le
   assert.equal(rows.length, 23);
   // The rows are copied as they are, except that a link to another skill file is written as its path.
   for (const row of rows) assert.ok(t.includes(row.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')) || t.includes(row), `row missing: ${row.slice(0, 40)}`);
-  assert.ok(t.includes(setupRecommendBlock().split('\n').slice(0, 3).join('\n')));
+  assert.ok(t.includes(frontDoorBlock().split('\n')[0]), 'the add-ons offer of the front door');
 });
 
 test('new-project carries all six steps and the rules, with the scaffold done by hand (no search for the add-on script)', () => {
   const t = cmd('new-project');
   for (const part of ['## 1. Detect the situation', '### Existing repository', '## 2. Interview', '## 3. Scaffold', '## 4. First tracks', '## 5. Say what else fits this project',
-    '## 6. Summarize and ask before any commit', '## Rules', 'Reply ok, or tell me what differs', 'Commit this\nscaffold?', 'chore: add the LaneConductor scaffold']) {
+    '## 6. Summarize and close', '## Rules', '## The first-track card', 'Reply ok, or tell me what differs', 'Say commit when you want the conductor files committed', 'chore: add the LaneConductor scaffold']) {
     assert.ok(t.includes(part), `new-project lacks: ${part}`);
   }
   assert.doesNotMatch(t, /Glob `\*\*\/laneconductor-parallel/);

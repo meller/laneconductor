@@ -1,10 +1,7 @@
 # setup: add LaneConductor to this project
 
-`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. It needs
-no installer and no database: the result is a `conductor/` folder, plain files
-in git. Nothing is committed without a yes, and nothing is ever pushed.
-
-Before you write anything, tell the person in one short message what you are about to create, and wait for a yes.
+`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. The result is a
+`conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
 
 If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
 choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
@@ -28,9 +25,12 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
    `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
    removing it then needs a commit, which you ask about first). Never run it.
 5. **Say what else fits**, in the closing summary, not in the message above: say which optional plugins would help this project, as a starter set of three or four at most (see "What else fits this
-   project" below), then wait for the answer; say nothing when none fits. When the board add-on is installed, also say once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`.
-6. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
-   line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
+   project" below), say nothing when none fits. Do not wait for an answer: step 6 follows in the same message.
+6. **Close with the first track.** Say in about three lines what you created (counts and folders) and what the person must do
+   themselves, if anything. End with the first-track card ([next.md](../ops/next.md), "The first-track card": written once, shared with
+   `next`; it holds the board line), then the line "Say commit when you want the conductor files committed." The track choice is
+   the one question: no "Next: run `/laneconductor:next`" line and no second question. On "commit": `git add` the files you
+   created, by name (never `git add -A`), make one commit and never push.
 
 ## What else fits this project
 
@@ -39,5 +39,4 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
 ## setup scaffold
 
 `/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow
-[scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview. Use it when the person already
-knows what they want, or another tool has already scanned the project.
+[scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview.

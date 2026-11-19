@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { REPO, RELS, NAMES, buildPlugin, diffAgainstDisk, setupRecommendBlock, RECOMMEND_MARKER, ADDONS, NEXT_JOURNEY } from '../../scripts/build-plugin.mjs';
+import { REPO, RELS, NAMES, buildPlugin, diffAgainstDisk, setupRecommendBlock, frontDoorBlock, RECOMMEND_MARKER, ADDONS, NEXT_JOURNEY } from '../../scripts/build-plugin.mjs';
 import { ADDONS_INSTALL, STARTER, installCommands } from '../../scripts/plugin-texts.mjs';
 import { COMMANDS, GROUPS, helpText, helpLines, fillProcedure } from '../src/commands.mjs';
 import { buildInstructions } from '../src/instructions.mjs';
@@ -89,7 +89,7 @@ test('TC-17, TC-18, TC-19: levels. auto is explain for a young project and short
     assert.equal(resolveLevel({ saved: 'auto', state: st, tracks: [] }), 'short', `${st}: auto is the first card`);
     assert.equal(resolveLevel({ saved: 'auto', state: st, tracks: [], arg: 'explain' }), 'explain', `${st}: next explain keeps the full text`);
   }
-  assert.match(NEXT_MD, /`auto` is stateless: it behaves as `short` in S01 to S04 \(the first card, with its pointer to `next explain`\), as `explain` whenever the project is young/, 'ops/next.md says what resolveLevel does');
+  assert.match(NEXT_MD, /`auto` is stateless: it behaves as `short` in S01 to S04 \(the first card, with its pointer to `next explain`; in S04 the first-track card\), as `explain` whenever the project is young/, 'ops/next.md says what resolveLevel does');
 });
 
 test('TC-21: running next in every fixture changes no tracked or untracked file', async () => {
@@ -216,11 +216,11 @@ test('TC-9, TC-10: the parallel add-on offers next as a prompt, and the plugin m
 });
 
 test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block for the add-ons, from the one catalog, with their commands and the one-line add-ons install in its own bash block', () => {
-  const block = setupRecommendBlock(ADDONS); // next keeps the add-ons offer of the front door; the full starter set is setup's and new-project's
+  const block = frontDoorBlock(ADDONS); // next keeps the add-ons offer of the front door (the entries and the one line, without the setup-time prose); the full starter set is setup's and new-project's
   for (const profile of ['base']) {
     const files = buildPlugin(REPO, profile);
     const text = String(files.get('skills/laneconductor/ops/next.md').content);
-    assert.ok(text.includes(block), 'next.md carries the setup block verbatim');
+    assert.ok(text.includes(block), 'next.md carries the front door block verbatim');
     assert.ok(String(files.get('skills/laneconductor/setup/setup.md').content).includes(setupRecommendBlock()));
     assert.ok(!text.includes(RECOMMEND_MARKER), 'the marker is replaced');
   }
@@ -314,16 +314,16 @@ test('the generated next command card points at the lane reference in words, nev
   assert.match(card, /\/laneconductor:workflow/);
 });
 
-test('first run: S02, S03, S04 and the setup recommendation say, once and only when the board add-on is installed, that the board shows the same step', () => {
+test('first run: S02 and S03 (explain level) say, once and only when the board add-on is installed, that the board shows the same step; S04 and the close of setup say it in the first-track card', () => {
   const sentence = "`/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`";
   const setup = read(path.join(SRC, 'setup/setup.md'));
-  for (const [name, text] of [['next.md', NEXT_MD], ['setup.md', setup]]) {
-    assert.equal(text.split(sentence).length - 1, 1, `${name} says it once`);
-    assert.match(text, /When the board add-on is installed|when it is installed/, `${name}: conditional`);
-  }
+  assert.equal(NEXT_MD.split(sentence).length - 1, 1, 'next.md says it once');
+  assert.match(NEXT_MD, /When the board add-on is installed|when it is installed/, 'next.md: conditional');
+  assert.ok(!setup.includes(sentence), 'setup.md leaves the board line to the first-track card, so it is not said twice');
   const rows = tableRows();
-  for (const id of ['S02', 'S03', 'S04']) assert.match(rows[id], /then the add-ons and the board/i, `${id} points at the front door sentence (explain level)`);
-  assert.match(NEXT_MD, /At the explain level in S02, S03 and S04 add one sentence, once/);
+  for (const id of ['S02', 'S03']) assert.match(rows[id], /then the add-ons and the board/i, `${id} points at the front door sentence (explain level)`);
+  assert.match(rows.S04, /first-track card/, 'S04 shows the first-track card, which has its own board line');
+  assert.match(NEXT_MD, /At the explain level in S02 and S03 add one sentence, once/);
   assert.deepEqual(textRuleHits(sentence), []);
   assert.ok(String(buildPlugin(REPO, 'base').get('skills/laneconductor/ops/next.md').content).includes(sentence), 'the generated base carries it');
 });

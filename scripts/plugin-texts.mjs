@@ -141,6 +141,9 @@ export const DECLINED_FILE = 'skill-advisor-declined.txt';
 
 // Track AM-10124, REQ-12 (owner, 2026-11-18): the advisor works on the current track, and real work with no track in play gets one soft offer.
 // The lookup of the current track is written once here and used by the base skill, suggest-skills and next; the lane guides are given a track.
+// Track AM-10144 Phase 10: the first-track card (ops/next.md) shows the add-ons one-line install alone in its own bash block, from the catalog.
+export const ONE_LINE_MARKER = '<!-- generated: add-ons one-line install -->';
+export const oneLineBlock = () => `\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``;
 export const CURRENT_TRACK_MARKER = '<!-- generated: current track -->';
 export const TRACK_CONTEXT_MARKER = '<!-- generated: track context -->';
 export const CURRENT_TRACK = `**The current track** is, in this order: the track named in the prompt (a number or a title); the track a branch is named after (\`git branch --show-current\`, matched to its folder under \`conductor/tracks/\`); the track this session has running (\`**Lane Status**: running\`, and with the connector \`**Run By**\` names this client). With one in play, its lane, \`**Type**\` and stack apply; with none, no track is in play and skill offers go by the stack only (a KPI block belongs to a marketing or sales track, so there is none to write).`;
@@ -242,13 +245,13 @@ export function skillTipsBlock() {
  * The starter set at the end of setup and new-project (REQ-9), generated from the catalog entries that say when they fit a project
  * (`setup_fit`): one line each, so a new entry flows in. It only shows: no command is run and nothing is installed without a yes.
  */
-export const setupRecommendBlock = (entries = STARTER) => {
+const recommendParts = (entries) => {
   const list = offerOrder(entries).map((e) => `${entryLine(e)} It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.`).join('\n');
   const addons = entries.filter((e) => e.kind === 'addon');
   const both = addons.length >= 2 // both add-ons of the live catalog; one add-on alone keeps only its own offer
     ? `
 
-When BOTH add-ons (${addons.map((e) => `\`${e.name}\``).join(' and ')}) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing. You only show it, never run an install command yourself, and install nothing unless the person says yes. It is for use inside this session, where the base is already installed.
+When BOTH add-ons (${addons.map((e) => `\`${e.name}\``).join(' and ')}) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing.
 
 Both add-ons in one line:
 
@@ -256,12 +259,27 @@ Both add-ons in one line:
 ${ADDONS_INSTALL}
 \`\`\``
     : '';
-  return `After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from \`package.json\`, the marker files and \`conductor/tech-stack.md\`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say for each, in one short paragraph, why it fits.
+  return { list, both };
+};
+export const setupRecommendBlock = (entries = STARTER) => {
+  const { list, both } = recommendParts(entries);
+  return `After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from \`package.json\`, the marker files and \`conductor/tech-stack.md\`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say in a sentence why each fits.
 Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
 nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
 If the person says later, record nothing: each item is offered again at its own moment, as \`/${NAMES.base}:suggest-skills\` describes.
 
-How to offer: show an entry's install commands, each alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run). Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and \`claude plugin list\`; if you still cannot tell and the person says it is installed, take their word.
+How to offer: show an entry's install commands, each alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes. Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and \`claude plugin list\`; if you cannot tell, take the person's word.
+
+${list}${both}`;
+};
+
+/**
+ * The add-ons offer of the front door of `next` (explain level): the same entries and the same one-line install as the starter set, without its
+ * setup-time prose, which `ops/next.md` ("The front door") already says in its own words. Keeps `next` from growing (track AM-10144, Phase 10).
+ */
+export const frontDoorBlock = (entries = ADDONS) => {
+  const { list, both } = recommendParts(entries);
+  return `Show each entry's commands alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs.
 
 ${list}${both}`;
 };
@@ -286,7 +304,7 @@ export function skillEdits() {
     ],
     'ops/new-project.md': [recommend],
     'setup/setup.md': [recommend],
-    'ops/next.md': [[RECOMMEND_MARKER, setupRecommendBlock(ADDONS)], [TIPS_MARKER, skillTipsBlock()], [CURRENT_TRACK_MARKER, CURRENT_TRACK]],
+    'ops/next.md': [[RECOMMEND_MARKER, frontDoorBlock(ADDONS)], [TIPS_MARKER, skillTipsBlock()], [CURRENT_TRACK_MARKER, CURRENT_TRACK], [ONE_LINE_MARKER, oneLineBlock()]],
     'SKILL.md': [[TRACK_CONTEXT_MARKER, TRACK_CONTEXT]],
     'ops/suggest-skills.md': [[CURRENT_TRACK_MARKER, CURRENT_TRACK], [RULES_MARKER, OFFER_RULES], [SKILLS_MARKER, skillsCatalogBlock()]],
     'ops/tracks.md': [[TYPE_OFFER_MARKER, typeOfferBlock()]],

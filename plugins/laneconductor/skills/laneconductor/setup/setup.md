@@ -1,10 +1,7 @@
 # setup: add LaneConductor to this project
 
-`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. It needs
-no installer and no database: the result is a `conductor/` folder, plain files
-in git. Nothing is committed without a yes, and nothing is ever pushed.
-
-Before you write anything, tell the person in one short message what you are about to create, and wait for a yes.
+`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. The result is a
+`conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
 
 If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
 choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
@@ -28,18 +25,21 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
    `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
    removing it then needs a commit, which you ask about first). Never run it.
 5. **Say what else fits**, in the closing summary, not in the message above: say which optional plugins would help this project, as a starter set of three or four at most (see "What else fits this
-   project" below), then wait for the answer; say nothing when none fits. When the board add-on is installed, also say once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`.
-6. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
-   line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
+   project" below), say nothing when none fits. Do not wait for an answer: step 6 follows in the same message.
+6. **Close with the first track.** Say in about three lines what you created (counts and folders) and what the person must do
+   themselves, if anything. End with the first-track card ([next.md](../ops/next.md), "The first-track card": written once, shared with
+   `next`; it holds the board line), then the line "Say commit when you want the conductor files committed." The track choice is
+   the one question: no "Next: run `/laneconductor:next`" line and no second question. On "commit": `git add` the files you
+   created, by name (never `git add -A`), make one commit and never push.
 
 ## What else fits this project
 
-After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say for each, in one short paragraph, why it fits.
+After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say in a sentence why each fits.
 Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
 nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
 If the person says later, record nothing: each item is offered again at its own moment, as `/laneconductor:suggest-skills` describes.
 
-How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run). Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you still cannot tell and the person says it is installed, take their word.
+How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes. Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you cannot tell, take the person's word.
 
 - `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor` It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
 - `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It counts as installed when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
@@ -50,7 +50,7 @@ How to offer: show an entry's install commands, each alone in its own bash block
 - `firebase` (stack firebase): Firebase tools: Firestore, auth, functions, hosting, and hosting deploys. Installs an MCP server (firebase-tools, via npx) that can change your Firebase project. `claude plugin install firebase@claude-plugins-official` It fits when the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack.
 - `cloudflare` (stack cloudflare): skills cloudflare. Installs a connection to Cloudflare's hosted MCP server, plus skills. `claude plugin marketplace add cloudflare/skills`, `claude plugin install cloudflare@cloudflare` It fits when the project has `wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare in its tech stack.
 
-When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing. You only show it, never run an install command yourself, and install nothing unless the person says yes. It is for use inside this session, where the base is already installed.
+When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing.
 
 Both add-ons in one line:
 
@@ -61,5 +61,4 @@ claude plugin marketplace add meller/laneconductor && claude plugin install lane
 ## setup scaffold
 
 `/laneconductor:setup scaffold` is the explicit action that goes straight to the files: follow
-[scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview. Use it when the person already
-knows what they want, or another tool has already scanned the project.
+[scaffold.md](scaffold.md) (templates in [templates.md](templates.md)) and skip the interview.
