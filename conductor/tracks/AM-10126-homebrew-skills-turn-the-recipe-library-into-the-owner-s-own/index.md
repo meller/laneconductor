@@ -1,9 +1,9 @@
 # Track AM-10126: Homebrew skills: turn the recipe library into the owner's own skills marketplace
 
-**Lane**: review
+**Lane**: done
 **Lane Status**: success
-**Progress**: 90%
-**Phase**: Implemented and merged to main in the LOCAL library repository (~/Code/lc-recipes, 13 skills, strict validation passes, checker 0 findings, 5 tool tests pass, no remote). Open for the owner: name a private GitHub repository and push it, install it and try one skill in a real session. Not found: an onboarding skill (each product's flow is different).
+**Progress**: 100%
+**Phase**: Closed 2026-11-19 by the owner. The 13 skills were built and checked in the local library (~/Code/lc-recipes, kept only as the owner's private archive). They now ship publicly through this repository's marketplace as five skill packs (track AM-10129, released 2026-11-19), so the private GitHub repository question no longer applies.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

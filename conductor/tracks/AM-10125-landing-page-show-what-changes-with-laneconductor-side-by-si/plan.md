@@ -26,7 +26,7 @@
 
 ## Phase 4: Release (the owner's call)
 
-- [ ] Task 1 (HUMAN): Read the section on a desktop and a phone, then say deploy. Deploy from a clean checkout of main: `firebase deploy --only hosting --project laneconductor-site`
-- [ ] Task 2: Test in Firefox and Safari engines (not done)
+- [x] Task 1 (HUMAN): Read the section on a desktop and a phone, then say deploy. (done 2026-11-19: it is deployed and live; the owner closed the track) Deploy from a clean checkout of main: `firebase deploy --only hosting --project laneconductor-site`
+- [ ] Task 2: Test in Firefox and Safari engines (not done; the owner closed the track with this open, a known limit)
 
 **Not done by design**: no deploy; `landing/firebase.json` and `landing/posts/` untouched.

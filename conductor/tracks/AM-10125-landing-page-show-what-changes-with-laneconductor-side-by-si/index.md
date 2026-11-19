@@ -1,9 +1,9 @@
 # Track AM-10125: Landing page: show what changes with LaneConductor, side by side (same task, with and without)
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 90%
-**Phase**: Built and merged to main (1e464dc4, pushed), NOT deployed. Real example project, real board screenshots, real CONFLICT output; checked at 320, 375, 768 and 1360 px with no overflow (Chrome only). Waiting for the owner to read the section, then deploy. Open: Firefox and Safari were not tested; the screenshots are desktop-width so their text is small on a phone (each links to the full image).
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-19 by the owner. The section "The same task, with and without it" is live on laneconductor.com (merged 1e464dc4, deployed in the 2026-11-19 deploys, checked live). Known limit left open: Firefox and Safari were not tested (Chrome only), and the screenshots are desktop-width.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

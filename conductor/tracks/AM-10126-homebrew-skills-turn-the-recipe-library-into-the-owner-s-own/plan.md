@@ -21,6 +21,6 @@ The numbered work items are in spec.md. All work happened in the library reposit
 ## Phase 4: Verify and decide where it lives
 
 - [x] Task 1: `claude plugin validate --strict` passes; checker 13 skills, 0 errors, 0 warnings; secret and email grep clean; no remote
-- [ ] Task 2 (HUMAN): name a private GitHub repository for it (or keep it local), then push; install with `claude plugin marketplace add ~/Code/lc-recipes` (or `<owner>/<repo>`) and `claude plugin install homebrew-skills@homebrew-skills`, and try one skill in a real session
+- [~] Task 2 (HUMAN): SUPERSEDED 2026-11-19: no private repository; the skills ship through track AM-10129's five packs
 
 **Impact**: The conventions the owner wanted recipes for exist as ordinary skills, installable and updatable with the platform's own tools, and LaneConductor only points at them from the lane guides.
