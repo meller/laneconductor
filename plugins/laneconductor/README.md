@@ -4,7 +4,7 @@ LaneConductor teaches Claude a plan-first way of working on a project whose plan
 under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
 to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 1.9.10.
+Version 1.9.11.
 
 ## Getting started
 
@@ -30,8 +30,8 @@ It is Markdown only, and it works on its own:
 Claude edits the track files directly, following the skill's file formats, and asks before any merge or push. The plugin declares
 no pre-approved tools.
 
-It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
-policy is https://github.com/meller/laneconductor/blob/main/docs/privacy.md.
+It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Privacy policy:
+https://github.com/meller/laneconductor/blob/main/docs/privacy.md
 
 ## Skill suggestions: nothing is installed without your yes
 

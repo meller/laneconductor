@@ -25,8 +25,8 @@ It is Markdown only, and it works on its own:
 Claude edits the track files directly, following the skill's file formats, and asks before any merge or push. The plugin declares
 no pre-approved tools.
 
-It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Its privacy
-policy is {{PRIVACY_URL}}.
+It makes no network requests, installs nothing and runs no scripts. It contains no program, no server and no hook. Privacy policy:
+{{PRIVACY_URL}}
 
 {{SKILL_ADVISOR}}
 
