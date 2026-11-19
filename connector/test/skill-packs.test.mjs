@@ -34,7 +34,8 @@ test('the pack list is exactly the five packs of the spec, and every skill folde
   assert.equal(new Set(all).size, all.length, 'no skill twice');
   assert.deepEqual([...all].sort(), skillFolders(REPO), 'every folder under skills/ is in a pack, and every pack skill exists');
   assert.equal(skillFolders(REPO).length, 13);
-  for (const p of packs) assert.equal(p.version, '0.1.0', `${p.name}: its own version, independent of the other plugins`);
+  // Each pack has its own version, independent of the other plugins and of each other (a pack moves when its skills change).
+  for (const p of packs) assert.match(p.version, /^\d+\.\d+\.\d+$/, `${p.name}: its own semver version`);
 });
 
 test('each pack folder holds exactly the files of its skills, byte for byte (hidden template files included), and nothing else but the fixed parts', () => {
