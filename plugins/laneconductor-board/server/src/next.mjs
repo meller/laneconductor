@@ -159,11 +159,11 @@ export async function gatherFacts(repo, { now = Date.now(), store } = {}) {
 // Classify: pure.
 // ---------------------------------------------------------------------------------------------------------------------------
 
-/** The level `auto` resolves to, the explicit argument, or the saved setting. `saved` is `auto`, `explain` or `short`. */
+/** The level `auto` resolves to, the explicit argument, or the saved setting. `saved` is `auto`, `explain` or `short`. In S01 to S04 `auto` is `short`: the first card (ops/next.md, "The first card"); the full front door text is the explain level. */
 export function resolveLevel({ saved = 'auto', state, tracks = [], arg } = {}) {
   if (arg === 'explain' || arg === 'short') return arg;
   if (saved !== 'auto') return saved;
-  if (['S01', 'S02', 'S03', 'S04'].includes(state)) return 'explain';
+  if (['S01', 'S02', 'S03', 'S04'].includes(state)) return 'short';
   const advanced = tracks.filter((t) => ['review', 'quality-gate', 'done'].includes(t.guide)).length;
   return advanced < 3 ? 'explain' : 'short';
 }

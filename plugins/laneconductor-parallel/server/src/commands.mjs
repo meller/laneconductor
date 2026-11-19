@@ -59,8 +59,8 @@ export const COMMANDS = [
     args: [{ name: 'option', hint: 'explain | short | track number', description: '`explain` or `short` sets how much it explains; a track number limits it to that track; empty means the whole project.', required: false }],
     procedure: 'What\'s next: {{option}} (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. The procedure is the skill file `ops/next.md`; read it in full first and follow it.\n\n'
       + '1. Gather where the project stands as the file says: its own files and read-only git. With the connector, `list_tracks` and `get_track` give the same facts and say how fresh they are.\n'
-      + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track.\n'
-      + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go.',
+      + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track. With no tracks yet, the default is a three-line first card that points to `explain`.\n'
+      + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go; a command that asks for confirmation itself (`setup`, `new-project`, `merge`) is named without that offer.',
   },
   {
     name: 'suggest-skills', group: 'start here', title: 'Suggest skills for this track',
@@ -240,7 +240,7 @@ export const COMMANDS = [
     args: [ACTION('scaffold', '`scaffold` goes straight to the files with no interview; empty reads the project and asks only to confirm.')],
     procedure: 'Setup: {{action}} (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it.\n\n'
       + 'Setup means adding LaneConductor to the project I am in. Follow the skill file `ops/new-project.md`, its existing-repository path; read it in full first.\n'
-      + '1. Read package.json (or the equivalent), the README, the CI files and the lint config; infer the project name, the stack and the test and lint commands, and ask only to confirm them: show all of it in ONE message already filled in (with the tracks folder and its "private" option for a public repository). End with "Reply ok, or tell me what differs" and write nothing until I reply.\n'
+      + '1. Read package.json (or the equivalent), the README, the CI files and the lint config; infer the project name, the stack and the test and lint commands, and ask only to confirm them: show it in ONE message of about twelve lines, already filled in: name and purpose, stack, the commands that exist, what will be created, and the one decision (tracks committed or private, with a recommendation); say nothing about what does not exist or does not apply. End with "Reply ok, or tell me what differs" and write nothing until I reply.\n'
       + '1b. If the client asks "Allow this read outside the working directories?" for a file of this plugin, tell me in one line to choose the option that allows it this one time: the "keep allowing" and "block from now on" options change a permanent setting and are not needed. Never ask me to change my permission settings.\n'
       + '2. If `conductor/tracks` already exists from an older LaneConductor, say what you found and import nothing silently.\n'
       + '3. Tell me what you are about to create or change before you write anything. Never overwrite an existing file; the scaffold skips what exists. Ask before any commit; never push.\n'

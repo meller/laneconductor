@@ -10,7 +10,7 @@ This command carries its whole procedure below: it is the text of the skill file
 no installer and no database: the result is a `conductor/` folder, plain files
 in git. Nothing is committed without a yes, and nothing is ever pushed.
 
-Before you write anything, tell the person what you are about to create or change, and wait for a yes.
+Before you write anything, tell the person in one short message what you are about to create, and wait for a yes.
 
 If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
 choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
@@ -21,23 +21,20 @@ permanent setting for every project and are not needed. Never ask anyone to chan
 Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`); when the folder is empty, the new-project
 path of `ops/new-project.md` applies and `/laneconductor:new-project` is the command for it. In short:
 
-1. **Read the project first.** Infer the name, the stack, the test and lint commands and the CI setup from `package.json` (or the
-   equivalent), the README, the CI files and the lint config. Show it all in ONE message, already filled in (name, stack, the
-   test and lint commands, where each fact came from, and the tracks folder with its "private" option for a public repository, as
-   `ops/new-project.md` says), end with "Reply ok, or tell me what differs", and write nothing until that
-   reply. Do not ask what the files already answer.
-2. **Say what is already there.** If `conductor/` or `conductor/tracks` already exists (an older LaneConductor), say what you
-   found: how many tracks, in which naming form, which lanes. Import nothing silently and change none of them.
-3. **Show the plan, then write.** List the files the scaffold would create and the ones it would skip because they exist.
-   After a yes, create only the missing ones. An existing README, `package.json` or any other file of the project is never
-   touched, and `.gitignore` only gets the three lines it lacks.
-4. **Notice a stale project-level skill.** If `.claude/skills/laneconductor` exists in the project (Glob; `test -L` for a link,
-   `git ls-files` to see whether git tracks it; read only), say in one sentence that the plugin supplies the skill itself, so this
-   copy or link is stale, and offer its removal: show `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a
-   folder; `git rm` for one that git tracks, and removing it then needs a commit, which you ask about first). Never run it and
-   touch nothing else.
-5. **Say what else fits.** After the project is read, say which optional plugins would help this project, as a starter set of three or four at most (see "What else fits this
-   project" below), then wait for the person's answer. When the board add-on is installed, also say once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`.
+1. **Read the project, confirm it in ONE message.** The name, the stack, the commands that exist, what will be created and the one
+   decision (tracks committed or private), as "Existing repository" in `ops/new-project.md` says: about
+   twelve lines, ending "Reply ok, or tell me what differs". Write nothing until that reply. Say nothing about what does not
+   exist or does not apply, and do not ask what the files already answer.
+2. **An existing `conductor/`** (an older LaneConductor) is one more line in the message: how many tracks, in which naming form,
+   which lanes. Import nothing and change none of them.
+3. **Write after the reply.** The reply is the yes: create only the missing files. An existing README, `package.json` or any
+   other file of the project is never touched, and `.gitignore` only gets the lines it lacks.
+4. **A stale project-level skill** is one more line in the message, only if `.claude/skills/laneconductor` exists (read only: Glob,
+   `test -L` for a link, `git ls-files` for git): the plugin supplies the skill itself, so this copy is stale. Offer its removal:
+   `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
+   removing it then needs a commit, which you ask about first). Never run it.
+5. **Say what else fits**, in the closing summary, not in the message above: say which optional plugins would help this project, as a starter set of three or four at most (see "What else fits this
+   project" below), then wait for the answer; say nothing when none fits. When the board add-on is installed, also say once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`.
 6. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`). End with the
    line "Next: run `/laneconductor:next`"; do not name the next step yourself, and do not repeat the add-on offer.
 
@@ -79,35 +76,37 @@ From `ops/new-project.md`: how to read the project and what the confirmation mes
 ### Detect the situation
 
 - Empty or new folder: a new project. Ask for a name if the argument gave none.
-- An existing repository (it has a `.git`, or files other than `conductor/`): say so and offer to add only the
-  `conductor/` scaffold. `/laneconductor:setup` takes this path. Read what is there first (see "Existing repository" below) and
-  use it as answers, so you ask less. Never overwrite an existing file; the scaffold skips what exists.
+- An existing repository (a `.git`, or files other than `conductor/`): offer only the `conductor/` scaffold (`/laneconductor:setup`
+  takes this path). Read what is there first ("Existing repository" below) and ask less. Never overwrite an existing file; the
+  scaffold skips what exists.
 - `conductor/tracks` already holds tracks (an older LaneConductor, or another tool): say what you found (how many, in which
-  naming form, which lanes) and import nothing. Offer to add only the missing `conductor/` context files and leave every track
-  as it is; importing older tracks is a separate yes the person gives (`setup/scaffold.md`, "Older
-  tracks"). Point to `new` for creating tracks.
+  naming form, which lanes) and import nothing. Offer only the missing `conductor/` context files and leave every track as it is;
+  importing older tracks is a separate yes (`setup/scaffold.md`, "Older tracks"). `new` creates tracks.
 
 #### Existing repository
 
 Keep the interview short. Read the project and ask only to confirm:
 
-- The name, from `package.json`, `pyproject.toml` or the README title (else the folder name).
-- What it is for, from the package description or the first README paragraph (else ask one question).
-- The stack, from the dependencies and config files; hosting hints from `Dockerfile`, `vercel.json` and the like.
-- The test, lint, typecheck, build and e2e commands from the scripts in `package.json`, the Makefile and the CI files. A
-  command is proposed only if it really exists: the npm placeholder `echo "Error: no test specified"` is not a test command, and
-  a lint config without a lint script is not a lint command. Say so when you leave one out.
+- The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config
+  files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder
+  `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
 - Read the files yourself; do not look for a script to do it.
 
-Show the result as ONE message with everything filled in, so the person only has to approve it: the name, what it is for, the
-stack, the test, lint, typecheck and build commands that really exist (one line for each one you left out, with the reason),
-where each fact came from, and the tracks folder: `conductor/tracks/`, committed with the code (the default), or private, for a
-public repository whose plans should not be public (the folder is then kept out of git with one `.gitignore` line; private tracks
-are not shared with other machines or people). End with "Reply ok, or tell me what differs." Write nothing until that reply. Ask a
-further question only about what could not be read (usually KPIs and constraints, and only if the person wants them now).
+Show the result as ONE message in this form, at most twelve lines, everything filled in (for a public-looking repository):
+
+> **my-app**: a command-line tool that sorts notes.
+> Stack: Node.js, no dependencies.
+> Commands: `npm start`, `npm test`.
+> I will create `conductor/` (context files, an empty `tracks/`) and three `.gitignore` lines.
+> Tracks: committed with the code, or private (out of git, not shared)? I recommend private: the README says this is a public demo.
+> Reply ok, or tell me what differs.
+
+One line each; only the commands that exist. Recommend private for a repository that looks public (a README that says public demo, no licence yet), committed otherwise. Add a line only for something unusual or that needs a decision (an existing `conductor/` folder, a stale project-level skill, a conflict). Say nothing about what does not exist or does not apply: no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts (a count you do state comes from a command run for that purpose, `git rev-list --count HEAD`, never from a truncated listing). Write nothing until that reply; it is the yes.
 Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.
 
 ### Create the files
+
+For an existing repository the step 1 reply is that yes.
 
 Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are
 in "Reference: scaffold" at the end of this command (from the skill files `setup/scaffold.md` and `setup/templates.md`); apply these rules over them:

@@ -84,7 +84,12 @@ test('TC-17, TC-18, TC-19: levels. auto is explain for a young project and short
     const dir = fixture({ ...FIXTURES.F18.desc, settings: bad });
     assert.equal((await classify(dir)).level, 'explain', `settings ${JSON.stringify(bad)} means auto (young project: explain)`);
   }
-  assert.equal(resolveLevel({ saved: 'auto', state: 'S04', tracks: [] }), 'explain');
+  // The front door (S01 to S04): auto is the first card (a short level); only an explicit explain gives the full text.
+  for (const st of ['S01', 'S02', 'S03', 'S04']) {
+    assert.equal(resolveLevel({ saved: 'auto', state: st, tracks: [] }), 'short', `${st}: auto is the first card`);
+    assert.equal(resolveLevel({ saved: 'auto', state: st, tracks: [], arg: 'explain' }), 'explain', `${st}: next explain keeps the full text`);
+  }
+  assert.match(NEXT_MD, /`auto` is stateless: it behaves as `short` in S01 to S04 \(the first card, with its pointer to `next explain`\), as `explain` whenever the project is young/, 'ops/next.md says what resolveLevel does');
 });
 
 test('TC-21: running next in every fixture changes no tracked or untracked file', async () => {
@@ -317,8 +322,8 @@ test('first run: S02, S03, S04 and the setup recommendation say, once and only w
     assert.match(text, /When the board add-on is installed|when it is installed/, `${name}: conditional`);
   }
   const rows = tableRows();
-  for (const id of ['S02', 'S03', 'S04']) assert.match(rows[id], /Then the add-ons and the board/, `${id} points at the front door sentence`);
-  assert.match(NEXT_MD, /In S02, S03 and S04 add one sentence, once/);
+  for (const id of ['S02', 'S03', 'S04']) assert.match(rows[id], /then the add-ons and the board/i, `${id} points at the front door sentence (explain level)`);
+  assert.match(NEXT_MD, /At the explain level in S02, S03 and S04 add one sentence, once/);
   assert.deepEqual(textRuleHits(sentence), []);
   assert.ok(String(buildPlugin(REPO, 'base').get('skills/laneconductor/ops/next.md').content).includes(sentence), 'the generated base carries it');
 });

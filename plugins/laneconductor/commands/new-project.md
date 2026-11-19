@@ -19,37 +19,35 @@ permanent setting for every project and are not needed. Never ask anyone to chan
 ## 1. Detect the situation
 
 - Empty or new folder: a new project. Ask for a name if the argument gave none.
-- An existing repository (it has a `.git`, or files other than `conductor/`): say so and offer to add only the
-  `conductor/` scaffold. `/laneconductor:setup` takes this path. Read what is there first (see "Existing repository" below) and
-  use it as answers, so you ask less. Never overwrite an existing file; the scaffold skips what exists.
+- An existing repository (a `.git`, or files other than `conductor/`): offer only the `conductor/` scaffold (`/laneconductor:setup`
+  takes this path). Read what is there first ("Existing repository" below) and ask less. Never overwrite an existing file; the
+  scaffold skips what exists.
 - `conductor/tracks` already holds tracks (an older LaneConductor, or another tool): say what you found (how many, in which
-  naming form, which lanes) and import nothing. Offer to add only the missing `conductor/` context files and leave every track
-  as it is; importing older tracks is a separate yes the person gives (`setup/scaffold.md`, "Older
-  tracks"). Point to `new` for creating tracks.
+  naming form, which lanes) and import nothing. Offer only the missing `conductor/` context files and leave every track as it is;
+  importing older tracks is a separate yes (`setup/scaffold.md`, "Older tracks"). `new` creates tracks.
 
 ### Existing repository
 
 Keep the interview short. Instead of the nine questions of step 2, read the project and ask only to confirm:
 
-- The name, from `package.json`, `pyproject.toml` or the README title (else the folder name).
-- What it is for, from the package description or the first README paragraph (else ask one question).
-- The stack, from the dependencies and config files; hosting hints from `Dockerfile`, `vercel.json` and the like.
-- The test, lint, typecheck, build and e2e commands from the scripts in `package.json`, the Makefile and the CI files. A
-  command is proposed only if it really exists: the npm placeholder `echo "Error: no test specified"` is not a test command, and
-  a lint config without a lint script is not a lint command. Say so when you leave one out.
+- The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config
+  files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder
+  `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
 - Read the files yourself; do not look for a script to do it.
 
-Show the result as ONE message with everything filled in, so the person only has to approve it: the name, what it is for, the
-stack, the test, lint, typecheck and build commands that really exist (one line for each one you left out, with the reason),
-where each fact came from, and the tracks folder: `conductor/tracks/`, committed with the code (the default), or private, for a
-public repository whose plans should not be public (the folder is then kept out of git with one `.gitignore` line; private tracks
-are not shared with other machines or people). End with "Reply ok, or tell me what differs." Write nothing until that reply. Ask a
-further question only about what could not be read (usually KPIs and constraints, and only if the person wants them now).
+Show the result as ONE message in this form, at most twelve lines, everything filled in (for a public-looking repository):
+
+> **my-app**: a command-line tool that sorts notes.
+> Stack: Node.js, no dependencies.
+> Commands: `npm start`, `npm test`.
+> I will create `conductor/` (context files, an empty `tracks/`) and three `.gitignore` lines.
+> Tracks: committed with the code, or private (out of git, not shared)? I recommend private: the README says this is a public demo.
+> Reply ok, or tell me what differs.
+
+One line each; only the commands that exist. Recommend private for a repository that looks public (a README that says public demo, no licence yet), committed otherwise. Add a line only for something unusual or that needs a decision (an existing `conductor/` folder, a stale project-level skill, a conflict). Say nothing about what does not exist or does not apply: no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts (a count you do state comes from a command run for that purpose, `git rev-list --count HEAD`, never from a truncated listing). Write nothing until that reply; it is the yes.
 Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.
 
 ## 2. Interview
-
-For an existing repository use the short version under "Existing repository" in step 1 instead of the questions below.
 
 Follow the style of `lanes/brainstorm.md`: ONE question per message, adaptive, short, in chat
 (not through `conversation.md`; there is no track yet). Offer a likely default with each question so a one-word answer
@@ -71,6 +69,8 @@ testing, other), `constraints`, `commands` (typecheck, lint, test, build, covera
 exist), `kpis`, `journeys`, `initials`.
 
 ## 3. Scaffold
+
+For an existing repository the step 1 reply is that yes.
 
 Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are
 in "Reference: scaffold" at the end of this command (from the skill files `setup/scaffold.md` and `setup/templates.md`); apply these rules over them:

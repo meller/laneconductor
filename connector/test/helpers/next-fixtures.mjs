@@ -142,7 +142,7 @@ export const FIXTURES = {
   F02a: { desc: { files: REPO_FILES, commits: 40, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:setup', default: 'continue', offers: ['laneconductor-parallel', 'laneconductor-board'] } },
   F02b: { desc: { files: {}, commits: 0, conductor: 'none' }, expect: { state: 'S02', command: '/laneconductor:new-project', default: 'new', offers: ['laneconductor-parallel', 'laneconductor-board'] } },
   F03: { desc: { conductor: 'no-workflow' }, expect: { state: 'S03', command: '/laneconductor:setup' } },
-  F04: { desc: { conductor: 'full' }, expect: { state: 'S04', command: '/laneconductor:new <title>', level: 'explain', offers: ['laneconductor-parallel', 'laneconductor-board'] } },
+  F04: { desc: { conductor: 'full' }, expect: { state: 'S04', command: '/laneconductor:new <title>', level: 'short', offers: ['laneconductor-parallel', 'laneconductor-board'] } },
   F05a: { desc: { tracks: [T(10001, 'plan', 'queue', { extra: { 'Waiting for reply': 'yes' } })] }, expect: { state: 'S05', track: 10001, command: '/laneconductor:comment 10001 <your answer>' } },
   F05b: { desc: { tracks: [T(10001, 'implement', 'waiting')] }, expect: { state: 'S05', track: 10001, command: '/laneconductor:comment 10001 <your answer>' } },
   F05c: { desc: { tracks: [T(10001, 'plan', 'queue', { comment: 'human' })] }, expect: { state: 'S05', track: 10001, command: '/laneconductor:comment 10001 <your answer>' } },
