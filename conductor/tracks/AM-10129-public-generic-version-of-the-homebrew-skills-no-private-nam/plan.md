@@ -2,10 +2,10 @@
 
 Design approach: build the public set outside this repository from the private library of track 10126; scrub with a local deny list, then create a fresh repository with one commit. Nothing is pushed. Depends on 10126.
 
-## Phase 1: Deny list
+## Phase 1 (the original design: a separate public repository; all of it was done in ~/Code/homebrew-skills-public and then SUPERSEDED on 2026-11-19 by moving the skills into this repository and shipping five plugins; ticked as superseded, not as delivered by this track): Deny list
 
-- [ ] Build the local deny list from the sibling repository names under `~/Code` and every project, site, bucket, secret, GCP project identifier, local path, private repository URL and cited commit hash found in the library text
-- [ ] Keep the deny list out of the new tree (never committed); read no `.env` or credential file
+- [~] Build the local deny list from the sibling repository names under `~/Code` and every project, site, bucket, secret, GCP project identifier, local path, private repository URL and cited commit hash found in the library text
+- [~] Keep the deny list out of the new tree (never committed); read no `.env` or credential file
 
 ## Phase 2: Generic rewrite of the 13 skills
 
@@ -44,7 +44,7 @@ Gate: the owner decides where it is published and under which licence; the imple
 - [x] Task 2.7 (HUMAN): the owner agrees the final list and the plugin name (done 2026-11-19: five plugins by technology, see the spec's decision section)
 - [~] Task 2.8: superseded by Phase 3 (five plugins instead of one `laneconductor-skills`)
 - [~] Task 2.9: superseded by task 3.7 (advisor catalog entries for the packs)
-- [ ] Task 2.10: Layout for discovery registries. DONE 2026-11-19 (commit 5b508e35): the 13 skills are in the root `skills/<name>/SKILL.md` folder, the checker and privacy gate in `skills-tools/`, the guide in `docs/skills.md`; checker 0/0, gate 13 clean, 841 tests, drift check and four validations pass, nothing under `plugins/` changed. STILL OPEN: have the generator copy `skills/` into `plugins/laneconductor-skills`, add the install line to the README, and ask the owner to add the `agent-skill` topic to the GitHub repository (a repository setting, the owner's)
+- [x] Task 2.10: Layout for discovery registries. DONE 2026-11-19 (commit 5b508e35): the 13 skills are in the root `skills/<name>/SKILL.md` folder, the checker and privacy gate in `skills-tools/`, the guide in `docs/skills.md`; checker 0/0, gate 13 clean, 841 tests, drift check and four validations pass, nothing under `plugins/` changed. STILL OPEN: have the generator copy `skills/` into `plugins/laneconductor-skills`, add the install line to the README, and ask the owner to add the `agent-skill` topic to the GitHub repository (a repository setting, the owner's)
 - [ ] Task 2.11: After the release, check that `npx skills add meller/laneconductor --list` finds the skills, and optionally submit the repository to the submit-form directories (Smithery, LobeHub, MCPMarket); watch skills.sh for the listing
 
 ## Phase 3: Five plugins, by technology (decided 2026-11-19)

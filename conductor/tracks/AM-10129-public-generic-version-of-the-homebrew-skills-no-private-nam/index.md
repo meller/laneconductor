@@ -1,9 +1,9 @@
 # Track AM-10129: Public, generic version of the homebrew skills: no private names, paths, repos or commits
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: review
+**Lane Status**: waiting
+**Progress**: 43%
+**Phase**: Delivered 2026-11-19: the 13 skills are in this repository (skills/, checker and privacy gate in skills-tools/) and shipped as five plugins at 0.1.0 (nodejs-frontend, firebase, node-postgres, gemini, skill-from-code), on the site and in the wiki. Open: the owner reads llm-through-tokentalos (3.1), a clean-profile install check (3.8), the advisor catalog entries (3.6, needs a base release), and the after-release steps (2.11, 3.9).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
