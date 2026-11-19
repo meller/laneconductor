@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: waiting
-**Progress**: 78%
-**Phase**: Delivered 2026-11-19: the 13 skills are in this repository (skills/, checker and privacy gate in skills-tools/) and shipped as five plugins at 0.1.0 (nodejs-frontend, firebase, node-postgres, gemini, skill-from-code), on the site and in the wiki. Open: a clean-profile install check (3.8), the advisor catalog entries (3.6, needs a base release), and the after-release steps (2.11, 3.9).
+**Progress**: 83%
+**Phase**: Delivered 2026-11-19: the 13 skills are in this repository (skills/, checker and privacy gate in skills-tools/) and shipped as five plugins at 0.1.0 (nodejs-frontend, firebase, node-postgres, gemini, skill-from-code), on the site and in the wiki. Open: the advisor catalog entries (3.6, needs a base release) and the after-release steps (2.11 npx test, 3.9 the agent-skill topic).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
