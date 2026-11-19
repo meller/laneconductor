@@ -537,10 +537,21 @@ claude plugin install laneconductor@laneconductor</code></pre>
                 <p>With local scope, the plugin shows as disabled when you open a different folder. That is how local
                     scope works, not a fault.</p>
 
-                <h3>Update</h3>
+                <h3>Keeping it updated</h3>
+                <p><strong>Easiest:</strong> turn on auto-update for the marketplace. It is off by default for marketplaces that are not
+                    Anthropic's. In Claude Code run <code>/plugin</code>, open the <strong>Marketplaces</strong> tab, select
+                    <code>laneconductor</code> and switch auto-update on. After that, each new session refreshes the marketplace and updates
+                    the plugins you installed from it; a running session keeps the versions it already loaded until you run
+                    <code>/reload-plugins</code>.</p>
+                <p><strong>Once, by hand:</strong> in <code>/plugin</code>, Marketplaces tab, select <code>laneconductor</code> and choose
+                    <strong>Update marketplace</strong>. That refreshes the listing and updates every plugin you installed from it.</p>
+                <p><strong>From a shell or a script:</strong> there is no single command that updates every plugin, and installing again does
+                    not upgrade a plugin that is already installed. Update the marketplace, then each plugin you have:</p>
                 <pre><code>claude plugin marketplace update laneconductor
-claude plugin update laneconductor@laneconductor</code></pre>
-                <p>then <code>/reload-plugins</code>.</p>
+claude plugin update laneconductor@laneconductor
+claude plugin update laneconductor-board@laneconductor
+claude plugin update laneconductor-parallel@laneconductor</code></pre>
+                <p>then restart your session or run <code>/reload-plugins</code>. Each plugin has its own version and can be updated on its own.</p>
 
                 <h3>What works where</h3>
                 <table>

@@ -78,7 +78,7 @@ Check that it loaded:
 If you installed with `--scope local` and open another folder, `claude plugin list` shows the plugin as disabled
 there. That is how local scope works, not a fault.
 
-To update all three in one line (installing again does not upgrade a plugin that is already installed):
+The easy way: in `/plugin`, Marketplaces tab, open `laneconductor` and switch auto-update on (it is off by default for marketplaces that are not Anthropic's); new sessions then pick up new versions. Each plugin has its own version. To update by hand, all three in one line (installing again does not upgrade a plugin that is already installed):
 
 ```bash
 claude plugin marketplace update laneconductor && claude plugin update laneconductor@laneconductor && claude plugin update laneconductor-board@laneconductor && claude plugin update laneconductor-parallel@laneconductor
