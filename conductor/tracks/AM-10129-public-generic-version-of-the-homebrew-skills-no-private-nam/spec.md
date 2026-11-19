@@ -51,3 +51,30 @@ Not verified: none of these is ticked until the privacy gate, the checker and th
 - Pushing anything or creating a GitHub repository (the owner does it).
 - Deciding where the set is published and under which licence (open for the owner).
 - Changes to the private library, which stays as the owner's archive.
+
+## Overlap check against public skills (2026-11-19, read-only; four agents read our skills and the public texts in full unless marked)
+
+Question: do we duplicate skills that already exist? Answer: no skill is a duplicate; four overlap in their generic part and are trimmed; five carry stale defaults that must be fixed before anything is published. Public sources read: firebase/agent-skills, google/skills, prisma/skills, neondatabase/agent-skills, obra/superpowers (writing-skills), anthropics/skills (skill-creator), and community PWA, database-testing and Makefile skills.
+
+| Skill | Verdict | Note |
+|---|---|---|
+| firebase-google-sign-in | KEEP | Firebase's auth skill is client-side only; server token check, provisioning and project moves are ours. Add: authorized-domain entries are bare hostnames, `localhost` for dev. |
+| pwa-vite-workbox | KEEP | The `dontCacheBustURLsMatching` pattern, the route allowlist with its test, the 2 MiB build failure and the dev POST hang are in no public skill. Add: per-user responses never in Cache Storage. |
+| cache-buster | KEEP | The Hosting header block, build-stamp poll and stale-tab recovery are in no public skill. Add `vite:preloadError`. |
+| vertex-gemini-adc | TRIM + FIX | Point to google/skills `gemini-api` and `google-cloud-recipe-auth`; keep shared-project convention, timeout/retry values, thinking-token billing, `temperature: 0` for extraction. FIX stale defaults: `gemini-2.5-flash` (Google calls 2.5 legacy), regional `GCP_REGION` for text (Google defaults to `global`), `vertexai: true` vs Google's `enterprise:` constructor (unverified), product renamed Agent Platform. |
+| vertex-imagen-retry-gcs-fallback | TRIM + FIX | Keep backoff numbers, GCS upload, development-only fallback, cost and test incidents. FIX image model default (`gemini-nano-banana-2.1` is Google's); add: a 429 is often the shared pool, not your quota. The "Imagen discontinued" line is unverified (summary-read only). |
+| llm-client-pattern | KEEP, REWRITE | The gateway it describes is TokenTalos (`@meller/tokentalos`, MIT, public GitHub meller/tokentalos and public on npm). The private deny list wrongly hid the name; naming it is allowed. Owner: all LLM calls go through TokenTalos. Point generic timeout/retry advice to a public skill (harden-llm-app-reliability). |
+| browser-tts-unlock-voice-binding | KEEP | No public skill; MDN covers basics only. |
+| postgres-local-neon-prod-secret-manager | KEEP, light trim | The Secret Manager plus Firebase Functions chain is in no public text; replace the pooled-vs-direct restatement with a pointer to Neon's skill. |
+| prisma-in-cloud-functions | KEEP, light trim | The Functions split and its incidents are in no public text. Add: Prisma 7 removed auto-generate (explains the stale-client P2022). |
+| isolated-test-database | KEEP | The guard against a suite wiping the dev database is in no public skill. Optional: mention a restricted test user. |
+| makefile-local-run | KEEP + FIX | No public fresh-clone bootstrap. Suspected bug in `stop-all` (`@done` continuation), NOT verified; check with `make -n stop-all`. Add safety headers. |
+| shared-gcp-firebase-site | TRIM + FIX | Keep the one-shared-project layout, values and the `/api/**` and `--force` gotchas. FIX the health path (Cloud Run reserves paths ending in `z`; use `/api/health`), add the 36-sites-per-project limit, shorten the codebase-deletion explanation. |
+| capture-solved-problem | TRIM | Keep verification, privacy gate and commit ritual; point to superpowers `writing-skills` for the rest; description = triggers only. |
+| tools/ checker | KEEP | `claude plugin validate` passed a deliberately broken skill; the privacy gate with a deny list has no public equivalent. |
+
+Still provisional: third-party skills for shared-GCP, two partly read PWA skills, the rbarazi gateway skill, Imagen deprecation.
+
+## Decision changed (owner, 2026-11-19)
+
+No new repository. The skills ship as a Markdown-only plugin in THIS repository's marketplace (working name `laneconductor-skills`), built by the same generator, next to the other three. The single-commit fresh repo of 2026-11-18 stays only as the local source (`~/Code/homebrew-skills-public`); nothing is pushed to a new GitHub repository. The release waits until the directory review of track 10148 is decided.

@@ -32,3 +32,15 @@ Design approach: build the public set outside this repository from the private l
 - [ ] Report: what was removed by category and counts, anything that lost value, the verification output
 
 Gate: the owner decides where it is published and under which licence; the implementer pushes nothing.
+
+## Phase 2: After the overlap check (2026-11-19)
+
+- [ ] Task 2.1: Rewrite `llm-client-pattern` around TokenTalos (`@meller/tokentalos`, public MIT): name it, install and init, Vertex with ADC through it; remove "tokentalos" from the local deny list for the public set only after the owner agrees
+- [ ] Task 2.2: Fix the stale defaults: vertex-gemini-adc (model, location, constructor, naming) and vertex-imagen-retry-gcs-fallback (image model default, shared-pool 429 note); verify the `vertexai: true` vs `enterprise:` question
+- [ ] Task 2.3: Trim vertex-gemini-adc, vertex-imagen-retry-gcs-fallback, shared-gcp-firebase-site (health path, 36-site limit) and capture-solved-problem to their deltas with pointers to the public skills
+- [ ] Task 2.4: Small additions: authorized-domain format, per-user responses never cached, `vite:preloadError`, Prisma 7 auto-generate note, Neon pointer
+- [ ] Task 2.5: Check the `stop-all` target in makefile-local-run by hand (`make -n stop-all`) and fix the suspected `@done` continuation; add the safety headers
+- [ ] Task 2.6: Re-run the checker and the privacy gate with the deny list on the changed tree: zero findings
+- [ ] Task 2.7 (HUMAN): the owner agrees the final list and the plugin name
+- [ ] Task 2.8: After track 10148's review is decided: build the Markdown-only plugin `laneconductor-skills` from these skills with the generator, add it to the marketplace, update the plugin map and the "three plugins" wording, validate, release
+- [ ] Task 2.9: Add the plugin to the skill advisor's catalog for firebase and GCP stacks
