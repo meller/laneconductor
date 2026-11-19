@@ -6,18 +6,20 @@
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-blue)](https://claude.ai/code)
 [![Documentation](https://img.shields.io/badge/docs-Knowledge%20Base-cyan)](https://laneconductor-site.web.app/wiki.html)
 
-LaneConductor is Claude plus git plus a small connector. Each piece of work is a **track**: a folder under
+LaneConductor is Claude plus git, with optional add-ons. Each piece of work is a **track**: a folder under
 `conductor/tracks/` with `index.md` (state), `spec.md`, `plan.md`, `test.md` and `conversation.md`. Claude manages the
 tracks for you (it plans them, works them in lanes, reviews them and merges them), and git keeps the history. There
-is no database to run and no background process to keep alive.
+is no database to run and no background process to keep alive; the base plugin is Markdown only.
 
 ## What it is now
 
-- **Direction (decided 2026-11-16).** Claude plus git plus a connector. The tracks are files in git.
-- **One plugin.** The skill (the workflow), the slash commands (type `/laneconductor:` to list them), two subagents, the local connector and the board
-  script ship together as the `laneconductor` plugin. There is nothing else to install.
-- **A board.** Ask Claude to update the board and it gives you every track by lane as a private Claude artifact.
-- **Safe writes.** One writer per change, and every write is checked against what you last read (see
+- **Direction (decided 2026-11-16).** Claude plus git, with an optional local connector. The tracks are files in git.
+- **Three plugins from one marketplace.** The base, `laneconductor`, is Markdown only and works alone: the skill (the workflow),
+  the slash commands (type `/laneconductor:` to list them) and one read-only subagent, `plan-reviewer`. Two add-ons are optional:
+  `laneconductor-parallel` (the local connector and the `track-runner` subagent) and `laneconductor-board` (the board script).
+  What each provides is in [docs/plugin-map.md](docs/plugin-map.md).
+- **A board** (the board add-on). Ask Claude to update the board and it gives you every track by lane as a private Claude artifact.
+- **Safe writes** (the parallel add-on). One writer per change, and every write is checked against what you last read (see
   [Safety and privacy](#safety-and-privacy)).
 - **The older stack is experimental and currently unmaintained.** The Postgres dashboard, the sync daemon, workers and dispatch, the cloud collector
   and federated hubs are kept at the [`v1-legacy`](../../tree/v1-legacy) git tag. See [The experimental tier](#the-experimental-tier).
@@ -29,13 +31,15 @@ are still what decides whether a track is done.
 
 LaneConductor combines two projects and adds a Kanban view:
 
-- **[Conductor](https://github.com/gemini-cli-extensions/conductor)**, a Gemini CLI extension: project context kept as
+- **[Conductor](https://github.com/gemini-cli-extensions/conductor)** (Apache-2.0), a plugin for AI coding agents: project context kept as
   Markdown files, and a spec and plan for every track, so the context survives between sessions. The `conductor/`
   folder and its context files follow it.
 - **[Superpowers](https://github.com/obra/superpowers)** by Jesse Vincent (MIT): a skills framework for coding agents
   with a real working process (brainstorm, plan, build with sub-agents, verify). Portions of LaneConductor's workflow
   protocols are adapted from it.
 - **Kanban**: lanes, and a board that shows where every track stands.
+
+Both are credited, with the MIT notice, in [NOTICE](NOTICE).
 
 When this started, the author did not find a Conductor for Claude or a Superpowers for Gemini, and wanted both at once.
 Versions for other agents have appeared since; LaneConductor is the two ideas together, not a replacement for either.
@@ -47,7 +51,7 @@ LaneConductor is not a product tracker, and it is not a ticket-to-pull-request a
 
 ## Install
 
-You need [Claude Code](https://claude.ai/code) (or Cowork) and Node.js 20 or newer (the connector uses it).
+You need [Claude Code](https://claude.ai/code) (or Cowork). The two add-ons also need Node.js 20 or newer (the connector and the board script are Node.js programs); the base plugin does not.
 
 ```bash
 claude plugin marketplace add meller/laneconductor
@@ -105,7 +109,7 @@ A zip of the plugin can be built with `node scripts/make-zip.mjs --out <dir>` (a
 
 ### What works where
 
-| Where you use Claude | Skill and commands | Connector, board script, subagents |
+| Where you use Claude | Skill and commands | Add-ons: connector, board script, `track-runner` |
 | :--- | :---: | :---: |
 | Claude Code, on your computer | yes | yes |
 | Cowork, on your computer | yes | yes |
@@ -130,9 +134,9 @@ Open your project in Claude Code and ask in plain words, or use a command:
 - `/laneconductor:status`, `:move`, `:comment`, `:workflow`, `:brainstorm` and `:review-plan` do what they say.
 - `/laneconductor:board` shows or refreshes the board.
 
-For each track the `track-runner` subagent can work it in its own git worktree, so tracks do not collide, and the
-read-only `plan-reviewer` subagent reads a plan and reports gaps without changing anything. Both only start when
-you say yes.
+The read-only `plan-reviewer` subagent (in the base plugin) reads a plan and reports gaps without changing anything. With the
+parallel add-on, the `track-runner` subagent can also work a track in its own git worktree, so tracks do not collide. Both only
+start when you say yes.
 
 ## The board
 
@@ -161,12 +165,15 @@ If the project used the earlier install (a copy or symlink of the skill, or a ru
 4. If a sync worker still runs for the project, stop it. It is not part of the plugins, and nothing needs it any more.
 
 Your tracks do not change; they are the same files. A Postgres database from the older setup is not read by the
-plugin and can be left alone or dropped. If you used the 0.2.x `laneconductor` plugin, you already have the
-connector and the board script; update the plugin and nothing else is needed. The connector's MCP key is `lc`, and
-its tools are named `mcp__plugin_laneconductor_lc__<tool>`. The commands fall back to editing the track files
-directly only if the connector's MCP server fails to start.
+plugin and can be left alone or dropped. If you used the all-in-one 0.x `laneconductor` plugin, follow "Moving from the
+all-in-one plugin" above: the connector and the board script are now the two add-ons. The connector's MCP key is `lc`, and
+its tools are named `mcp__plugin_laneconductor-parallel_lc__<tool>`. The commands edit the track files directly when the
+parallel add-on is not installed, or when its MCP server fails to start.
 
 ## Safety and privacy
+
+The base plugin only has Claude edit your track files, with your normal permission prompts, and it asks before any merge or push. The
+bullets about the connector (writes, conflict checks, commits, state branch, advice log) apply when the `laneconductor-parallel` add-on is installed.
 
 - **One writer per change.** A track file is changed by one writer at a time, through the connector, so two
   writers do not overwrite each other.
