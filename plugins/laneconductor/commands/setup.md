@@ -1,13 +1,13 @@
 ---
-description: "Add LaneConductor to this project: read what is there, confirm the stack and commands, write the conductor/ files (runs only because you named it)"
+description: "Add LaneConductor to this project: read what is there, write the conductor/ files and file the plan as tracks (runs when you name it, or reply go to a next card)"
 argument-hint: "[scaffold]"
 ---
-Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it. Look for no program other than `git`, and read no settings file.
+Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs when I named it, or said go to the card of `next` that named it; do nothing else with it. Look for no program other than `git`, and read no settings file.
 
-This command carries its whole procedure below: it is the text of the skill file `setup/setup.md`, then the existing-repository path of `ops/new-project.md` (in "The path in detail"), with the recommendation block and the first-track card of `ops/next.md`. Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: it is outside the project, and a read there is asked about or denied. Skill file paths in the text are references only.
+This command carries its whole procedure below: it is the text of the skill file `setup/setup.md`, then the file rules of `ops/new-project.md` (in "The path in detail") and the first-track card of `ops/next.md`. Do not Glob or Read the plugin's install folder (`~/.claude/plugins/...`) to carry it out: it is outside the project, and a read there is asked about or denied. Skill file paths in the text are references only.
 
-`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. The result is a
-`conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
+`/laneconductor:setup` adds LaneConductor to the project you are in. It runs when the person names it, or says `go` to the card of `next` that named it:
+the card names the command and `go` is the consent. The result is a `conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
 
 If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
 choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
@@ -15,52 +15,32 @@ permanent setting for every project and are not needed. Never ask anyone to chan
 
 ## What setup does
 
-Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`). A folder with no code and no plan document (empty, or only a README or licence) is a new project: say in one line that `/laneconductor:new-project` is the command for it (a brainstorm, the scaffold, first tracks, suggested skills) and stop. In short:
+Setup writes first: new files are additive and one line undoes them, so there is no confirmation before the files. A folder with no code and no plan document (empty, or only a README or licence) is a new project: say in one line that `/laneconductor:new-project` is the command for it (a brainstorm, the scaffold, first tracks, suggested skills) and stop. Otherwise:
 
-1. **Read the project, confirm it in ONE message.** The name, the stack, the commands that exist, the plan documents (one line, if any), what will be created and whether tracks are private
-   or committed (declared, never asked), as "Existing repository" in `ops/new-project.md` says: about
-   twelve lines, ending "Reply ok, or tell me what differs". Write nothing until that reply. Say nothing about what does not
-   exist or does not apply, and do not ask what the files already answer.
-2. **An existing `conductor/`** (an older LaneConductor) is one more line in the message: how many tracks, in which naming form,
-   which lanes. Import nothing and change none of them.
-3. **Write after the reply.** The reply is the yes: create only the missing files. No existing file of the project is touched,
-   and `.gitignore` only gets the lines it lacks.
-4. **A stale project-level skill** is one more line in the message, only if `.claude/skills/laneconductor` exists (read only: Glob,
+1. **Read the project** and ask nothing the files already answer:
+   - The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
+   - The plan documents ("The first-track card" at the end of this command says which): their items, counted for "Found your plan in `docs/plan.md`: 6 items"; nothing when there is none.
+   - The tracks choice, declared and never asked: private when something says the project is public (the README says public, public demo or open source; an open-source LICENSE file; a `package.json` `license` other than UNLICENSED or proprietary) or `git remote` is empty (nothing to share); committed when there is a remote and no such sign. Private tracks are git-ignored (step 3).
+2. **Stop and ask first, one line each, only for something unusual**: a `conductor/` folder with content (an older LaneConductor: how many tracks, in which naming form, which lanes; offer to finish the scaffold: write only what is missing, import nothing, change no track); no git repository (offer `git init` first); uncommitted changes in `.gitignore`, the one existing file setup edits (offer to go on, or to wait while they commit it). Anything else: write.
+3. **Write** the files that are missing ("Create the files" below; the files and templates are under "Reference: scaffold" at the end). No existing file of the project is touched, and `.gitignore` only gets the lines it lacks. Add no walking-skeleton track.
+4. **File the plan items.** With a plan document, file its first four items as tracks, in the plan's order, in the plan lane, as "The answer" of the first-track card says (the `new` procedure: search first, then create; the plan item as the problem, its source file named). No question. The open questions of the plan are not filed: list them. With no plan document nothing is filed.
+5. **A stale project-level skill** is one more line in the closing message, only if `.claude/skills/laneconductor` exists (read only: Glob,
    `test -L`, `git ls-files`): the plugin supplies the skill itself, so this copy is stale. Offer its removal:
    `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
    removing it then needs a commit, which you ask about first). Never run it.
-5. **Say what else fits**, in the closing summary, not in the message above: a starter set of three or four optional plugins at most ("What else fits this
-   project" below); say nothing when none fits. Do not wait for an answer: step 6 follows in the same message.
-6. **Close with the first track.** Say in about three lines what you created (counts and folders) and what the person must do
-   themselves, if anything. End with the first-track card (at the end of this command; it leads with the plan found in step 1 and holds the board line), then the line "Say commit when you want the conductor files committed." The track choice is
-   the one question: no "Next: run `/laneconductor:next`" line and no second question. On "commit": `git add` the files you
-   created, by name (never `git add -A`), make one commit and never push.
+6. **Close with ONE message**, after the files and the tracks, filled in from what you did and nothing else:
 
-## What else fits this project
+> **my-app**: a command-line tool that sorts notes (Node.js).
+> Created `conductor/` (context files, an empty `tracks/`) and the `.gitignore` lines.
+> Tracks are private (git-ignored) because the README says this is a public demo. Say 'commit my tracks' to share them.
+> Found your plan in `docs/plan.md`: 6 items. Filed the first four as tracks in the plan lane: 1 A publish checklist, 2 An /openapi.json door, 3 A /prompt paste pack, 4 Plugin packaging. Open question, not filed: browse-only dry-run variants.
+> Undo: `rm -r conductor`, then `git checkout .gitignore`.
+> The conductor files are not committed; say commit when you want them committed.
+> **See it on the board:** the board line of the first-track card (at the end of this command).
+> **Plan the first track:** `/laneconductor:plan 1` ("A publish checklist").
+> Board, or plan the first track?
 
-After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from `package.json`, the marker files and `conductor/tech-stack.md`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say in a sentence why each fits.
-Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
-nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
-If the person says later, record nothing: each item is offered again at its own moment, as `/laneconductor:suggest-skills` describes.
-
-How to offer: show an entry's install commands, each alone in its own bash block (no leading `$`), then the reload step (`/reload-plugins`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes. Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and `claude plugin list`; if you cannot tell, take the person's word.
-
-- `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools are among your tools, or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor` It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
-- `laneconductor-board` (Type dev/marketing/sales/support): the board: one private page of every track by lane. Installs a script (a Node.js program, no packages) and its page. It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already. Mention only when the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`). `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-board@laneconductor` It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
-- `frontend-design` (prerequisite; stack ui): design direction for UI: typography, layout, no templated defaults. Markdown only. `claude plugin install frontend-design@claude-plugins-official` It fits when the project has a front end (React, Vue, Vite, HTML pages) or tracks that plan screens.
-- `marketing-skills` (prerequisite; Type marketing/sales): marketing and sales skills: strategy, launch, copy, social, cold email, analytics. Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills` It fits when the project's tracks are marketing or sales work (copy, launch, outreach), or it is a product that needs a website and a launch.
-- `superpowers`: process skills: plans, test-first, debugging, sub-agents, worktrees, review, verification. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official` It fits when the project writes code: it adds the brainstorm, plan, test-first, debugging and review skills the lanes use.
-- `playwright` (stack ui): drives a real browser to check a UI flow and take screenshots. Installs an MCP server (Node.js, via npx) that drives a browser. `claude plugin install playwright@claude-plugins-official` It fits when the project has a web UI that a person checks in a browser.
-- `firebase` (stack firebase): Firebase tools: Firestore, auth, functions, hosting, and hosting deploys. Installs an MCP server (firebase-tools, via npx) that can change your Firebase project. `claude plugin install firebase@claude-plugins-official` It fits when the project has `firebase.json` or `.firebaserc`, or Firebase in its tech stack.
-- `cloudflare` (stack cloudflare): Cloudflare skills and hosted MCP server for edge functions and deploys. Installs a connection to Cloudflare's hosted MCP server, plus skills. `claude plugin marketplace add cloudflare/skills`, `claude plugin install cloudflare@cloudflare` It fits when the project has `wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare in its tech stack.
-
-When BOTH add-ons (`laneconductor-parallel` and `laneconductor-board`) are missing and you offer both, also show "Both add-ons in one line:" and this block, then the reload step. When only one of them is missing, keep its offer above and add nothing.
-
-Both add-ons in one line:
-
-```bash
-claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
-```
+   Exactly two offers and one question, nothing after them: no add-ons paragraph, no starter set (`/laneconductor:suggest-skills` has it), no "Next: run `/laneconductor:next`". Committed tracks say "Tracks are committed with the code. Say 'make tracks private' to keep them out of git." A count you state comes from a command run for that purpose (`git rev-list --count HEAD`), never from a truncated listing. Say nothing about what does not exist or does not apply. With no plan document nothing was filed: end with the first-track card instead of the two offers. On "commit": `git add` the files you created, by name (never `git add -A`), make one commit and never push.
 
 ## setup scaffold
 
@@ -68,54 +48,21 @@ claude plugin marketplace add meller/laneconductor && claude plugin install lane
 
 ## The path in detail
 
-### Detect the situation
-
-- Empty or nearly empty folder (no code and no plan document; a README, licence or `.gitignore` alone does not count): a new project: `/laneconductor:new-project` is the command for it, not `setup`. Ask for a name if the argument gave none.
-- An existing repository (a `.git`, or files other than `conductor/`): offer only the `conductor/` scaffold (`/laneconductor:setup`
-  takes this path). Read what is there first ("Existing repository" below) and ask less. Never overwrite a file.
-- `conductor/tracks` already holds tracks (an older LaneConductor, or another tool): say what you found (how many, in which
-  naming form, which lanes), import nothing, offer only the missing `conductor/` context files and leave every track as it is;
-  importing them is a separate yes (`setup/scaffold.md`, "Older tracks"). `new` creates tracks.
-
-#### Existing repository
-
-Keep the interview short. Read the project and ask only to confirm:
-
-- The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config
-  files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder
-  `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
-- The plan documents ("The first-track card" in `ops/next.md` says which): one line, "Found your plan in `docs/plan.md`: 6 items", the count from the items you read; nothing when there is none.
-
-Show the result as ONE message in this form, at most twelve lines, everything filled in (for a public-looking repository):
-
-> **my-app**: a command-line tool that sorts notes.
-> Stack: Node.js, no dependencies.
-> Commands: `npm start`, `npm test`.
-> Found your plan in `docs/plan.md`: 6 items.
-> I will create `conductor/` (context files, an empty `tracks/`) and the `.gitignore` lines.
-> Tracks are private (git-ignored) because the README says this is a public demo. Say 'commit my tracks' to share them.
-> Reply ok, or tell me what differs.
-
-Never ask whether tracks are committed or private: decide from facts and declare it in that one line. Private when something says the project is public (the README says public, public demo or open source; an open-source LICENSE file; a `package.json` `license` other than UNLICENSED or proprietary) or `git remote` is empty (nothing to share); committed when there is a remote and no such sign, declared as "Tracks are committed with the code. Say 'make tracks private' to keep them out of git." Private adds the missing ones of `conductor/tracks/`, `conductor/tracks-summary.md` and `conductor/advice-log/` to `.gitignore`. Add a line only for something unusual (an existing `conductor/` folder, a stale project-level skill, a conflict). Say nothing about what does not exist or does not apply: no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts (a count you do state comes from a command run for that purpose, `git rev-list --count HEAD`, never from a truncated listing). Write nothing until that reply; it is the yes.
-Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.
-
 ### Create the files
 
-For an existing repository the step 1 reply is that yes.
-
-Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are
+Create the files with no question first (setup writes first). The files and templates are
 in "Reference: scaffold" at the end of this command (from the skill files `setup/scaffold.md` and `setup/templates.md`); apply these rules over them:
 
 - Create `conductor/product.md`, `tech-stack.md`, `workflow.md`, `workflow.json`, `product-guidelines.md`,
   `design-language.md`, `quality-gate.md`, `user-stories.md`, `kpis.md` and `tracks/`. No settings file is created: LaneConductor needs none.
 - Every file is tailored from the answers; what was not discussed is an honest placeholder, never an invented value.
 - `quality-gate.md` names only commands that really exist in the chosen stack, with unchecked boxes and no verdict.
-- `.gitignore` gets `conductor/tracks/**/conversation.md`, `conductor/tracks/**/conversation.json` and `.worktrees/`, and when tracks are private the three lines above (a new project: decided the same way, declared when you show what you create).
+- `.gitignore` gets `conductor/tracks/**/conversation.md`, `conductor/tracks/**/conversation.json` and `.worktrees/`, and, when tracks are private (decided from facts and declared in the closing message, never asked: the project looks public, or has no remote to share with), `conductor/tracks/`, `conductor/tracks-summary.md` and `conductor/advice-log/`.
 - `git init` only when the folder is not a repository. No skill symlinks, `.claude/MEMORY.md`, deploy stub or database.
 
 ## The first-track card
 
-S04 at the default level, and the close of `setup` and `new-project`. Nothing is created before the person answers. With a plan (below) the card leads with it:
+S04 at the default level, and the close of `setup` (with no plan document) and `new-project`. Nothing is created before the person answers. With a plan (below) the card leads with it:
 
 > **Next: your first track.** From your plan in `docs/plan.md`:
 > 1. A publish checklist
@@ -128,17 +75,17 @@ S04 at the default level, and the close of `setup` and `new-project`. Nothing is
 > The project on a board: `/laneconductor:board` (the files setup wrote, later the tracks).
 > Reply with numbers, "all 6 plan items", or tell me a title of your own.
 
-- **The plan** (read only, one look; setup's reading counts): `docs/plan.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`, `docs/roadmap*.md`, and README sections on the roadmap, next steps, status, todo or what is missing. Items, in the file's order and words, cut to one line: unticked checkboxes, else bullets or numbered lines, else `###` headings, of the sections on what is still to come; never a ticked, struck-through or "done" one. A decision or question still open (a heading with decision, open or question, or a line ending "?") is an open question, not an item.
-- **With a plan**: the lead names the file (an item from another file ends with its name); at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
+- **The plan** (read only, one look): `docs/plan.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`, `docs/roadmap*.md`, and README sections on the roadmap, next steps, status, todo or what is missing. Items, in the file's order and words, cut to one line: unticked checkboxes, else bullets or numbered lines, else `###` headings, of the sections on what is still to come; never a ticked, struck-through or "done" one. A decision or question still open (a heading with decision, open or question, or a line ending "?") is an open question, not an item.
+- **With a plan**: the lead names the file; at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
 - **Without a plan**, only generic suggestions, at most four, one line each: the title, then the fact behind it in a few words. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track. The reply line has no "all".
 - **Never invent**: every line is text from a file (named) or a fact a command or a read checked.
-- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you. Skip it when setup's starter set offered the board.
+- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you.
 
 ```bash
 claude plugin marketplace add meller/laneconductor && claude plugin install laneconductor-board@laneconductor && claude plugin install laneconductor-parallel@laneconductor
 ```
 
-- **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked.
+- **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked. Setup files the first four the same way, with no question.
 
 ## Reference: scaffold
 
@@ -196,7 +143,7 @@ the `INITIALS-NNN-slug` form into LaneConductor? (leave/import)". On "import", f
 
 #### Close
 
-End as `setup` does: about three lines on what you created, then the first-track card of `ops/next.md` and no other question. A problem you saw in the basics (a test or lint command that does not run) is a suggestion in that card.
+End as `setup` does: its one closing message. A problem you saw in the basics (a test or lint command that does not run) goes in it as one line.
 
 ### `setup/templates.md` (the file templates)
 
@@ -410,3 +357,44 @@ Leave the key out and nothing changes.
 
 **`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
 `conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added: `history.md` is tracked, never ignored.
+
+### `ops/tracks.md` (newTrack)
+
+#### newTrack `[name] [description]`
+
+Do "Search first" above, and continue here only when it ends in "create". With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
+markers). By hand:
+
+1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
+   word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
+   highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
+   `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
+   `INITIALS-NNN-slug/`.
+2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
+   ```markdown
+   # Track INITIALS-NNN: [name]
+
+   **Lane**: plan
+   **Lane Status**: queue
+   **Progress**: 0%
+   **Phase**: New
+   **Type**: [dev|marketing|sales|support|other]
+   **Merge Mode**: direct
+   **Auto Run**: yes
+   **Author**: INITIALS
+   **Created By**: user@email.com
+   **Summary**: [description]
+   ```
+   `**Type**` defaults to `dev`. `**Merge Mode**` and `**Auto Run**` default to `direct` and
+   `yes` (changed 2026-09-08; before that the markers were omitted and fell back to the
+   conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
+   track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
+   that already exists without the markers keeps the old fallbacks.
+3. **No queue file.** The folder you just made is the track; nothing else registers it.
+4. **Non-dev types.** For `marketing`, `sales` or `support`, say which of the skills the Type works best with are installed. A skill is
+   installed when it is in the session's skills list, in `claude plugin list`, or in `.claude/skills/` or `~/.claude/skills/`; an older
+   name counts. For each one installed say "you have `<skill>` installed, use it before writing the content". Offer the missing ones:
+
+   
+5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
+6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`

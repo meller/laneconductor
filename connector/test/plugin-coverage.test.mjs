@@ -201,7 +201,8 @@ test('run, implement and review recommend the add-on\'s track-runner, show the d
     assert.match(t, /git worktree add/, `${c}: the by-hand way`);
     assert.match(t, /Otherwise mention nothing/, `${c}: no nagging`);
   }
-  for (const c of ['setup', 'deploy']) assert.match(read(`commands/${c}.md`), /runs only because I named it/, `${c}: only when named`);
+  assert.match(read('commands/deploy.md'), /runs only because I named it/, 'deploy: only when named');
+  assert.match(read('commands/setup.md'), /runs when I named it, or said go to the card of `next` that named it/, 'setup: when named, or on go to the card');
   const skill = fs.readFileSync(path.join(SKILL, 'ops/working-a-track.md'), 'utf8');
   assert.match(skill, /Plugin users: one subagent per track in a worktree/);
   assert.match(skill, /Without the add-on, work the lane in this session/);

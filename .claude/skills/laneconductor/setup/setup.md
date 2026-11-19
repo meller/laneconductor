@@ -1,7 +1,7 @@
 # setup: add LaneConductor to this project
 
-`/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. The result is a
-`conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
+`/laneconductor:setup` adds LaneConductor to the project you are in. It runs when the person names it, or says `go` to the card of `next` that named it:
+the card names the command and `go` is the consent. The result is a `conductor/` folder of plain files in git. Nothing is committed without a yes, and nothing is ever pushed.
 
 If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
 choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
@@ -9,32 +9,32 @@ permanent setting for every project and are not needed. Never ask anyone to chan
 
 ## What setup does
 
-Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository path (the folder has a `.git`, or files other than
-`conductor/`). A folder with no code and no plan document (empty, or only a README or licence) is a new project: say in one line that `/laneconductor:new-project` is the command for it (a brainstorm, the scaffold, first tracks, suggested skills) and stop. In short:
+Setup writes first: new files are additive and one line undoes them, so there is no confirmation before the files. A folder with no code and no plan document (empty, or only a README or licence) is a new project: say in one line that `/laneconductor:new-project` is the command for it (a brainstorm, the scaffold, first tracks, suggested skills) and stop. Otherwise:
 
-1. **Read the project, confirm it in ONE message.** The name, the stack, the commands that exist, the plan documents (one line, if any), what will be created and whether tracks are private
-   or committed (declared, never asked), as "Existing repository" in [../ops/new-project.md](../ops/new-project.md) says: about
-   twelve lines, ending "Reply ok, or tell me what differs". Write nothing until that reply. Say nothing about what does not
-   exist or does not apply, and do not ask what the files already answer.
-2. **An existing `conductor/`** (an older LaneConductor) is one more line in the message: how many tracks, in which naming form,
-   which lanes. Import nothing and change none of them.
-3. **Write after the reply.** The reply is the yes: create only the missing files. No existing file of the project is touched,
-   and `.gitignore` only gets the lines it lacks.
-4. **A stale project-level skill** is one more line in the message, only if `.claude/skills/laneconductor` exists (read only: Glob,
+1. **Read the project** and ask nothing the files already answer:
+   - The name and purpose (`package.json`, `pyproject.toml`, the README; else the folder name), the stack (dependencies and config files) and the commands that really exist (scripts in `package.json`, the Makefile, the CI files). The npm placeholder `echo "Error: no test specified"` is not a test command, and a lint config without a lint script is not a lint command.
+   - The plan documents ("The first-track card" in [next.md](../ops/next.md) says which): their items, counted for "Found your plan in `docs/plan.md`: 6 items"; nothing when there is none.
+   - The tracks choice, declared and never asked: private when something says the project is public (the README says public, public demo or open source; an open-source LICENSE file; a `package.json` `license` other than UNLICENSED or proprietary) or `git remote` is empty (nothing to share); committed when there is a remote and no such sign. Private tracks are git-ignored (step 3).
+2. **Stop and ask first, one line each, only for something unusual**: a `conductor/` folder with content (an older LaneConductor: how many tracks, in which naming form, which lanes; offer to finish the scaffold: write only what is missing, import nothing, change no track); no git repository (offer `git init` first); uncommitted changes in `.gitignore`, the one existing file setup edits (offer to go on, or to wait while they commit it). Anything else: write.
+3. **Write** the files that are missing ([../ops/new-project.md](../ops/new-project.md), step 3 "Scaffold"; the files and templates are in [scaffold.md](scaffold.md) and [templates.md](templates.md)). No existing file of the project is touched, and `.gitignore` only gets the lines it lacks. Add no walking-skeleton track.
+4. **File the plan items.** With a plan document, file its first four items as tracks, in the plan's order, in the plan lane, as "The answer" of the first-track card says (the `new` procedure: search first, then create; the plan item as the problem, its source file named). No question. The open questions of the plan are not filed: list them. With no plan document nothing is filed.
+5. **A stale project-level skill** is one more line in the closing message, only if `.claude/skills/laneconductor` exists (read only: Glob,
    `test -L`, `git ls-files`): the plugin supplies the skill itself, so this copy is stale. Offer its removal:
    `rm .claude/skills/laneconductor` alone in its own bash block (`rm -r` for a folder; `git rm` for one that git tracks, and
    removing it then needs a commit, which you ask about first). Never run it.
-5. **Say what else fits**, in the closing summary, not in the message above: a starter set of three or four optional plugins at most ("What else fits this
-   project" below); say nothing when none fits. Do not wait for an answer: step 6 follows in the same message.
-6. **Close with the first track.** Say in about three lines what you created (counts and folders) and what the person must do
-   themselves, if anything. End with the first-track card ([next.md](../ops/next.md), "The first-track card": written once, shared with
-   `next`; it leads with the plan found in step 1 and holds the board line), then the line "Say commit when you want the conductor files committed." The track choice is
-   the one question: no "Next: run `/laneconductor:next`" line and no second question. On "commit": `git add` the files you
-   created, by name (never `git add -A`), make one commit and never push.
+6. **Close with ONE message**, after the files and the tracks, filled in from what you did and nothing else:
 
-## What else fits this project
+> **my-app**: a command-line tool that sorts notes (Node.js).
+> Created `conductor/` (context files, an empty `tracks/`) and the `.gitignore` lines.
+> Tracks are private (git-ignored) because the README says this is a public demo. Say 'commit my tracks' to share them.
+> Found your plan in `docs/plan.md`: 6 items. Filed the first four as tracks in the plan lane: 1 A publish checklist, 2 An /openapi.json door, 3 A /prompt paste pack, 4 Plugin packaging. Open question, not filed: browse-only dry-run variants.
+> Undo: `rm -r conductor`, then `git checkout .gitignore`.
+> The conductor files are not committed; say commit when you want them committed.
+> **See it on the board:** the board line of the first-track card ([next.md](../ops/next.md)).
+> **Plan the first track:** `/laneconductor:plan 1` ("A publish checklist").
+> Board, or plan the first track?
 
-<!-- generated: recommended plugins -->
+   Exactly two offers and one question, nothing after them: no add-ons paragraph, no starter set (`/laneconductor:suggest-skills` has it), no "Next: run `/laneconductor:next`". Committed tracks say "Tracks are committed with the code. Say 'make tracks private' to keep them out of git." A count you state comes from a command run for that purpose (`git rev-list --count HEAD`), never from a truncated listing. Say nothing about what does not exist or does not apply. With no plan document nothing was filed: end with the first-track card instead of the two offers. On "commit": `git add` the files you created, by name (never `git add -A`), make one commit and never push.
 
 ## setup scaffold
 

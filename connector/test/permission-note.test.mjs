@@ -22,14 +22,25 @@ test('the README, setup, new-project and the setup command carry the one-line no
   assert.match(read('skills/laneconductor/setup/setup.md'), /Never ask anyone to change their permission settings/);
 });
 
-test('the setup interview is one message, pre-filled, with the private tracks option, "Reply ok, or tell me what differs", nothing written before', () => {
-  for (const rel of ['commands/setup.md', 'skills/laneconductor/setup/setup.md', 'skills/laneconductor/ops/new-project.md']) {
+// UPDATED for release 1.9.5 (tracks AM-10130 Phase 7 and AM-10144 Phase 12): this replaces the earlier rule of track AM-10132 TC-2 (one pre-filled message
+// ending "Reply ok, or tell me what differs", nothing written before the reply) for the first-run path. Setup now writes FIRST: `go` to the card of
+// `next`, or a direct /laneconductor:setup, is the yes; the files are new and one line undoes them. It asks first only for something unusual,
+// and shows ONE closing message (what it created, the declared tracks line, the undo line, the plan found), then two offers and one question.
+test('the setup flow writes first: no pre-write confirmation, ONE closing message with the private tracks line and an undo line, a question only for something unusual', () => {
+  for (const rel of ['commands/setup.md', 'skills/laneconductor/setup/setup.md']) {
     const t = read(rel);
+    assert.doesNotMatch(t, /Reply ok, or tell me what differs/, `${rel}: no pre-write confirmation`);
+    assert.doesNotMatch(t, /[Ww]rite nothing until that reply/, rel);
+    assert.match(t, /no confirmation (first|before the files)/, `${rel}: writes first`);
     assert.match(t, /ONE message/, rel);
-    assert.match(t, /Reply ok, or tell me what differs/, rel);
     assert.match(t, /private/, rel);
-    assert.match(t, /write nothing until/i, rel);
+    assert.match(t, /Undo: `rm -r conductor`, then `git checkout \.gitignore`\./, `${rel}: the undo line`);
+    assert.match(t, /Stop and ask first, one line each, only for something unusual/, rel);
+    for (const unusual of ['a `conductor/` folder with content', 'no git repository', 'uncommitted changes in `.gitignore`']) assert.ok(t.includes(unusual), `${rel}: ${unusual}`);
   }
+  const np = read('skills/laneconductor/ops/new-project.md');
+  assert.doesNotMatch(np, /Reply ok, or tell me what differs/);
+  assert.match(np, /ONE message/);
 });
 
 test('no shipped skill or command declares allowed-tools (evaluated, not shipped)', () => {

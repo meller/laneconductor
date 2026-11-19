@@ -24,21 +24,22 @@ test('exactly setup, next, new-project and suggest-skills are inlined', () => {
   }
 });
 
-test('setup carries the interview, the existing-repository path, the permission note and the recommendation block', () => {
+test('setup carries the write-first procedure, the file rules, the permission note, newTrack and the first-track card (no starter set since 1.9.5)', () => {
   const t = cmd('setup');
-  for (const part of ['## What setup does', '## What else fits this project', '## setup scaffold', '## The path in detail', '#### Existing repository', '### Create the files',
-    'Reply ok, or tell me what differs', 'Write nothing until that reply', 'allows it this one time', 'Never ask anyone to change their permission settings',
-    'offer a STARTER SET', '## The first-track card', 'Say commit when you want the conductor files committed']) {
+  for (const part of ['## What setup does', '## The path in detail', '### Create the files', '## Reference: scaffold', 'newTrack',
+    'Stop and ask first, one line each, only for something unusual', 'File the plan items', 'Undo: `rm -r conductor`, then `git checkout .gitignore`.', 'allows it this one time', 'Never ask anyone to change their permission settings',
+    '## The first-track card', 'The conductor files are not committed; say commit when you want them committed.', 'Board, or plan the first track?']) {
     assert.ok(t.includes(part), `setup lacks: ${part}`);
   }
-  assert.ok(t.includes(setupRecommendBlock().split('\n').slice(0, 3).join('\n')), 'the generated recommendation block is inlined');
-  assert.ok(t.includes('claude plugin install laneconductor-parallel@laneconductor'), 'the install commands of the add-ons');
-  // The close is the first-track card (the one section of ops/next.md, carried here), with no "run next" line.
-  assert.ok(t.includes(src('ops/next.md').match(/## The first-track card[\s\S]*?(?=\n## Levels)/)[0].split('<!--')[0]), 'the first-track card of ops/next.md, word for word');
-  assert.doesNotMatch(t.replace(/no "Next: run `\/laneconductor:next`" line/, ''), /Next: run `\/laneconductor:next`/, 'no "run next" line is asked for');
-  // The existing-repository section of new-project is there word for word (the single source).
-  const existing = src('ops/new-project.md').match(/Show the result as ONE message[\s\S]*?\nDo not add the walking-skeleton/)[0].split('\n')[0];
-  assert.ok(t.includes(existing), 'the one-message text of ops/new-project.md');
+  // Track AM-10130 Phase 7 (release 1.9.5): the pre-write confirmation is gone (it superseded the "one pre-filled message ending Reply ok" rule of 10132 TC-2)
+  assert.ok(!t.includes('Reply ok, or tell me what differs') && !/Write nothing until that reply/.test(t), 'no pre-write confirmation');
+  assert.ok(!t.includes('STARTER SET') && !t.includes('## What else fits this project'), 'no starter set: it moved to new-project and suggest-skills');
+  assert.ok(!t.includes('Both add-ons in one line:'), 'no add-ons paragraph in setup');
+  // The first-track card (the one section of ops/next.md, carried here) ends the no-plan case; the closing has no "run next" line.
+  assert.ok(t.includes(src('ops/next.md').match(/## The first-track card[\s\S]*?(?=\n## Levels)/)[0].split('<!--')[0].split('\n').slice(0, 14).join('\n')), 'the first-track card of ops/next.md, word for word');
+  assert.doesNotMatch(t.replace(/no "Next: run `\/laneconductor:next`"/, ''), /Next: run `\/laneconductor:next`/, 'no "run next" line is asked for');
+  // The reading rules of setup.md are there word for word (the single source).
+  assert.ok(t.includes('The tracks choice, declared and never asked: private when something says the project is public'), 'the privacy rule of setup/setup.md');
 });
 
 test('next carries the gather steps, every state row, the rank, the card, the levels, the front door and the transition grammar', () => {
@@ -54,12 +55,15 @@ test('next carries the gather steps, every state row, the rank, the card, the le
   assert.ok(t.includes(frontDoorBlock().split('\n')[0]), 'the add-ons offer of the front door');
 });
 
-test('new-project carries all six steps and the rules, with the scaffold done by hand (no search for the add-on script)', () => {
+test('new-project carries all six steps and the rules, with the scaffold done by hand (no search for the add-on script); an existing repository goes to setup', () => {
   const t = cmd('new-project');
-  for (const part of ['## 1. Detect the situation', '### Existing repository', '## 2. Interview', '## 3. Scaffold', '## 4. First tracks', '## 5. Say what else fits this project',
-    '## 6. Summarize and close', '## Rules', '## The first-track card', 'Reply ok, or tell me what differs', 'Say commit when you want the conductor files committed', 'chore: add the LaneConductor scaffold']) {
+  for (const part of ['## 1. Detect the situation', '## 2. Interview', '## 3. Scaffold', '## 4. First tracks', '## 5. Say what else fits this project',
+    '## 6. Summarize and close', '## Rules', '## The first-track card', 'Board, or plan the first track?', 'The conductor files are not committed; say commit when you want them committed.', 'chore: add the LaneConductor scaffold']) {
     assert.ok(t.includes(part), `new-project lacks: ${part}`);
   }
+  assert.ok(!t.includes('Reply ok, or tell me what differs'), 'no pre-write confirmation text');
+  assert.ok(t.includes('`/laneconductor:setup` is the command for it'), 'an existing repository goes to setup');
+  assert.doesNotMatch(t, /### Existing repository|### File the plan items/, 'the existing-repository procedure is setup\'s, not carried here');
   assert.doesNotMatch(t, /Glob `\*\*\/laneconductor-parallel/);
   assert.doesNotMatch(t, /--detect|--answers|--dry-run|--no-first-track/);
 });

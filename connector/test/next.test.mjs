@@ -164,12 +164,13 @@ test('stale project-level skill: next.md and setup.md name the one sentence, the
   }
 });
 
-test('TC-5: setup and new-project end by pointing at next, and still carry the generated recommendation marker (the starter set)', () => {
+test('TC-5: setup and new-project no longer end by pointing at next (they end with the board and the first track); only new-project carries the generated starter-set marker', () => {
   for (const f of ['setup/setup.md', 'ops/new-project.md']) {
     const t = read(path.join(SRC, f));
-    assert.match(t, /Next: run `\/laneconductor:next`/, f);
-    assert.ok(t.includes(RECOMMEND_MARKER), f);
+    assert.match(t, /no "Next: run `\/laneconductor:next`"/, f);
   }
+  assert.ok(read(path.join(SRC, 'ops/new-project.md')).includes(RECOMMEND_MARKER));
+  assert.ok(!read(path.join(SRC, 'setup/setup.md')).includes(RECOMMEND_MARKER), 'setup holds no starter set');
 });
 
 // ---- Phase 2 and 3: the catalog and the generated texts ----
@@ -216,18 +217,20 @@ test('TC-9, TC-10: the parallel add-on offers next as a prompt, and the plugin m
 });
 
 test('TC-11, TC-12: the recommendation block in ops/next.md is the setup block for the add-ons, from the one catalog, with their commands and the one-line add-ons install in its own bash block', () => {
+  const text0 = String(buildPlugin(REPO, 'base').get('skills/laneconductor/ops/next.md').content);
   const block = frontDoorBlock(ADDONS); // next keeps the add-ons offer of the front door (the entries and the one line, without the setup-time prose); the full starter set is setup's and new-project's
   for (const profile of ['base']) {
     const files = buildPlugin(REPO, profile);
     const text = String(files.get('skills/laneconductor/ops/next.md').content);
     assert.ok(text.includes(block), 'next.md carries the front door block verbatim');
-    assert.ok(String(files.get('skills/laneconductor/setup/setup.md').content).includes(setupRecommendBlock()));
+    assert.ok(String(files.get('skills/laneconductor/ops/new-project.md').content).includes(setupRecommendBlock()));
     assert.ok(!text.includes(RECOMMEND_MARKER), 'the marker is replaced');
   }
   assert.ok(NEXT_MD.includes(RECOMMEND_MARKER), 'the source holds the marker, not the text');
   for (const e of ADDONS) assert.ok(!NEXT_MD.includes(e.name), `the source ops/next.md names no add-on by hand (${e.name})`);
-  const fences = [...block.matchAll(/```bash\n([^\n]+)\n```/g)].map((m) => m[1]);
-  assert.deepEqual(fences, [ADDONS_INSTALL], 'the one fence is the one-line install of both add-ons');
+  const fences = [...text0.matchAll(/```bash\n([^\n]+)\n```/g)].map((m) => m[1]);
+  assert.ok(fences.includes(ADDONS_INSTALL), 'the one-line install of both add-ons is in its own fence, in the first-track card of the same file');
+  assert.equal(fences.filter((f) => f === ADDONS_INSTALL).length, 1, 'written once: the front door points at it');
   assert.ok(ADDONS.every((e) => installCommands(e.name).every((c) => block.includes(`\`${c}\``))), 'each add-on line carries its commands in inline code');
 });
 

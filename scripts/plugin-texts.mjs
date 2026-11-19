@@ -265,7 +265,7 @@ export const setupRecommendBlock = (entries = STARTER) => {
   const { list, both } = recommendParts(entries);
   return `After the project is read, offer a STARTER SET: say which optional plugins would help THIS project, three or four at most, once. Look at what you read (the stack from \`package.json\`, the marker files and \`conductor/tech-stack.md\`, the git history, the CI files, what the person told you and the Type of the tracks) and pick only the entries below that fit and are not installed; say in a sentence why each fits.
 Order them: the core process skills first, a design skill when the project has a UI, the stack's pack, then the rest. Never more than four. If one is already installed, say
-nothing about it. If nothing fits, say nothing and go on. End the offer with: "Install them now, or I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
+nothing about it. If nothing fits, say nothing and go on. End the offer with the statement: "Install them whenever you like; otherwise I will offer each one when it comes up (when you plan a screen, deploy, and so on)."
 If the person says later, record nothing: each item is offered again at its own moment, as \`/${NAMES.base}:suggest-skills\` describes.
 
 How to offer: show an entry's install commands, each alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs. You only show them: never run an install command yourself, and install nothing unless the person says yes. Mention each plugin once in this session; if the person declines, do not bring it up again. Detect what is installed from the session's skills list and \`claude plugin list\`; if you cannot tell, take the person's word.
@@ -279,9 +279,11 @@ ${list}${both}`;
  */
 export const frontDoorBlock = (entries = ADDONS) => {
   const { list, both } = recommendParts(entries, { fits: false }); // the triggers ("Mention only when") already say when an add-on fits
+  // the one line for both add-ons is in the first-track card of the same file: written once there, not twice
+  const pointer = both ? '\n\nWhen BOTH add-ons are missing and you offer both, show the "one line" of the first-track card above instead of two blocks, then the reload step.' : '';
   return `Show each entry's commands alone in its own bash block (no leading \`$\`), then the reload step (\`${RELOAD_COMMAND}\`), and say plainly what it installs.
 
-${list}${both}`;
+${list}${pointer}`;
 };
 
 /**
@@ -303,7 +305,6 @@ export function skillEdits() {
       [BOARD_LAST_RULE, BOARD_MISSING],
     ],
     'ops/new-project.md': [recommend],
-    'setup/setup.md': [recommend],
     'ops/next.md': [[RECOMMEND_MARKER, frontDoorBlock(ADDONS)], [TIPS_MARKER, skillTipsBlock()], [CURRENT_TRACK_MARKER, CURRENT_TRACK], [ONE_LINE_MARKER, oneLineBlock()]],
     'SKILL.md': [[TRACK_CONTEXT_MARKER, TRACK_CONTEXT]],
     'ops/suggest-skills.md': [[CURRENT_TRACK_MARKER, CURRENT_TRACK], [RULES_MARKER, OFFER_RULES], [SKILLS_MARKER, skillsCatalogBlock()]],
@@ -431,8 +432,8 @@ export const BASE_PROCEDURES = {
     + '2. Confirm the entry was added. If the track has an `**Owner Action**` and my comment says it is done, also do what "The owner\'s reply" says in the skill file `lanes/implement.md` (under "Reference"). Otherwise do not answer it or change the track unless I ask.',
   next: 'What\'s next: {{option}} (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. The procedure is the skill file `ops/next.md`; read it in full first and follow it.\n\n'
     + '1. Gather where the project stands as the file says, with Glob, Grep, Read and read-only git (`git branch --list`, `git merge-base --is-ancestor`, `git log`); nothing else.\n'
-    + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track. With no tracks yet, the default is a three-line first card that points to `explain`.\n'
-    + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go; a command that asks for confirmation itself (`setup`, `new-project`, `merge`) is named without that offer.',
+    + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track. With no `conductor/` folder the default is a card with what the analysis found and ONE reply, `go`, which runs `setup` (or `new-project` for a new project): the card names the command and `go` is the consent.\n'
+    + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go; a command that asks for confirmation itself (`merge`, `deploy`) is named without that offer.',
   deploy: 'Deploy: {{action}}. This runs only because I named it; do nothing else with it.\n\n'
     + 'Follow `deploy/deploy.md`, or `deploy/setup-deploy.md` when the action is `setup`; both are under "Reference" below. Show me each deploy command before you run it; never deploy without my yes.',
   'repair-duplicates': 'Repair duplicate track numbers: two folders under `conductor/tracks/` that start with the same number are ambiguous. Nothing is renamed until I say yes. The folder and id formats are in the skill file `ops/tracks.md`.\n\n'
@@ -443,8 +444,8 @@ export const BASE_PROCEDURES = {
     + '4. On yes: `git mv` the folder, fix the id in the headings (the number only; keep the prefix and the title), and append a comment to the renamed track\'s `conversation.md` saying it was renumbered from the old number. Commit only those paths (explicit paths, never `git add -A`). Never push.\n'
     + '5. Regenerate `conductor/tracks-summary.md` if the project keeps one (by hand: the same rows, the renamed folder under its new number), then report what was renamed.\n'
     + '   A note that a folder is also named differently on another branch stays until that branch is merged or deleted, or carries the same folder name; say so.',
-  'new-project': 'New project: {{idea}} (nothing given means ask me). This runs only because I named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
-    + '1. Detect whether this is an empty folder or an existing repository (then offer only the `conductor/` scaffold).\n'
+  'new-project': 'New project: {{idea}} (nothing given means ask me). This runs when I named it, or said go to a `next` card that named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
+    + '1. Detect whether this is an empty folder (an existing repository is for `setup`: say so and stop).\n'
     + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'
     + '3. Show what you will create and ask before writing it, then create the first tracks in the plan lane.\n'
     + '4. Summarize, then ask before any commit. Never push.',
@@ -455,7 +456,6 @@ export const BASE_EXTRAS = {
   review: [`In Claude Code the add-on's sub-agent is \`${TRACK_RUNNER_AGENT}\`. See "Plugin users" in the skill's \`ops/working-a-track.md\`.`],
   run: [`In Claude Code the add-on's sub-agent is \`${TRACK_RUNNER_AGENT}\`. See "Plugin users" in the skill's \`ops/working-a-track.md\`.`],
   'review-plan': [`Dispatch the \`${NAMES.base}:plan-reviewer\` subagent (read only) with that prompt.`],
-  next: [`In Claude Code, type it as \`/${NAMES.base}:next\`; the commands in the card are written in that form.`],
   help: [`In Claude Code, type a command as \`/${NAMES.base}:<name>\`, for example \`/${NAMES.base}:plan 10106\`; typing \`/${NAMES.base}:\` lists them all.`],
   board: [`In Claude Code, type the refresh as \`/${NAMES.base}:board refresh\`.`, PUBLISH_NOTE, OPEN_NOTE, BOARD_SCRIPT_NOTE],
 };

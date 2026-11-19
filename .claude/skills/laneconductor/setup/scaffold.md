@@ -57,4 +57,4 @@ the `INITIALS-NNN-slug` form into LaneConductor? (leave/import)". On "import", f
 
 ## Close
 
-End as `setup` does: about three lines on what you created, then the first-track card of `ops/next.md` and no other question. A problem you saw in the basics (a test or lint command that does not run) is a suggestion in that card.
+End as `setup` does: its one closing message. A problem you saw in the basics (a test or lint command that does not run) goes in it as one line.

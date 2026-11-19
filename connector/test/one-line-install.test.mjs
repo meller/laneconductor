@@ -72,16 +72,25 @@ test('the block is for the case where BOTH add-ons are missing; with one add-on 
   assert.ok(!withPack.includes('Both add-ons in one line'));
 });
 
-test('the generated texts carry the block: ops/next.md (S02-S04 through "The front door"), setup, and the setup, next and new-project commands', () => {
-  const files = ['skills/laneconductor/ops/next.md', 'skills/laneconductor/setup/setup.md', 'skills/laneconductor/ops/new-project.md', 'commands/setup.md', 'commands/next.md', 'commands/new-project.md'];
-  for (const f of files) {
+test('the generated texts carry the block: new-project (the starter set), and next (the front door points at the one line of its first-track card, written once)', () => {
+  // Release 1.9.5: setup offers no starter set, so only new-project carries the full block; next keeps the add-ons offer of the front door and
+  // shows the one line once, in its first-track card (the front door says "show the one line of the first-track card").
+  for (const f of ['skills/laneconductor/ops/new-project.md', 'commands/new-project.md']) {
     const text = generated(`${RELS.base}/${f}`);
-    const shared = f.includes('next') ? frontDoorBlock(ADDONS) : setupRecommendBlock(); // next keeps the add-ons offer of the front door (its entries and the one line); setup and new-project carry the starter set
+    const shared = setupRecommendBlock();
     const both = shared.slice(shared.indexOf('When BOTH add-ons')); // the commands inline the block with their own link wording, so compare the added part
     assert.ok(text.includes(both), `${f} carries the one-line part of the shared block`);
     if (f.startsWith('skills/')) assert.ok(text.includes(shared), `${f} carries the shared block`);
     assert.ok(text.includes(`Both add-ons in one line:\n\n\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``), f);
   }
+  for (const f of ['skills/laneconductor/ops/next.md', 'commands/next.md']) {
+    const text = generated(`${RELS.base}/${f}`);
+    const door = frontDoorBlock(ADDONS);
+    assert.ok(door.includes('show the "one line" of the first-track card above instead of two blocks'), 'the front door block points at the card');
+    assert.ok(text.includes(door.slice(door.indexOf('When BOTH add-ons'))), `${f} carries the pointer`);
+    assert.equal(text.split(`\`\`\`bash\n${ADDONS_INSTALL}\n\`\`\``).length - 1, 1, `${f}: the one line is shown once`);
+  }
+  for (const f of ['commands/setup.md', 'skills/laneconductor/setup/setup.md']) assert.ok(!generated(`${RELS.base}/${f}`).includes('Both add-ons in one line'), `${f}: no starter set`);
   const source = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops/next.md'), 'utf8');
   assert.ok(!/claude plugin (install|marketplace)/.test(source) && !source.includes('Both add-ons in one line'), 'the source ops/next.md has the block only through the marker');
   const added = setupRecommendBlock().split('When BOTH add-ons')[1];

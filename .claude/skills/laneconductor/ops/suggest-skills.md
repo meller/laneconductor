@@ -16,7 +16,7 @@ commands and the person runs them.
 - When the situation matches: a failing test or a bug track (a debugging skill), a review comment to answer, a plan that is
   stuck, a UI, a track that needs an isolated checkout, a request to deploy.
 - When a track whose `**Type**` is `marketing`, `sales` or `support` is created, planned or implemented.
-- At the end of setup and new-project: a starter set of at most four (see below).
+- At the end of new-project: a starter set of at most four (see below).
 - In `next`: one line, as a tip.
 
 The arguments (all optional):
@@ -61,10 +61,10 @@ a plugin in the catalog: the person clicks, and nothing is installed without tha
 
 ## The starter set
 
-At the end of setup and new-project, offer three or four from the catalog that fit the project's stack and Type, none already
+At the end of new-project, offer three or four from the catalog that fit the project's stack and Type, none already
 installed: the core process skills, a design skill when the project has a UI, the stack's pack. Offer them once, with the commands in
 their own bash blocks and a one-line reason each. The person installs them now or says later; on "later" nothing is recorded and each
-one is offered again at its own moment (when a screen is planned, a deploy is asked for, and so on). The text is in `setup/setup.md`.
+one is offered again at its own moment (when a screen is planned, a deploy is asked for, and so on). The text is in `ops/new-project.md`.
 
 ## The add-ons are entries like any other
 

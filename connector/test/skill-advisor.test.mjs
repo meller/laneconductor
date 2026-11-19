@@ -166,7 +166,7 @@ test('TC-10 consent: the base shows the commands and never runs an install; a pr
   }
 });
 
-test('the hooks: every lane guide has "Offer a missing skill" before "Skills that help here"; setup, next and new carry theirs', () => {
+test('the hooks: every lane guide has "Offer a missing skill" before "Skills that help here"; new-project and next carry theirs', () => {
   for (const [lane, rel] of Object.entries(LANE_FILES)) {
     const text = skillFile(rel);
     if (lane === 'deploy') {
@@ -185,7 +185,7 @@ test('the hooks: every lane guide has "Offer a missing skill" before "Skills tha
   assert.match(next, /never show a command here/);
   assert.match(next, /Tip: `<skill>` \(<one clause on why>\) is not installed; `\/laneconductor:suggest-skills` shows how\./);
   assert.ok(skillFile('ops/tracks.md').includes(typeOfferBlock()));
-  assert.match(skillFile('setup/setup.md'), /offer a STARTER SET/);
+  assert.match(skillFile('ops/new-project.md'), /offer a STARTER SET/);
 });
 
 test('TC-13 the add-ons are ordinary entries: the same line, offered in the lane guides and the catalog like any pack, no special code path', () => {

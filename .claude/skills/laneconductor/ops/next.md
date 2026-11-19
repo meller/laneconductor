@@ -8,12 +8,12 @@ does and why it comes next, and teaches the lane model a little at a time. Use i
 
 - The person types `/laneconductor:next`, or says one of the phrases above. You may start it unprompted when they are plainly lost.
 - It is read only: no claim, no marker, no file, no install, no push; the one write is the personal level setting (see
-  "Levels"), after asking. If the person says "go", run the command it named as if they had typed it.
+  "Levels"), after asking. A reply of "go" runs the command the card named as if the person had typed it: the card names it, and `go` is the consent.
 - It names one step; other candidates go in one line (at most three, then "and N more").
 
 ## Gather
 
-Read in this order; stop as soon as the state is clear. The procedure is the same with or without the parallel add-on.
+Read in this order; stop as soon as the state is clear. It is the same with or without the parallel add-on.
 
 1. **Is this a repository?** `git rev-parse --is-inside-work-tree` (read only). Note the default and the current
    branch, and whether the folder holds anything besides `.git`. For the number of commits run `git rev-list --count HEAD`.
@@ -40,11 +40,11 @@ Read in this order; stop as soon as the state is clear. The procedure is the sam
 7. **Comments.** `conversation.md` is not committed: read it only when it exists here, and never rely on it. The committed signal
    for a reply that waits is the marker `Waiting for reply: yes`. When the file exists and its last entry is the human's
    (`> **human**:`) with no later `system` or agent entry, the track waits for a reply even if the marker says no.
-8. **Stub files.** A `plan.md` is a stub when it is missing, contains the placeholder "Plan to be written in the plan lane", or has
-   no checkbox. A `test.md` is a stub when it is missing, contains "(Test cases to be added)", or has no test case line. A file with
-   real content (phases, checkbox tasks, `TC-` lines, ticked or not) is NOT a stub: look for the checkbox and the `TC-` line, not for completeness.
-9. **A project summary** (`conductor/tracks-summary.md`) may preselect tracks in a very large project (about 100 tracks or more);
-   confirm every track the card names from its own `index.md`. Its "Needs attention" list is a lint list, not advice.
+8. **Stub files.** A `plan.md` is a stub when it is missing, holds the placeholder "Plan to be written in the plan lane", or has
+   no checkbox. A `test.md` is a stub when it is missing, holds "(Test cases to be added)", or has no test case line. Real content
+   (phases, checkbox tasks, `TC-` lines, ticked or not) is NOT a stub: look for the checkbox and the `TC-` line, not for completeness.
+9. **A project summary** (`conductor/tracks-summary.md`) may preselect tracks in a very large project (about 100 or more);
+   confirm every track the card names from its own `index.md`.
 
 ## States
 
@@ -57,7 +57,7 @@ the epic's own file holds no child status.
 | Id | The project shows | The card names | Command |
 |----|-------------------|----------------|---------|
 | S01 | The folder is not a git repository | Setup, which offers `git init` first (explain level: also the three paths of S02) | `/laneconductor:setup` |
-| S02 | A repository (or any folder, even an empty one) with no `conductor/` folder | The front door. Default level: the first card (see "The first card"). Explain level: three paths. (a) Continue this project: `setup` reads the stack, asks only to confirm, writes the `conductor/` files, never overwrites. (b) Start a new project: a short interview, then the scaffold and a first track. (c) Look around: four sentences on what LaneConductor is (the plan-first process, tracks as files in git, five lanes, nothing to install but this plugin) and the list from `help`; nothing is written. A repository with history defaults to (a); an empty or nearly empty folder (no code, no plan document) defaults to (b). Then the add-ons and the board (see "The front door") | `/laneconductor:setup`, `/laneconductor:new-project`, `/laneconductor:help` |
+| S02 | A repository (or any folder, even an empty one) with no `conductor/` folder | The front door. Default level: the first card (see "The first card"), a read only analysis and one reply, `go`. Explain level: three paths. (a) Continue this project: `go` runs `setup`: it reads the stack, writes the `conductor/` files and files the plan's first items as tracks. (b) Start a new project: a short brainstorm, then the scaffold and first tracks. (c) Look around: four sentences on what LaneConductor is (the plan-first process, tracks as files in git, five lanes, nothing to install but this plugin) and the list from `help`; nothing is written. A repository with history defaults to (a); an empty or nearly empty folder (no code, no plan document) defaults to (b). Then the add-ons and the board (see "The front door") | `/laneconductor:setup`, `/laneconductor:new-project`, `/laneconductor:help` |
 | S03 | `conductor/` exists but `workflow.json` or `tracks/` is missing | Finish the scaffold: setup again, it skips what exists. Explain level: then the add-ons and the board (see "The front door") | `/laneconductor:setup` |
 | S04 | Set up, and no track folder under `conductor/tracks/` | Create the first track. Default level: the first-track card (see "The first-track card"). Explain level: the primer, the card, then the add-ons except the board (see "The front door") | `/laneconductor:new <title>` |
 | S05 | A track (with no `Owner Action`, see S22) waits for a human reply: `Waiting for reply: yes`, or `Lane Status: waiting` with no `Waiting On Tracks` and no unmet `Depends On` (a question or an approval), or the last comment is the human's and unanswered | Answer it: show the last comment in two lines, say what the track needs, offer the answer path (a comment, then resume with `move`) | `/laneconductor:comment N <your answer>` |
@@ -105,29 +105,46 @@ With a track number as the argument ("what's next for N"), give the same card re
 ## The card
 
 Always: the step with its command; one sentence on what it will do (and in one clause where the track goes when it
-finishes); one sentence on why it comes next; the other candidates in one line (none: left out); one pointer to the lane statuses, in words (never a file path); and the closing offer "Say go and I will run it here", except when the command asks for confirmation itself (`setup`, `new-project`, `merge`, `deploy`): the card then ends with the command, so the person confirms once. The card never names a
+finishes); one sentence on why it comes next; the other candidates in one line (none: left out); one pointer to the lane statuses, in words (never a file path); and the closing offer "Say go and I will run it here", except when the command asks for confirmation itself (`merge`, `deploy`): the card then ends with the command, so the person confirms once. The first card has its own reply, `go`. The card never names a
 track number outside the track it is about, and never mentions work that does not exist yet (the first-track card's suggestions apart).
 
-The explain form of the card:
+Explain form:
 
 > **Next: plan track N, "<title>".** Run `/laneconductor:plan N`.
-> **What it does:** writes the spec, the plan and the test cases, and no code; the track then waits at `plan:success`.
-> **Why now:** nothing is built before the work is agreed and testable, and this is the oldest track waiting.
+> **What it does:** writes the spec, the plan and the test cases, and no code. **Why now:** this is the oldest track waiting.
 > Also waiting: N2 (implement), N3 (review). More on the lanes: `/laneconductor:workflow`. Say go and I will run it here.
 
 ## The first card
 
-In S01 to S03 nothing is ranked. At the default level the card is these three lines and nothing else:
+S01 and S03 rank nothing; the card is these three lines:
 
 > **Next: set this project up.** `/laneconductor:setup`
-> It reads this project's stack and commands, then writes the `conductor/` files after your ok.
+> It reads this project, asks only about anything unusual, then writes the `conductor/` files it lacks.
 > More (the lanes, the other paths, the board and the add-ons): `/laneconductor:next explain`.
 
-The step is `setup`. In an empty or nearly empty folder (no code, no plan document; a README or licence alone does not count) it is a new project: line 1 is "**Next: start a new project.** `/laneconductor:new-project`" and line 2 "A short brainstorm about the idea, then the scaffold, first tracks and suggested skills." No why line, no primer, no paths, no board or add-ons note, no "Say go". Add a line only for something to act on (a stale project-level skill, see below, or a stale freshness line).
+S02 is a read only analysis (README, `package.json`, `git remote`, the plan documents of "The first-track card") and ONE reply, `go`, which runs the command the card names. No why line, primer, paths, board or add-ons note; a count comes from a command (`git rev-list --count HEAD`). An existing project (code, or a plan document):
+
+> **Next: set this project up.** Nothing is written yet.
+> **my-app**: a command-line tool that sorts notes (Node.js).
+> Your plan, `docs/plan.md`:
+> 1. A publish checklist
+> 2. An /openapi.json door
+> 3. A /prompt paste pack
+> 4. Plugin packaging
+> 2 more in `docs/plan.md`. Open question there: browse-only dry-run variants? (not filed)
+> Tracks will be private (git-ignored): the README says this is a public demo.
+> Reply **go** and I run `/laneconductor:setup`: it sets up LaneConductor, keeps the tracks private and files the four plan items above as tracks in the plan lane.
+> More: `/laneconductor:next explain`.
+
+The plan lines are those of "The first-track card". The tracks line is setup's declared choice: private with its reason, or "Tracks will be committed with the code." With no plan document leave the plan lines out and end the reply line "...keeps the tracks private; no plan document, so it files nothing." A new project (an empty or nearly empty folder: no code, no plan document; a README or licence alone does not count):
+
+> **Next: start a new project.** No code and no plan document here.
+> Reply **go** and I run `/laneconductor:new-project`: a short brainstorm about the idea first (options and decisions, nothing written), then the scaffold, the first tracks and a starter set of suggested skills.
+> More: `/laneconductor:next explain`.
 
 ## The first-track card
 
-S04 at the default level, and the close of `setup` and `new-project`. Nothing is created before the person answers. With a plan (below) the card leads with it:
+S04 at the default level, and the close of `setup` (with no plan document) and `new-project`. Nothing is created before the person answers. With a plan (below) the card leads with it:
 
 > **Next: your first track.** From your plan in `docs/plan.md`:
 > 1. A publish checklist
@@ -140,15 +157,15 @@ S04 at the default level, and the close of `setup` and `new-project`. Nothing is
 > The project on a board: `/laneconductor:board` (the files setup wrote, later the tracks).
 > Reply with numbers, "all 6 plan items", or tell me a title of your own.
 
-- **The plan** (read only, one look; setup's reading counts): `docs/plan.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`, `docs/roadmap*.md`, and README sections on the roadmap, next steps, status, todo or what is missing. Items, in the file's order and words, cut to one line: unticked checkboxes, else bullets or numbered lines, else `###` headings, of the sections on what is still to come; never a ticked, struck-through or "done" one. A decision or question still open (a heading with decision, open or question, or a line ending "?") is an open question, not an item.
-- **With a plan**: the lead names the file (an item from another file ends with its name); at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
+- **The plan** (read only, one look): `docs/plan.md`, `PLAN.md`, `ROADMAP.md`, `TODO.md`, `docs/roadmap*.md`, and README sections on the roadmap, next steps, status, todo or what is missing. Items, in the file's order and words, cut to one line: unticked checkboxes, else bullets or numbered lines, else `###` headings, of the sections on what is still to come; never a ticked, struck-through or "done" one. A decision or question still open (a heading with decision, open or question, or a line ending "?") is an open question, not an item.
+- **With a plan**: the lead names the file; at most four items, "N more in `<file>`", at most two open questions; then, only for what the plan does not say, at most two generic suggestions, the audit last.
 - **Without a plan**, only generic suggestions, at most four, one line each: the title, then the fact behind it in a few words. In this order: no licence file or the README says none is chosen (Choose a licence); the README or `package.json` says public, demo or open source (Check the repository for secrets and personal data before it is public); no CI files but a test command (Add CI that runs `<the test command>`); no lint or format config (Add a lint and format check); no `SECURITY.md` (Add a SECURITY.md); no lockfile (Pin the dependencies). Keep the first three that fit, then always last: Audit: review the code for privacy, security and quality, and file each finding as its own track. The reply line has no "all".
 - **Never invent**: every line is text from a file (named) or a fact a command or a read checked.
-- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you. Skip it when setup's starter set offered the board.
+- **The board line**: as above when the board add-on is installed (look at the skills list and your tools; only if that is not enough run `claude plugin list` as a command of its own, never chained). Without it, say instead: "To see the project on a board, run this yourself, then `/reload-plugins` (the line adds the parallel add-on too, which installs a local program):" and the line below alone in its own bash block, never run by you.
 
 <!-- generated: add-ons one-line install -->
 
-- **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked.
+- **The answer**: numbers, "all N" (every plan item, the hidden ones too) or a title. For each, in the plan's order, follow `new`: search first (a fitting track is offered an update), then create in the plan lane, the plan item as the problem ("From `docs/plan.md`: <the item as written>"). An open question is filed only if asked. Setup files the first four the same way, with no question.
 
 ## What is still in the plan
 
@@ -176,13 +193,13 @@ There are three levels: `auto` (the default), `explain` and `short`.
 the file is not valid JSON).
 
 If the person asks to keep a level ("always short", "keep explaining"), ask before writing. If `.laneconductor.json` does not
-exist, say you will create it holding only `next.level` and add the line `.laneconductor.json` to `.gitignore` (it is personal);
-do both only after a yes, keeping every other key of an existing file. On no, write nothing. Nothing else is ever stored.
+exist, say you will create it holding only `next.level` and add `.laneconductor.json` to `.gitignore` (it is personal);
+do both only after a yes, keeping every other key of an existing file. On no, write nothing. Nothing else is stored.
 
 ## The front door
 
 At the explain level in S02, S03 and S04 the card is followed, once per session, by the optional add-ons that fit this
-project and are not installed. Show them; never run an install. One that is installed, already offered in this session (by setup, for example) or declined is not offered. At the default level, and in later runs with tracks, add-ons are not offered on the card: they come up when the person asks for parallel work, a board or a worktree. Detect an installed add-on as the first-track card says; if you still cannot tell and the person says it is installed already, take their word.
+project and are not installed. Show them; never run an install. One installed, already offered this session or declined is not offered. At the default level, and in later runs with tracks, add-ons are not offered on the card: they come up when the person asks for parallel work, a board or a worktree. Detect an installed add-on as the first-track card says; if you still cannot tell and the person says it is installed already, take their word.
 
 The board is also named when it is installed. At the explain level in S02 and S03 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop: open the board, copy the step, run it here, refresh.
 
@@ -198,18 +215,16 @@ After a ranked card (not the first card), add at most ONE line, once per session
 
 ## A stale project-level skill
 
-The plugin supplies the skill itself. A copy or link at `.claude/skills/laneconductor` is left over from an older install and is out of date.
-Look read only: Glob it, `test -L` for a link, `git ls-files` to see whether git tracks it.
-
-If it exists, say after the card (one extra line in later runs): "This project has its own copy of the LaneConductor skill (`.claude/skills/laneconductor`);
+A copy or link at `.claude/skills/laneconductor` is left over from an older install: the plugin supplies the skill itself. Look read only (Glob, `test -L` for a link, `git ls-files` for whether git tracks it).
+If it exists, say after the card: "This project has its own copy of the LaneConductor skill (`.claude/skills/laneconductor`);
 the plugin already supplies it, so the copy is stale." Offer its removal, the command alone in its own bash block; never run it. For a link that git does not track:
 
 ```bash
 rm .claude/skills/laneconductor
 ```
 
-For a folder that git does not track, `rm -r .claude/skills/laneconductor`. For one that git tracks, `git rm .claude/skills/laneconductor`
-(`git rm -r` for a folder); removing it then needs a commit: ask before making one.
+For a folder that git does not track, `rm -r .claude/skills/laneconductor`; for one that git tracks, `git rm .claude/skills/laneconductor`
+(`git rm -r` for a folder), which then needs a commit: ask first.
 
 ## Rules
 

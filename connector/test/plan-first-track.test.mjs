@@ -6,6 +6,8 @@
 // An empty folder goes to new-project (a brainstorm), and the freshness line of next no longer warns about a repository with no upstream.
 // The Markdown an agent follows is the behaviour, so most of these tests pin its text; the two reading rules are also code (planItems, planCoverage).
 // HUMAN, not covered here: that a real client follows the card (checked by running the client headlessly, see the track conversation).
+// Release 1.9.5 (AM-10144 Phase 12): `next` on a fresh project now shows the analysis and offers ONE reply, `go`; setup writes first and files the first four
+// plan items as tracks itself, so this card is S04 (set up, nothing filed), the no-plan close of setup, and the close of a brand-new project's first tracks.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -115,7 +117,7 @@ test('the S04 card leads with the plan items, names the source file, caps at fou
   assert.match(more, /Open question there: .+\? \(not filed\)$/, 'an open decision is shown as a question, never as a track');
   assert.ok(cardLines.indexOf(more) > cardLines.indexOf(cardLines.find((l) => l.startsWith('> 4. '))), 'after the items');
   assert.match(CARD, /at most four items, "N more in `<file>`", at most two open questions/);
-  assert.match(CARD, /\*\*The plan\*\* \(read only, one look; setup's reading counts\): `docs\/plan\.md`, `PLAN\.md`, `ROADMAP\.md`, `TODO\.md`, `docs\/roadmap\*\.md`, and README sections on the roadmap, next steps, status, todo or what is missing/);
+  assert.match(CARD, /\*\*The plan\*\* \(read only, one look\): `docs\/plan\.md`, `PLAN\.md`, `ROADMAP\.md`, `TODO\.md`, `docs\/roadmap\*\.md`, and README sections on the roadmap, next steps, status, todo or what is missing/);
   assert.match(CARD, /in the file's order and words, cut to one line/);
   assert.match(CARD, /A decision or question still open .* is an open question, not an item/);
 });
@@ -151,21 +153,22 @@ test('"file all N" and numbers: the existing `new` procedure (search first), in 
 
 test('one text: next, setup and new-project carry the same card, and the shipped copies lead with the plan too', () => {
   for (const n of ['next', 'setup', 'new-project']) assert.ok(cmd(n).includes('From your plan in `docs/plan.md`:'), n);
-  assert.match(SETUP_MD, /it leads with the plan found in step 1 and holds the board line/);
-  assert.match(NEW_PROJECT_MD, /The plan documents \("The first-track card" in \[next\.md\]\(next\.md\) says which\): one line, "Found your plan in `docs\/plan\.md`: 6 items"/);
-  assert.match(NEW_PROJECT_MD, /nothing when there is none/);
+  assert.match(SETUP_MD, /With no plan document nothing was filed: end with the first-track card instead of the two offers/);
+  assert.match(SETUP_MD, /The plan documents \("The first-track card" in \[next\.md\]\(\.\.\/ops\/next\.md\) says which\): their items, counted for "Found your plan in `docs\/plan\.md`: 6 items"; nothing when there is none/);
+  assert.match(CARD, /Setup files the first four the same way, with no question\./, 'the card says how setup files them');
 });
 
 // ---- setup's reading step says what it found ----
 
-test('setup says in one line what plan it found, and nothing when there is none; the confirmation stays within about twelve lines', () => {
-  const form = NEW_PROJECT_MD.slice(NEW_PROJECT_MD.indexOf('Show the result as ONE message'), NEW_PROJECT_MD.indexOf('Do not add the walking-skeleton'));
-  const lines = form.split('\n').filter((l) => l.startsWith('> ')).map((l) => l.slice(2));
-  assert.ok(lines.includes('Found your plan in `docs/plan.md`: 6 items.'));
-  assert.ok(lines.length <= 12 - 3, `${lines.length} example lines leave room for the unusual ones`);
-  assert.match(form, /ONE message in this form, at most twelve lines/);
-  assert.match(SETUP_MD, /the plan documents \(one line, if any\)/);
-  for (const n of ['setup', 'new-project']) assert.match(cmd(n), /Found your plan in `docs\/plan\.md`: 6 items/, n);
+test('setup says in one line what plan it found and what it filed, and nothing when there is none; the closing message stays short', () => {
+  const lines = SETUP_MD.split('\n').filter((l) => l.startsWith('> ')).map((l) => l.slice(2));
+  const found = lines.find((l) => l.startsWith('Found your plan in `docs/plan.md`: 6 items.'));
+  assert.ok(found, 'the plan line');
+  assert.match(found, /Filed the first four as tracks in the plan lane: 1 A publish checklist, 2 An \/openapi\.json door, 3 A \/prompt paste pack, 4 Plugin packaging\./);
+  assert.match(found, /Open question, not filed: browse-only dry-run variants\./);
+  assert.ok(lines.length <= 12, `${lines.length} lines in the example closing message`);
+  assert.match(SETUP_MD, /nothing when there is none/);
+  for (const n of ['setup']) assert.match(cmd(n), /Found your plan in `docs\/plan\.md`: 6 items/, n);
 });
 
 // ---- later on: nothing is ready ----
@@ -196,10 +199,12 @@ test('an empty git repository is S02 with new-project as the command (the classi
   assert.equal(readme.command, '/laneconductor:setup', 'a folder with files and history is the existing-project path in the classifier; the text sends one with no code and no plan to new-project');
   assert.match(NEXT_MD, /an empty or nearly empty folder \(no code, no plan document\) defaults to \(b\)/);
   const first = section(NEXT_MD, 'The first card');
-  assert.match(first, /In an empty or nearly empty folder \(no code, no plan document; a README or licence alone does not count\) it is a new project: line 1 is "\*\*Next: start a new project\.\*\* `\/laneconductor:new-project`" and line 2 "A short brainstorm about the idea, then the scaffold, first tracks and suggested skills\."/);
+  assert.match(first, /A new project \(an empty or nearly empty folder: no code, no plan document; a README or licence alone does not count\):/);
+  assert.match(first, /> \*\*Next: start a new project\.\*\* No code and no plan document here\./);
+  assert.match(first, /> Reply \*\*go\*\* and I run `\/laneconductor:new-project`: a short brainstorm about the idea first \(options and decisions, nothing written\), then the scaffold, the first tracks and a starter set of suggested skills\./);
   assert.match(NEXT_MD, /\| S02 \| A repository \(or any folder, even an empty one\) with no `conductor\/` folder \|/);
   assert.match(SETUP_MD, /A folder with no code and no plan document \(empty, or only a README or licence\) is a new project: say in one line that `\/laneconductor:new-project` is the command for it \(a brainstorm, the scaffold, first tracks, suggested skills\) and stop/);
-  assert.match(NEW_PROJECT_MD, /Empty or nearly empty folder \(no code and no plan document; a README, licence or `\.gitignore` alone does not count\): a new project: `\/laneconductor:new-project` is the command for it, not `setup`/);
+  assert.match(NEW_PROJECT_MD, /Empty or nearly empty folder \(no code and no plan document; a README, licence or `\.gitignore` alone does not count\): a new project: `\/laneconductor:new-project` is the command for it, not `setup`; the reply `go` to the card of `next` starts it\./);
   assert.match(cmd('setup'), /new-project` is the command for it/);
 });
 
@@ -209,12 +214,12 @@ test('the new-project interview is a brainstorm: options and decisions are explo
   assert.match(interview, /Explore before you decide: for a choice that shapes the project \(the stack, the data, hosting, authentication\) give two or three options with the trade-off in a line and a recommendation, and let the person choose\./);
   assert.match(interview, /Write no file until the interview is done and they say to scaffold/);
   const close = section(NEW_PROJECT_MD, '6. Summarize and close');
-  assert.match(close, /end with the first-track card \(\[next\.md\]\(next\.md\), "The first-track card": written once, shared with `next` and `setup`\)/);
-  assert.match(close, /for a new project the plan is the interview: item 1 is planning its walking skeleton \(`\/laneconductor:plan` with its number\), then the key features the person named, in their words, from `conductor\/product\.md`/);
-  assert.match(close, /and no other question: the track choice is the one question/);
-  assert.match(NEW_PROJECT_MD, /## 5\. Say what else fits this project\n\n<!-- generated: recommended plugins -->/, 'the starter set of suggested skills is part of the workflow');
+  assert.match(close, /\*\*See it on the board:\*\* the board line of the first-track card \(\[next\.md\]\(next\.md\)\)\./);
+  assert.match(close, /\*\*Plan the first track:\*\* `\/laneconductor:plan 1` \("Walking skeleton"\)\./);
+  assert.match(close, /Exactly two offers and one question, nothing after them/);
+  assert.match(NEW_PROJECT_MD, /## 5\. Say what else fits this project \(a new project\)\n\n<!-- generated: recommended plugins -->/, 'the starter set of suggested skills is part of the workflow');
   assert.ok(cmd('new-project').includes('offer a STARTER SET'), 'and in the generated command');
-  assert.ok(cmd('new-project').includes('From your plan in `docs/plan.md`:'), 'with the card');
+  assert.ok(cmd('new-project').includes('## The first-track card'), 'and still carries the card (its board line)');
 });
 
 // ---- freshness noise ----
@@ -247,6 +252,6 @@ test('a repository with no upstream, or a rebuilt summary, is not a stale line i
 // ---- the size ceilings: next, setup, new-project and run must not grow ----
 
 test('the generated next, setup, new-project and run commands are no bigger than before this change (bytes)', () => {
-  const BEFORE = { next: 32827, setup: 30790, 'new-project': 35416, run: 67201 };
+  const BEFORE = { next: 32808, setup: 30740, 'new-project': 34233, run: 67177 }; // the sizes of plugins 1.9.4
   for (const [n, max] of Object.entries(BEFORE)) assert.ok(Buffer.byteLength(cmd(n), 'utf8') <= max, `${n}: ${Buffer.byteLength(cmd(n), 'utf8')} > ${max}`);
 });

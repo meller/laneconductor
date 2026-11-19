@@ -18,9 +18,9 @@ test('TC-15 every starter-set candidate has a one-line setup_fit of 10 to 200 ch
   for (const e of STARTER) assert.ok(typeof e.setup_fit === 'string' && !e.setup_fit.includes('\n') && e.setup_fit.length >= 10 && e.setup_fit.length <= 200, `${e.name}: setup_fit`);
 });
 
-test('TC-16 the generated block in setup.md and new-project.md names exactly the starter candidates, one line each with its commands in inline code (Claude shows each alone in its own bash block), and the one-line add-ons install in its own fence', () => {
+test('TC-16 the generated block in new-project.md names exactly the starter candidates, one line each with its commands in inline code (Claude shows each alone in its own bash block), and the one-line add-ons install in its own fence', () => {
   const expected = [ADDONS_INSTALL]; // the one-line install of both add-ons is the one fence (AM-10128)
-  for (const rel of ['setup/setup.md', 'ops/new-project.md']) {
+  for (const rel of ['ops/new-project.md']) { // release 1.9.5: setup.md holds no starter set
     const text = read(rel);
     assert.ok(!text.includes(RECOMMEND_MARKER), `${rel}: the marker is replaced`);
     assert.deepEqual(bashFences(text), expected, `${rel}: one fence, the add-ons line`);
@@ -35,7 +35,7 @@ test('TC-16 the generated block in setup.md and new-project.md names exactly the
   const own = new Set(ADDONS.map((e) => e.name));
   for (const e of STARTER) {
     const c = `claude plugin install ${e.source.plugin}@${e.source.marketplace}`;
-    assert.ok(read('setup/setup.md').includes(`\`${c}\``), `${c} is shown`);
+    assert.ok(read('ops/new-project.md').includes(`\`${c}\``), `${c} is shown`);
     if (own.has(e.name)) assert.ok(c.endsWith(`@${market.name}`), c);
   }
 });
@@ -53,14 +53,14 @@ test('TC-17 the block shows only: it says never run, no install without a yes, s
 });
 
 test('TC-11 TC-12 the starter set: at most four, none installed, once; derived from the stack and Type; "later" defers to the moment of intent', () => {
-  for (const rel of ['setup/setup.md', 'ops/new-project.md']) {
+  for (const rel of ['ops/new-project.md']) {
     const text = read(rel);
     assert.match(text, /offer a STARTER SET/, rel);
     assert.match(text, /three or four at most, once/, `${rel}: three or four, once`);
     assert.match(text, /Never more than four/, rel);
     assert.match(text, /If one is already installed, say\s+nothing about it/, `${rel}: none already installed`);
     assert.match(text, /the stack from `package\.json`, the marker files and `conductor\/tech-stack\.md`/, `${rel}: derived from the stack`);
-    assert.match(text, /Install them now, or I will offer each one when it comes up/, `${rel}: now or later`);
+    assert.match(text, /Install them whenever you like; otherwise I will offer each one when it comes up/, `${rel}: now or later (a statement, not a second question)`);
     assert.match(text, /If the person says later, record nothing: each item is offered again at its own moment/, `${rel}: later defers`);
     assert.match(text, /the core process skills first, a design skill when the project has a UI, the stack's pack/, `${rel}: the order`);
     assert.ok(!text.includes('reserved for the skill advisor'), `${rel}: the reserved hook is gone`);
@@ -89,5 +89,6 @@ test('TC-21 the block is built from the catalog: a fake skillpack entry gets its
 test('ADD-ONS.md prints each entry\'s setup_fit, and the setup command points at the step', () => {
   const addons = read('ADD-ONS.md');
   for (const e of ADDONS) assert.ok(addons.includes(`**Offered at setup when**: ${e.setup_fit}.`), e.name);
-  assert.match(fs.readFileSync(path.join(REPO, RELS.base, 'commands/setup.md'), 'utf8'), /a starter set of three or four optional plugins at most/);
+  assert.match(fs.readFileSync(path.join(REPO, RELS.base, 'commands/new-project.md'), 'utf8'), /offer a STARTER SET/);
+  assert.doesNotMatch(fs.readFileSync(path.join(REPO, RELS.base, 'commands/setup.md'), 'utf8'), /STARTER SET/, 'setup shows no starter set: suggest-skills does');
 });

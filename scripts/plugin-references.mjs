@@ -34,8 +34,8 @@ const REASON_LANE = 'the lane command follows its lane guide, which it used to r
 const lane = (guide, extra = []) => ({ why: REASON_LANE, refs: [W(`lanes/${guide}.md`), ...extra, ...LANES_COMMON] });
 
 export const REFERENCES = {
-  setup: { why: 'setup writes the conductor files after the reply "ok" from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
-    SCAFFOLD(SCAFFOLD_GENERATE), PARTS('setup/templates.md', null, '**Track spec forms**')] },
+  setup: { why: 'setup writes the conductor files, and files the plan items as tracks, from the scaffold text, the templates and newTrack, which it used to read from the plugin install folder', refs: [
+    SCAFFOLD(SCAFFOLD_GENERATE), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK))] },
   'new-project': { why: 'new-project writes the conductor files from the scaffold text and templates, which it used to read from the plugin install folder', refs: [
     SCAFFOLD(SCAFFOLD_GENERATE, SCAFFOLD_INTERACTIVE), PARTS('setup/templates.md', null, '**Track spec forms**'), NO_OFFERS(T('ops/tracks.md', NEWTRACK)), NO_OFFERS(W('lanes/brainstorm.md'))] },
   plan: lane('plan', [TRACK_FILES]),

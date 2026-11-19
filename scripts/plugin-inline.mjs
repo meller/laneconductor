@@ -61,9 +61,6 @@ function newProjectText(text) {
   return edit(text, 'ops/new-project.md', [
     [/The scaffold script named below[\s\S]*?Do not recommend the\nadd-on for this\./,
       'Do the scaffold by hand, as step 3 describes: the result is the same as the add-on\'s scaffold script gives. Do not search for that script (it lives in\nthe add-on\'s install folder, outside the project) and do not recommend the add-on for this.'],
-    [/\n- If the scaffold script is present[\s\S]*?yourself the same way\./, ''],
-    [/Do not add the walking-skeleton track to an existing project: pass `--no-first-track` to the scaffold script, or skip it by hand,\nand suggest planning the first real track instead\./,
-      'Do not add the walking-skeleton track to an existing project; suggest planning the first real track instead.'],
     [/Record the answers as you go, as the JSON that\s+the scaffold script reads: /, 'Record the answers as you go: '],
     [/Run `node <path to the scaffold script>[\s\S]*?apply these rules over them:/,
       'Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files. The files and templates are\nin "Reference: scaffold" at the end of this command (from the skill files [../setup/scaffold.md](../setup/scaffold.md) and [../setup/templates.md](../setup/templates.md)); apply these rules over them:'],
@@ -76,9 +73,9 @@ const detectNoGlob = (text) => text.replace(/its connector tools exist \(.*?\), 
   'It has no tool or agent to look for, and its files are outside the project: offer it once, as an option that can be ignored if it is installed already.');
 
 const SOURCES = {
-  setup: 'the skill file `setup/setup.md`, then the existing-repository path of `ops/new-project.md` (in "The path in detail"), with the recommendation block and the first-track card of `ops/next.md`',
+  setup: 'the skill file `setup/setup.md`, then the file rules of `ops/new-project.md` (in "The path in detail") and the first-track card of `ops/next.md`',
   'new-project': 'the skill file `ops/new-project.md`, in full, with the first-track card of `ops/next.md`',
-  next: 'the skill file `ops/next.md`, in full, then what it needs from `ops/lanes-and-statuses.md` (in "Reference")',
+  next: 'the skill file `ops/next.md`, in full, then `ops/lanes-and-statuses.md` (in "Reference")',
   'suggest-skills': 'the skill file `ops/suggest-skills.md`, in full, with the catalog',
 };
 const notice = (name) => `This command carries its whole procedure below: it is the text of ${SOURCES[name]}. Do not Glob or Read the plugin's install folder (\`~/.claude/plugins/...\`) to carry it out: it is outside the project, and a read there is asked about or denied. Skill file paths in the text are references only.`;
@@ -89,29 +86,29 @@ const notice = (name) => `This command carries its whole procedure below: it is 
  */
 export function inlineBody(name, readSkill) {
   if (name === 'setup') {
-    const np = relink(newProjectText(readSkill('ops/new-project.md')), 'ops/new-project.md')
-      .replace('Instead of the nine questions of step 2, read the project and ask only to confirm:', 'Read the project and ask only to confirm:')
-      .replace('## 1. Detect the situation', '## Detect the situation')
-      .replace('## 3. Scaffold', '## Create the files');
+    const np = relink(newProjectText(readSkill('ops/new-project.md')), 'ops/new-project.md').replace('## 3. Scaffold', '## Create the files');
+    const create = edit(section(np, '## Create the files'), 'ops/new-project.md', [
+      [/Show what you would create and what you would skip because it exists, and ask for a yes; after the yes, create the files\. /, 'Create the files with no question first (setup writes first). '],
+    ]);
     const main = edit(relink(readSkill('setup/setup.md'), 'setup/setup.md').replace(/^# .*\n+/, ''), 'setup/setup.md', [
-      [/Follow `ops\/new-project\.md`, its existing-repository path \(the folder has a `\.git`, or files other than\n`conductor\/`\)\. /,
-        'Follow the existing-repository path in "The path in detail" below (the folder has a `.git`, or files other than `conductor/`). '],
       [/follow\n`setup\/scaffold\.md` \(templates in `setup\/templates\.md`\)/, 'follow the scaffold text under "Reference: scaffold" at the end (`setup/scaffold.md`, templates in `setup/templates.md`)'],
-      [/\(`ops\/next\.md`, "The first-track card": written once, shared with\s+`next`; it leads with the plan found in step 1 and holds/, '(at the end of this command; it leads with the plan found in step 1 and holds'],
+      [/\(`ops\/new-project\.md`, step 3 "Scaffold"; the files and templates are in `setup\/scaffold\.md` and `setup\/templates\.md`\)/, '("Create the files" below; the files and templates are under "Reference: scaffold" at the end)'],
+      [/in `ops\/next\.md` says which/, 'at the end of this command says which'],
+      [/\(`ops\/next\.md`\)/, '(at the end of this command)'],
     ]);
     return [
-      'Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it. Look for no program other than `git`, and read no settings file.',
+      'Setup: `$ARGUMENTS` (nothing given means add LaneConductor to this project). This runs when I named it, or said go to the card of `next` that named it; do nothing else with it. Look for no program other than `git`, and read no settings file.',
       notice('setup'),
       detectNoGlob(main.replace(/\s+$/, '')),
-      `## The path in detail\n\n${shift(section(np, '## Detect the situation'), 1)}\n\n${shift(section(np, '## Create the files'), 1)}\n\n${cardOf(readSkill)}`,
+      `## The path in detail\n\n${shift(create, 1)}\n\n${cardOf(readSkill)}`,
     ].join('\n\n');
   }
   if (name === 'new-project') {
     const np = relink(newProjectText(readSkill('ops/new-project.md')), 'ops/new-project.md').replace(/^# new-project: .*\n+/, '');
     return [
-      'New project: `$ARGUMENTS` (nothing given means ask me). This runs only because I named it.',
+      'New project: `$ARGUMENTS` (nothing given means ask me). This runs when I named it, or said go to the card of `next` that named it.',
       notice('new-project'),
-      detectNoGlob(`${edit(np, 'ops/new-project.md', [[/If your client asks "Allow this read outside[\s\S]*?for LaneConductor\.\n\n/, ''], [/\(`ops\/next\.md`, "The first-track card": written once, shared with `next` and `setup`\)/, '(at the end of this command)']]).replace(/\s+$/, '')}\n\n${cardOf(readSkill)}`),
+      detectNoGlob(`${edit(np, 'ops/new-project.md', [[/If your client asks "Allow this read outside[\s\S]*?for LaneConductor\.\n\n/, ''], [/\(`ops\/next\.md`\)\./, '(at the end of this command).']]).replace(/\s+$/, '')}\n\n${cardOf(readSkill)}`),
     ].join('\n\n');
   }
   if (name === 'next') {
@@ -121,8 +118,8 @@ export function inlineBody(name, readSkill) {
     const lanes = readSkill('ops/lanes-and-statuses.md');
     const pieces = [
       section(lanes, '## The five lane statuses'),
-      section(lanes, '## The two meanings of `done`'),
-      section(lanes, '## Transitions').replace(/\n\nWorked examples\.[\s\S]*$/, ''), // the worked examples of workflow.json are for the lane commands; `next` reads `valid.next` or the grammar above
+      section(lanes, '## The two meanings of `done`').replace(/\n\nThe other two statuses in the done lane[\s\S]*$/, ''), // the states S06 and S13 already say what done:failure and done:waiting need
+      section(lanes, '## Transitions').replace(/\n\nWorked examples\.[\s\S]*$/, '').replace(/ Fields of the older format\nare ignored:[^\n]*/, ''), // the worked examples of workflow.json are for the lane commands; `next` reads `valid.next` or the grammar above
     ].map((s) => shift(s, 1)).join('\n\n').replace('(for example `plan:success`: planned, parked)', '(for example `plan:success`: the plan is written and parked)');
     return [
       'What\'s next: `$ARGUMENTS` (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. In Claude Code, type it as `/laneconductor:next`; the commands in the card are written in that form.',

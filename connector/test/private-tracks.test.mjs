@@ -148,16 +148,22 @@ const SETUP = read(path.join(SRC, 'setup/setup.md'));
 const SKILL = read(path.join(SRC, 'SKILL.md'));
 const cmd = (n) => read(path.join(REPO, RELS.base, `commands/${n}.md`));
 
-test('setup and new-project never ask: they declare one line, name the rule, the three lines and the way back; no question mark in the form', () => {
-  for (const [name, text] of [['ops/new-project.md', NEW_PROJECT], ['commands/setup.md', cmd('setup')], ['commands/new-project.md', cmd('new-project')]]) {
-    assert.match(text, /Never ask whether tracks are committed or private: decide from facts and declare it in that one line/, name);
-    assert.match(text, /Private when something says the project is public \(the README says public, public demo or open source; an open-source LICENSE file; a `package\.json` `license` other than UNLICENSED or proprietary\) or `git remote` is empty/, name);
+test('setup and new-project never ask: they declare one line in the closing message, name the rule, the three lines and the way back', () => {
+  // Release 1.9.5: the confirmation message is gone (setup writes first), so the declared choice is a line of the ONE closing message.
+  for (const [name, text] of [['setup/setup.md + ops/new-project.md', `${SETUP}\n${NEW_PROJECT}`], ['commands/setup.md', cmd('setup')]]) {
+    assert.match(text, /The tracks choice, declared and never asked: private when something says the project is public \(the README says public, public demo or open source; an open-source LICENSE file; a `package\.json` `license` other than UNLICENSED or proprietary\) or `git remote` is empty/, name);
     assert.match(text, /Tracks are committed with the code\. Say 'make tracks private' to keep them out of git\./, name);
     assert.match(text, /Tracks are private \(git-ignored\) because .+ Say 'commit my tracks' to share them\./, name);
     for (const l of THREE) assert.ok(text.includes(`\`${l}\``), `${name}: ${l}`);
     assert.doesNotMatch(text, /committed with the code, or private/, `${name}: the old question is gone`);
   }
-  assert.match(SETUP, /whether tracks are private\s+or committed \(declared, never asked\)/);
+  // a brand-new project: no remote to share with, so private, declared in the closing message and never asked
+  for (const [name, text] of [['ops/new-project.md', NEW_PROJECT], ['commands/new-project.md', cmd('new-project')]]) {
+    assert.match(text, /decided from facts and declared in the closing message, never asked: the project looks public, or has no remote to share with/, name);
+    assert.match(text, /Tracks are private \(git-ignored\): there is no remote to share them with\. Say 'commit my tracks' to share them\./, name);
+    for (const l of THREE) assert.ok(text.includes(`\`${l}\``), `${name}: ${l}`);
+  }
+  assert.match(SETUP, /The tracks choice, declared and never asked/);
 });
 
 test('the base skill carries the short rule for the plain sentence later: private adds the three lines and offers `git rm -r --cached` (shown, not run); committed removes them after asking', () => {

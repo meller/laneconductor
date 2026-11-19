@@ -116,7 +116,7 @@ test('the generated setup procedure, read the way a session would, names no prog
   const SHELLISH = /^(node|git|gh|claude|npm|npx|make|lc|which|command|sudo|brew|apt|pip|docker|psql|curl|wget|sh|bash|rm|cp|ln) /;
   const bad = [];
   // Shown, never run: the removal of a stale project-level skill (a plain delete of that one path).
-  const STALE_SKILL_REMOVAL = /^(git )?rm( -r)?( \.claude\/skills\/laneconductor)?$/;
+  const STALE_SKILL_REMOVAL = /^(git )?rm( -r)?( \.claude\/skills\/laneconductor| conductor)?$/; // and the undo line of setup: `rm -r conductor`
   for (const [name, text] of Object.entries(texts)) {
     assert.deepEqual(noLcHits(text), [], `${name} names no lc command`);
     assert.ok(!/\.laneconductor\.json/.test(text), `${name} never names the settings file`);
@@ -124,7 +124,7 @@ test('the generated setup procedure, read the way a session would, names no prog
   }
   assert.deepEqual(bad, []);
   assert.match(texts.command, /look for no program other than `git`/);
-  assert.match(texts.command, /say which optional plugins fit it/);
+  assert.doesNotMatch(texts.command, /optional plugins/, 'setup offers no starter set (release 1.9.5)');
 });
 
 test('the connector starts and serves get_context and list_tracks with no lc on PATH', async () => {

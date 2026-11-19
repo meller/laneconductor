@@ -1,7 +1,7 @@
 ---
 name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
-when_to_use: Use when the user says things like "plan track 10106", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the lane prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
+when_to_use: Use when the user says things like "plan track 10106", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the lane prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name, or says go to the card of `next` that named setup or new-project.
 argument-hint: "[command] [track-number] [args]"
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
@@ -52,7 +52,7 @@ help; it does not wrap or bundle them.
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; `board` opens it, `board refresh` rebuilds and republishes it; building the page needs the optional laneconductor-board add-on) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
-| `setup` | [setup/setup.md](setup/setup.md) (add LaneConductor to this project; it follows [ops/new-project.md](ops/new-project.md)) | only when named |
+| `setup` | [setup/setup.md](setup/setup.md) (add LaneConductor to this project: it writes first, files the plan as tracks, ends with the board and the first track) | only when named, or on `go` to the card of `next` |
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (straight to the files, no interview) (templates in [setup/templates.md](setup/templates.md)) | only when named |
 | `new-project` | [ops/new-project.md](ops/new-project.md) (a guided interview, the `conductor/` scaffold, the first tracks) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
@@ -71,9 +71,9 @@ when Claude refreshes it. Sharing it shares those documents. Steps are in [ops/b
 **New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
 time, writes the `conductor/` scaffold with no database, and creates the first tracks in the plan
 lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-project.md)).
-`setup` adds LaneConductor to a project that already exists: the same procedure, but it reads `package.json`, the README and
-the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
-imports no older tracks silently ([setup/setup.md](setup/setup.md)).
+`setup` adds LaneConductor to a project that already exists: it reads `package.json`, the README, the CI files and the plan documents, writes the
+missing files at once (it asks first only about something unusual), never overwrites a file, imports no older tracks silently, and files the first four
+items of the plan as tracks ([setup/setup.md](setup/setup.md)).
 
 **Private or committed tracks.** "Make tracks private" means adding the missing ones of `conductor/tracks/`, `conductor/tracks-summary.md` and `conductor/advice-log/` to `.gitignore`;
 if git already tracks those files, offer `git rm -r --cached` for them and show the command, never run it without a yes. "Commit my tracks" means removing those three lines: show the diff and ask before editing `.gitignore`.

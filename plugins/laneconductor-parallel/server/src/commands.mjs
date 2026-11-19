@@ -59,8 +59,8 @@ export const COMMANDS = [
     args: [{ name: 'option', hint: 'explain | short | track number', description: '`explain` or `short` sets how much it explains; a track number limits it to that track; empty means the whole project.', required: false }],
     procedure: 'What\'s next: {{option}} (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. The procedure is the skill file `ops/next.md`; read it in full first and follow it.\n\n'
       + '1. Gather where the project stands as the file says: its own files and read-only git. With the connector, `list_tracks` and `get_track` give the same facts and say how fresh they are.\n'
-      + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track. With no tracks yet, the default is a three-line first card that points to `explain`.\n'
-      + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go; a command that asks for confirmation itself (`setup`, `new-project`, `merge`) is named without that offer.',
+      + '2. Name exactly one next step with the exact command to type, one sentence on what it does and one on why it comes next, the other candidates in one line, and the link to the reference. `explain` adds the primer, `short` gives one line, a track number limits the answer to that track. With no `conductor/` folder the default is a card with what the analysis found and ONE reply, `go`, which runs `setup` (or `new-project` for a new project): the card names the command and `go` is the consent.\n'
+      + '3. Ask before writing anything (the only write is a saved level, only if I ask for it). Run the step only if I say go; a command that asks for confirmation itself (`merge`, `deploy`) is named without that offer.',
   },
   {
     name: 'suggest-skills', group: 'start here', title: 'Suggest skills for this track',
@@ -217,11 +217,11 @@ export const COMMANDS = [
   },
   {
     name: 'new-project', group: 'setup and deploy', title: 'Start a new project',
-    description: 'Start a project: a short interview, the conductor scaffold and the first tracks (runs only because you named it)',
+    description: 'Start a project: a short brainstorm, the conductor scaffold and the first tracks (runs when you name it, or reply go to a next card)',
     example: 'start a new project: a habit tracker', connector: true,
     args: [{ name: 'idea', hint: 'name or idea', description: 'The project name or a few words about the idea; empty means ask me.', required: false }],
-    procedure: 'New project: {{idea}} (nothing given means ask me). This runs only because I named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
-      + '1. Detect whether this is an empty folder or an existing repository (then offer only the `conductor/` scaffold).\n'
+    procedure: 'New project: {{idea}} (nothing given means ask me). This runs when I named it, or said go to a `next` card that named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
+      + '1. Detect whether this is an empty folder (an existing repository is for `setup`: say so and stop).\n'
       + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'
       + '3. Show what the scaffold will create and ask before writing it, then create the first tracks in the plan lane.\n'
       + '4. Summarize, then ask before any commit. Never push.',
@@ -235,16 +235,16 @@ export const COMMANDS = [
   },
   {
     name: 'setup', group: 'setup and deploy', title: 'Add LaneConductor to this project',
-    description: 'Add LaneConductor to this project: read what is there, confirm the stack and commands, write the conductor/ files (runs only because you named it)',
+    description: 'Add LaneConductor to this project: read what is there, write the conductor/ files and file the plan as tracks (runs when you name it, or reply go to a next card)',
     example: 'add LaneConductor to this project',
-    args: [ACTION('scaffold', '`scaffold` goes straight to the files with no interview; empty reads the project and asks only to confirm.')],
-    procedure: 'Setup: {{action}} (nothing given means add LaneConductor to this project). This runs only because I named it; do nothing else with it.\n\n'
-      + 'Setup means adding LaneConductor to the project I am in. Follow the skill file `ops/new-project.md`, its existing-repository path; read it in full first.\n'
-      + '1. Read package.json (or the equivalent), the README, the CI files and the lint config; infer the project name, the stack and the test and lint commands, and ask only to confirm them: show it in ONE message of about twelve lines, already filled in: name and purpose, stack, the commands that exist, what will be created, and the one decision (tracks committed or private, with a recommendation); say nothing about what does not exist or does not apply. End with "Reply ok, or tell me what differs" and write nothing until I reply.\n'
+    args: [ACTION('scaffold', '`scaffold` goes straight to the files with no interview; empty reads the project and writes the files.')],
+    procedure: 'Setup: {{action}} (nothing given means add LaneConductor to this project). This runs when I named it, or said go to a `next` card that named it; do nothing else with it.\n\n'
+      + 'Setup means adding LaneConductor to the project I am in, and it writes first: the files are new and one line undoes them. Follow the skill file `setup/setup.md`; read it in full first.\n'
+      + '1. Read package.json (or the equivalent), the README, the plan documents, the CI files and the lint config; infer the project name, the stack, the test and lint commands that exist, and whether tracks are private or committed (declared, never asked). Ask nothing the files already answer, and write the missing `conductor/` files at once. Stop and ask first, one line each, only for something unusual: a `conductor/` folder with content (import nothing silently), no git repository, uncommitted changes in `.gitignore`.\n'
       + '1b. If the client asks "Allow this read outside the working directories?" for a file of this plugin, tell me in one line to choose the option that allows it this one time: the "keep allowing" and "block from now on" options change a permanent setting and are not needed. Never ask me to change my permission settings.\n'
-      + '2. If `conductor/tracks` already exists from an older LaneConductor, say what you found and import nothing silently.\n'
-      + '3. Tell me what you are about to create or change before you write anything. Never overwrite an existing file; the scaffold skips what exists. Ask before any commit; never push.\n'
-      + '4. Setup needs no installed command-line tool and no settings file: look for no program other than `git` and the scripts the skill file names, and read no settings file. After reading the project, say which optional plugins fit it and show their install commands, as the skill file says (never run them).\n\n'
+      + '2. File the first four items of the plan document, if there is one, as tracks in the plan lane with the `new` procedure (search first, then create); no question first.\n'
+      + '3. Never overwrite an existing file; the scaffold skips what exists. Ask before any commit; never push.\n'
+      + '4. Setup needs no installed command-line tool and no settings file: look for no program other than `git` and the scripts the skill file names, and read no settings file. End with ONE message: what you created, the tracks line, the plan found and the tracks filed, the undo line, then exactly two offers (see it on the board, plan the first track) and one question.\n\n'
       + 'When the action is `scaffold`, go straight to `setup/scaffold.md` (templates in `setup/templates.md`) and skip the interview; the same rules hold. Read the file in full first and tell me what you are about to create or change before you write anything.',
   },
   {

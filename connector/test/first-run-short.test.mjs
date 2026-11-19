@@ -3,6 +3,10 @@
 // does and one pointer to `next explain` (no primer, no three paths, no board or add-ons note, no "say go"), the explain level keeps the full text, a fact
 // in a card comes from a command run for that purpose, and the setup confirmation is one short message with one decision and the reply line.
 // HUMAN, not covered here: how many lines a real session prints (checked by running the client headlessly, see the track conversation).
+// Release 1.9.5 (tracks AM-10144 Phase 12, AM-10130 Phase 7, AM-10117 Phase 6): "reduce friction and give the fastest value". `next` on a fresh project is a
+// read only analysis and ONE reply, `go`; setup writes first (no pre-write confirmation: this supersedes the "one pre-filled message ending Reply ok" rule
+// of track AM-10132 TC-2 for the first-run path, see permission-note.test.mjs), files the first four plan items as tracks, and closes with exactly two offers
+// (the board, plan the first track) and one question. A brand-new project: `go` starts the new-project brainstorm.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -29,31 +33,83 @@ const section = (text, heading) => {
 };
 const FIRST_CARD = section(NEXT_MD, 'The first card');
 const cardLines = (text) => text.split('\n').filter((l) => l.startsWith('> '));
+/** The quoted example cards of "The first card", in order: S01/S03, S02 for an existing project, S02 for a new project. */
+const cardBlocks = (text) => text.split('\n\n').map((b) => b.split('\n').filter((l) => l.startsWith('> '))).filter((b) => b.length);
+const [S01_CARD, EXISTING_CARD, NEW_CARD] = cardBlocks(FIRST_CARD);
 
 // ---- next: the first card ----
 
-test('the S02 card at the default level is three lines: the step, one line on what it does, one pointer to `next explain`', () => {
-  const card = cardLines(FIRST_CARD);
-  assert.equal(card.length, 3, 'the example card has three lines');
-  assert.match(card[0], /^> \*\*Next: .*\*\* `\/laneconductor:setup`$/, 'the step with its command');
-  assert.ok(card[1].length < 140, 'one line on what it does');
-  assert.match(card[2], /`\/laneconductor:next explain`\.$/, 'the pointer');
-  assert.match(card[2], /the lanes, the other paths, the board and the add-ons/, 'the pointer says what explain adds');
+test('the S01 and S03 card at the default level is three lines: the step, one line on what it does, one pointer to `next explain`', () => {
+  assert.equal(cardBlocks(FIRST_CARD).length, 3, 'three example cards: S01 and S03, S02 existing, S02 new');
+  assert.equal(S01_CARD.length, 3);
+  assert.match(S01_CARD[0], /^> \*\*Next: .*\*\* `\/laneconductor:setup`$/, 'the step with its command');
+  assert.ok(S01_CARD[1].length < 140, 'one line on what it does');
+  assert.match(S01_CARD[2], /`\/laneconductor:next explain`\.$/, 'the pointer');
+  assert.match(S01_CARD[2], /the lanes, the other paths, the board and the add-ons/, 'the pointer says what explain adds');
 });
 
-test('the S02 card at the default level has no lane primer, no three-paths list, no board note, no add-ons note and no "say go"', () => {
-  const lines = cardLines(FIRST_CARD);
-  const card = lines.join('\n');
-  const body = lines.slice(0, 2).join('\n'); // the third line is the pointer, which names what explain adds
-  assert.doesNotMatch(card, /five lanes|five statuses|There are five|queue|running|\bmarker\b/i, 'no lane primer');
+test('the S02 card of an existing project shows what the analysis found and offers exactly one reply, `go`, with one clause saying what it will do', () => {
+  const lines = EXISTING_CARD.map((l) => l.slice(2));
+  assert.match(lines[0], /^\*\*Next: set this project up\.\*\* Nothing is written yet\.$/, 'read only, said in the card');
+  assert.match(lines[1], /^\*\*[\w-]+\*\*: .+\(.+\)\.$/, 'the project in one line');
+  assert.match(lines[2], /^Your plan, `docs\/plan\.md`:$/, 'the plan items and their source file');
+  assert.equal(lines.filter((l) => /^\d\. /.test(l)).length, 4, 'four plan items');
+  assert.match(lines.find((l) => /more in `docs\/plan\.md`/.test(l)), /^2 more in `docs\/plan\.md`\. Open question there: .+\? \(not filed\)$/, 'an open decision is listed, never filed');
+  const privacy = lines.find((l) => /^Tracks will be /.test(l));
+  assert.match(privacy, /^Tracks will be private \(git-ignored\): the README says this is a public demo\.$/, 'the tracks privacy it will declare');
+  const reply = lines.filter((l) => /\bgo\b/.test(l));
+  assert.equal(reply.length, 1, 'exactly one reply is offered');
+  assert.match(reply[0], /^Reply \*\*go\*\* and I run `\/laneconductor:setup`: it sets up LaneConductor, keeps the tracks private and files the four plan items above as tracks in the plan lane\.$/);
+  assert.equal(lines.filter((l) => /^Reply\b/.test(l)).length, 1, 'no second reply (no "ok", no numbers)');
+  assert.ok(!lines.some((l) => /\bok\b|say go/i.test(l)), 'no "ok" and no "say go"');
+  assert.match(lines[lines.length - 1], /`\/laneconductor:next explain`\.$/, 'the pointer');
+  assert.ok(lines.length <= 12, 'a few lines');
+  // the rules around the cards say the same in words
+  assert.match(FIRST_CARD, /S02 is a read only analysis \(README, `package\.json`, `git remote`, the plan documents of "The first-track card"\) and ONE reply, `go`, which runs the command the card names/);
+  assert.match(FIRST_CARD, /With no plan document leave the plan lines out and end the reply line "\.\.\.keeps the tracks private; no plan document, so it files nothing\."/);
+});
+
+test('the S02 card of an existing project has no lane primer, no three-paths list, no board note, no add-ons note and no second confirmation', () => {
+  const card = EXISTING_CARD.join('\n');
+  assert.doesNotMatch(card, /five lanes|five statuses|There are five|\bqueue\b|running|\bmarker\b/i, 'no lane primer');
   assert.doesNotMatch(card, /\(a\)|\(b\)|\(c\)|three paths|new-project|look around/i, 'no list of paths');
   assert.doesNotMatch(card, /What's next button|opens the whole project as a board|\/laneconductor:board/, 'no board note');
-  assert.doesNotMatch(body, /add-on|\bboard\b/i, 'no board or add-ons note outside the pointer');
-  assert.doesNotMatch(card, /laneconductor-parallel|laneconductor-board|claude plugin|\/plugin /i, 'no add-ons note');
-  assert.doesNotMatch(card, /say go/i, 'no second confirmation');
-  // The rules around the card say the same in words.
-  assert.match(FIRST_CARD, /No why line, no primer, no paths, no board or add-ons note, no "Say go"/);
-  assert.match(FIRST_CARD, /In S01 to S03 nothing is ranked\. At the default level the card is these three lines and nothing else/);
+  assert.doesNotMatch(card, /laneconductor-parallel|laneconductor-board|claude plugin|\/plugin |add-on/i, 'no add-ons note');
+  assert.match(FIRST_CARD, /No why line, primer, paths, board or add-ons note/);
+});
+
+test('the S02 card of a brand-new project says so and offers `go` to start the brainstorm: options and decisions first, nothing written, then the scaffold, the first tracks and the starter set', () => {
+  const lines = NEW_CARD.map((l) => l.slice(2));
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /^\*\*Next: start a new project\.\*\* No code and no plan document here\.$/);
+  assert.match(lines[1], /^Reply \*\*go\*\* and I run `\/laneconductor:new-project`: a short brainstorm about the idea first \(options and decisions, nothing written\), then the scaffold, the first tracks and a starter set of suggested skills\.$/);
+  assert.equal(lines.filter((l) => /\bgo\b/.test(l)).length, 1, 'one reply');
+  assert.match(lines[2], /`\/laneconductor:next explain`\.$/);
+  assert.match(FIRST_CARD, /A new project \(an empty or nearly empty folder: no code, no plan document; a README or licence alone does not count\)/);
+  // new-project, the other side: the reply `go` starts it, it asks for no name first, the interview is a brainstorm, nothing is written before it ends
+  assert.match(NEW_PROJECT_MD, /the reply `go` to the card of `next` starts it\. Ask for no name first: the first question is what it is for\./);
+  assert.match(NEW_PROJECT_MD, /This is a brainstorm, in the style of/);
+  assert.match(NEW_PROJECT_MD, /Write no file until the interview is done and they say to scaffold/);
+});
+
+test('`go` is the consent: both sides say it, and nothing says setup or new-project runs "only because" they were named', () => {
+  assert.match(NEXT_MD, /A reply of "go" runs the command the card named as if the person had typed it: the card names it, and `go` is the consent\./);
+  assert.ok(cmd('next').includes('the card names it, and `go` is the consent.'), 'the generated next command');
+  for (const [name, text] of [['commands/setup.md', cmd('setup')], ['commands/new-project.md', cmd('new-project')]]) {
+    assert.match(text, /This runs when I named it, or said go to the card of `next` that named it/, name);
+    assert.doesNotMatch(text, /runs only because I named it/, name);
+  }
+  assert.match(SETUP_MD, /It runs when the person names it, or says `go` to the card of `next` that named it:\s+the card names the command and `go` is the consent/);
+  assert.match(NEW_PROJECT_MD, /Run it when the person names it, or says\s+`go` to the card of `next` that named it/);
+  // the catalog: the description the client lists, the connector prompts and the base procedure
+  for (const n of ['setup', 'new-project']) {
+    const c = COMMANDS.find((x) => x.name === n);
+    assert.match(c.description, /runs when you name it, or reply go to a next card/, `${n}: description`);
+    assert.doesNotMatch(c.description, /runs only because you named it/, n);
+    assert.match(c.procedure, /This runs when I named it, or said go to a `next` card that named it/, n);
+  }
+  assert.match(read(path.join(SRC, 'SKILL.md')), /runs only when the user asks for it by name, or says go to the card of `next` that named setup or new-project/);
+  assert.match(cmd('setup'), /^description: "Add LaneConductor to this project: read what is there, write the conductor\/ files and file the plan as tracks \(runs when you name it, or reply go to a next card\)"/m);
 });
 
 test('the level rule: auto is the first card in S01 to S04, and only `explain` gives the full text; the code and the text agree', () => {
@@ -85,14 +141,16 @@ test('the explain level still has everything the first card leaves out: the prim
   assert.match(NEXT_MD.split('\n').find((l) => l.startsWith('| S04 |')), /Explain level: the primer, the card, then the add-ons except the board/, 'S04');
 });
 
-test('no "say go" before a command that asks for confirmation itself: the card rule, the generated command and both procedure texts say so', () => {
-  const rule = 'except when the command asks for confirmation itself (`setup`, `new-project`, `merge`, `deploy`): the card then ends with the command, so the person confirms once';
+test('no "say go" before a command that asks for confirmation itself, and the first card has its own reply: the card rule, the generated command and both procedure texts say so', () => {
+  const rule = 'except when the command asks for confirmation itself (`merge`, `deploy`): the card then ends with the command, so the person confirms once. The first card has its own reply, `go`.';
   assert.ok(NEXT_MD.includes(rule));
   assert.ok(cmd('next').includes(rule), 'the generated command carries it');
-  const offer = 'a command that asks for confirmation itself (`setup`, `new-project`, `merge`) is named without that offer';
+  const offer = 'a command that asks for confirmation itself (`merge`, `deploy`) is named without that offer';
   assert.ok(COMMANDS.find((c) => c.name === 'next').procedure.includes(offer), 'the connector prompt');
   assert.ok(BASE_PROCEDURES.next.includes(offer), 'the base procedure');
-  assert.match(COMMANDS.find((c) => c.name === 'next').procedure, /With no tracks yet, the default is a three-line first card that points to `explain`/);
+  const first = 'With no `conductor/` folder the default is a card with what the analysis found and ONE reply, `go`, which runs `setup` (or `new-project` for a new project): the card names the command and `go` is the consent.';
+  assert.ok(COMMANDS.find((c) => c.name === 'next').procedure.includes(first), 'the connector prompt names the first card');
+  assert.ok(BASE_PROCEDURES.next.includes(first), 'the base procedure names the first card');
 });
 
 test('a number in a card comes from a command run for that purpose, never from a truncated listing: it says so, in the source and the command', () => {
@@ -102,67 +160,77 @@ test('a number in a card comes from a command run for that purpose, never from a
   }
 });
 
-// ---- setup: the confirmation ----
+// ---- setup: writes first, then ONE closing message ----
 
-/** The form of the confirmation message, from the source of ops/new-project.md: an example message, then the rules. */
-const FORM = NEW_PROJECT_MD.slice(NEW_PROJECT_MD.indexOf('Show the result as ONE message'), NEW_PROJECT_MD.indexOf('Do not add the walking-skeleton'));
-const example = (text) => cardLines(text).map((l) => l.slice(2));
+/** The example closing message of setup, from the source of setup/setup.md. */
+const CLOSING = cardLines(SETUP_MD).map((l) => l.slice(2));
 
-test('the setup confirmation has the required parts in order: name and purpose, stack, commands that exist, what will be created, the one decision, the reply line', () => {
-  const lines = example(FORM);
-  assert.equal(lines.length, 7);
-  assert.match(lines[0], /^\*\*[\w-]+\*\*: .+\.$/, 'name and purpose in one line');
-  assert.match(lines[1], /^Stack: /);
-  assert.match(lines[2], /^Commands: `[^`]+`(, `[^`]+`)*\.$/, 'only commands that exist');
-  assert.match(lines[3], /^Found your plan in `[^`]+`: \d+ items\.$/, 'the plan documents, in one line (nothing when there is none)');
-  assert.match(lines[4], /^I will create `conductor\/`/, 'what will be created, in one line');
-  assert.match(lines[5], /^Tracks are private \(git-ignored\) because .+\. Say 'commit my tracks' to share them\.$/, 'the tracks decision is declared, not asked');
-  assert.ok(!example(FORM).some((l) => /\?$/.test(l)), 'the confirmation holds no question');
-  assert.equal(lines[6], 'Reply ok, or tell me what differs.', 'the last line is the reply line');
-  assert.match(FORM, /Never ask whether tracks are committed or private: decide from facts and declare it in that one line/);
-});
-
-test('the setup confirmation stays within the line limit: at most twelve lines, and an extra line only for something unusual or that needs a decision', () => {
-  assert.match(FORM, /ONE message in this form, at most twelve lines, everything filled in/);
-  assert.ok(example(FORM).length <= 12 - 3, 'the example leaves room for the named extra lines');
-  assert.ok(example(FORM).every((l) => l.length < 150), 'every line of the example is one line');
-  assert.match(FORM, /Add a line only for something unusual \(an existing `conductor\/` folder, a stale project-level skill, a conflict\)/);
-  assert.match(SETUP_MD, /about\s+twelve lines, ending "Reply ok, or tell me what differs"/);
-  assert.match(SETUP_MD, /\*\*An existing `conductor\/`\*\* \(an older LaneConductor\) is one more line in the message/);
-  assert.match(SETUP_MD, /\*\*A stale project-level skill\*\* is one more line in the message, only if/);
-});
-
-test('the setup confirmation says nothing about what does not exist or does not apply: the rule is there and the old absent-thing lines are gone', () => {
-  for (const [name, text] of [['ops/new-project.md', NEW_PROJECT_MD], ['setup/setup.md', SETUP_MD], ['commands/setup.md', cmd('setup')], ['commands/new-project.md', cmd('new-project')]]) {
-    assert.match(text.replace(/\s+/g, ' '), /Say nothing about what does not exist or does not apply/, `${name}: the rule`);
-    assert.doesNotMatch(text, /one line for each one you left out|Say so when you leave one out|where each fact came from, and the tracks folder/, `${name}: the list of absent things is gone`);
-    assert.doesNotMatch(text, /Show the plan, then write|List the files the scaffold would create and the ones it would skip/, `${name}: no second plan after the confirmation`);
+test('setup writes first: no pre-write confirmation, the unusual cases still ask first, in one line each', () => {
+  for (const [name, text] of [['setup/setup.md', SETUP_MD], ['commands/setup.md', cmd('setup')]]) {
+    assert.doesNotMatch(text, /Reply ok, or tell me what differs/, `${name}: the old pre-write confirmation is gone`);
+    assert.doesNotMatch(text, /[Ww]rite nothing until that reply/, name); // (the explicit `setup scaffold` action keeps its own "ask only to confirm")
+    assert.match(text, /Setup writes first: new files are additive and one line undoes them, so there is no confirmation before the files/, name);
+    assert.match(text, /\*\*Stop and ask first, one line each, only for something unusual\*\*: a `conductor\/` folder with content \(an older LaneConductor: how many tracks, in which naming form, which lanes; offer to finish the scaffold: write only what is missing, import nothing, change no track\); no git repository \(offer `git init` first\); uncommitted changes in `\.gitignore`, the one existing file setup edits \(offer to go on, or to wait while they commit it\)\. Anything else: write\./, name);
+    assert.match(text, /No existing file of the project is touched, and `\.gitignore` only gets the lines it lacks/, name);
   }
-  assert.match(NEW_PROJECT_MD.replace(/\s+/g, ' '), /no list of commands left out, no "nothing to clean up", no "no optional plugins", no "I will not touch your README", no repository facts/);
-  assert.ok(!example(FORM).join('\n').match(/commits|branch|touch|leave|left out|nothing to/i), 'the example itself says nothing about what is absent or always true');
-  assert.match(SETUP_MD, /\*\*Say what else fits\*\*, in the closing summary, not in the message above: .*say nothing when none fits/s);
-});
-
-test('the setup confirmation keeps what the earlier tests require: nothing written before the reply, the reply line, the private option, a count from a command, and the reply is the yes', () => {
-  for (const [name, text] of [['setup.md', SETUP_MD], ['new-project.md', NEW_PROJECT_MD], ['commands/setup.md', cmd('setup')], ['commands/new-project.md', cmd('new-project')]]) {
-    assert.match(text, /Reply ok, or tell me what differs/, name);
-    assert.match(text, /[Ww]rite nothing until that reply/, name);
-    assert.match(text, /private/, name);
-  }
-  for (const [name, text] of [['new-project.md', NEW_PROJECT_MD], ['commands/setup.md', cmd('setup')]]) {
-    assert.match(text, /`git rev-list --count HEAD`/, `${name}: counts by command`);
-    assert.match(text, /For an existing repository the step 1 reply is that yes/, `${name}: no second confirmation before the files`);
-  }
-  assert.match(SETUP_MD, /\*\*Write after the reply\.\*\* The reply is the yes/);
+  assert.doesNotMatch(NEW_PROJECT_MD, /Show the result as ONE message|Reply ok, or tell me what differs/, 'new-project no longer holds the existing-repository confirmation');
+  assert.match(cmd('setup'), /Create the files with no question first \(setup writes first\)\./, 'the carried file rules do not ask either');
+  assert.doesNotMatch(cmd('setup'), /ask for a yes; after the yes/, 'no second confirmation in the carried scaffold rules');
   assert.doesNotMatch(cmd('setup'), /\bworkers?\b|daemon|collection|make install|laneconductorrc/i, 'no daemon-era words');
+});
+
+test('the closing message of setup has the parts in order: project, what it created, the declared tracks line, the plan and the filed tracks, the undo line, the commit statement, two offers, one question', () => {
+  assert.equal(CLOSING.length, 9);
+  assert.match(CLOSING[0], /^\*\*[\w-]+\*\*: .+\.$/, 'name and purpose in one line');
+  assert.match(CLOSING[1], /^Created `conductor\/` \(context files, an empty `tracks\/`\) and the `\.gitignore` lines\.$/, 'what it created, in one line');
+  assert.match(CLOSING[2], /^Tracks are private \(git-ignored\) because .+\. Say 'commit my tracks' to share them\.$/, 'the declared tracks line');
+  assert.match(CLOSING[3], /^Found your plan in `docs\/plan\.md`: 6 items\. Filed the first four as tracks in the plan lane: 1 .+, 2 .+, 3 .+, 4 .+\. Open question, not filed: .+\.$/, 'the plan found, the first four filed, the question listed');
+  assert.equal(CLOSING[4], 'Undo: `rm -r conductor`, then `git checkout .gitignore`.', 'the undo line, one line');
+  assert.equal(CLOSING[5], 'The conductor files are not committed; say commit when you want them committed.', 'a statement, not a question');
+  assert.match(CLOSING[6], /^\*\*See it on the board:\*\* the board line of the first-track card \(\[next\.md\]\(\.\.\/ops\/next\.md\)\)\.$/);
+  assert.match(CLOSING[7], /^\*\*Plan the first track:\*\* `\/laneconductor:plan 1` \("A publish checklist"\)\.$/, 'plan the first track, naming its title');
+  assert.equal(CLOSING[8], 'Board, or plan the first track?');
+  assert.deepEqual(CLOSING.filter((l) => /\?$/.test(l)), [CLOSING[8]], 'exactly one question, the last line');
+  assert.equal(CLOSING.filter((l) => /^\*\*(See it on the board|Plan the first track):\*\*/.test(l)).length, 2, 'exactly two offers');
+  assert.ok(CLOSING.every((l) => l.length < 260), 'one line each');
+  assert.match(SETUP_MD, /Exactly two offers and one question, nothing after them: no add-ons paragraph, no starter set \(`\/laneconductor:suggest-skills` has it\), no "Next: run `\/laneconductor:next`"\./);
+  assert.match(SETUP_MD, /Committed tracks say "Tracks are committed with the code\. Say 'make tracks private' to keep them out of git\."/);
+  assert.match(SETUP_MD, /Say nothing about what does not exist or does not apply\./);
+  assert.match(SETUP_MD, /A count you state comes from a command run for that purpose \(`git rev-list --count HEAD`\)/);
+  assert.match(cmd('setup'), /`git rev-list --count HEAD`/, 'counts by command, in the generated command');
+});
+
+test('setup files the first four plan items as tracks: through `new` (search first, then create), in the plan order, in the plan lane, the item as the problem with its file named, no question, the open questions listed; no plan, nothing filed', () => {
+  assert.match(SETUP_MD, /\*\*File the plan items\.\*\* With a plan document, file its first four items as tracks, in the plan's order, in the plan lane, as "The answer" of the first-track card says \(the `new` procedure: search first, then create; the plan item as the problem, its source file named\)\. No question\. The open questions of the plan are not filed: list them\. With no plan document nothing is filed\./);
+  assert.match(TRACK_CARD, /\*\*The answer\*\*: .*follow `new`: search first \(a fitting track is offered an update\), then create in the plan lane, the plan item as the problem \("From `docs\/plan\.md`: <the item as written>"\)\. An open question is filed only if asked\. Setup files the first four the same way, with no question\./);
+  assert.match(SETUP_MD, /With no plan document nothing was filed: end with the first-track card instead of the two offers/, 'the generic first-track card is the no-plan close');
+  // the generated command carries what it needs to file them: the newTrack procedure and the card
+  const c = cmd('setup');
+  for (const part of ['newTrack', '## The first-track card', 'File the plan items.', 'Search first']) assert.ok(c.includes(part) || part === 'Search first', `setup carries: ${part}`);
+  assert.ok(COMMANDS.find((x) => x.name === 'setup').procedure.includes('File the first four items of the plan document, if there is one, as tracks in the plan lane with the `new` procedure (search first, then create); no question first.'), 'the connector prompt');
+  assert.match(cmd('setup'), /This runs when I named it, or said go to the card of `next` that named it/);
+});
+
+test('the new-project closing is the same two offers and one question, after the starter set; the starter set ends with a statement, not a second question', () => {
+  const close = NEW_PROJECT_MD.slice(NEW_PROJECT_MD.indexOf('## 6. Summarize and close'), NEW_PROJECT_MD.indexOf('## Rules'));
+  const lines = cardLines(close).map((l) => l.slice(2));
+  assert.deepEqual(lines.filter((l) => /\?$/.test(l)), ['Board, or plan the first track?']);
+  assert.equal(lines.filter((l) => /^\*\*(See it on the board|Plan the first track):\*\*/.test(l)).length, 2);
+  assert.ok(lines.includes('The conductor files are not committed; say commit when you want them committed.'));
+  assert.match(close, /Exactly two offers and one question, nothing after them \(the starter set of step 5 comes before the message\): no add-ons paragraph, no "Next: run `\/laneconductor:next`"\./);
+  assert.doesNotMatch(NEW_PROJECT_MD.replace(/no "Next: run[^"]*"/g, ''), /Next: run/);
+  const shipped = read(path.join(BASE, 'skills/laneconductor/ops/new-project.md')); // the starter set is generated into the shipped skill
+  const step5 = shipped.slice(shipped.indexOf('## 5. Say what else fits'), shipped.indexOf('## 6. Summarize'));
+  assert.match(step5, /End the offer with the statement: "Install them whenever you like; otherwise I will offer each one when it comes up/);
+  assert.doesNotMatch(step5, /Install them now, or/, 'no second question before the closing question');
 });
 
 // ---- the generated commands do not grow ----
 
-// The sizes of the four generated front-door commands before this change (bytes). They may shrink, never grow: a longer first run is the bug this fixes.
-// (next 32827, setup 30790, new-project 35416, run 67201: the sizes of the commit before the plan-led first-track card, 2026-11-19; the card now leads with the
-// project's own plan and the freshness, empty-folder and private-tracks rules were added, paid for by trimming wording elsewhere.)
-const CEILING = { next: 32827, setup: 30790, 'new-project': 35416, run: 67201 };
+// The sizes of the four generated front-door commands in plugins 1.9.4 (bytes). They may shrink, never grow: a longer first run is the bug this fixes.
+// (next 32808, setup 30740, new-project 34233, run 67177. Release 1.9.5 added the S02 cards and the write-first closing, paid for by dropping the starter set from
+// setup, the existing-repository text from new-project and the duplicate one-line install from the front door of next.)
+const CEILING = { next: 32808, setup: 30740, 'new-project': 34233, run: 67177 };
 
 test('the generated next, setup, new-project and run commands do not grow in bytes', () => {
   for (const [name, max] of Object.entries(CEILING)) {
@@ -245,22 +313,12 @@ test('one text: next, setup and new-project carry the same first-track card word
   }
 });
 
-test('setup ends with the card and one question: no "Next: run" line, the commit question folded into one short line, the board line once', () => {
-  const step6 = SETUP_MD.slice(SETUP_MD.indexOf('6. **Close with the first track.**'), SETUP_MD.indexOf('## What else fits this project'));
-  assert.ok(step6.length > 100, 'step 6 is there');
-  assert.match(step6, /End with the first-track card/);
-  assert.match(step6, /the line "Say commit when you want the conductor files committed\."/);
-  assert.match(step6, /The track choice is\s+the one question: no "Next: run `\/laneconductor:next`" line and no second question/);
-  assert.doesNotMatch(SETUP_MD.replace(step6, ''), /Next: run/, 'no "Next: run" instruction anywhere else in setup');
+test('the closing offers only the board and the first track: no "Next: run" line, no add-ons paragraph, no starter set in setup; the card (with the board line) stays for the no-plan case', () => {
+  assert.doesNotMatch(SETUP_MD.replace(/no "Next: run[^"]*"/g, ''), /Next: run/, 'no "Next: run" instruction in setup');
   assert.doesNotMatch(SETUP_MD, /Commit this\s+scaffold\?|Commit this scaffold\?/);
-  assert.doesNotMatch(SETUP_MD, /opens the whole project as a board/, 'step 5 no longer says the board sentence: the card has the board line');
-  assert.doesNotMatch(cmd('setup'), /opens the whole project as a board/);
-  // The new-project close: the card for an existing repository, the plan step for a new project, the same commit line, no "run next".
-  const close = NEW_PROJECT_MD.slice(NEW_PROJECT_MD.indexOf('## 6. Summarize and close'), NEW_PROJECT_MD.indexOf('## Rules'));
-  assert.match(close, /with no "Next: run `\/laneconductor:next`" line/);
-  assert.match(close, /the line\n"Say commit when you want the conductor files committed\." and no other question/);
-  for (const text of [step6.replace(/no "Next: run[^"]*"/, ''), close.replace(/no "Next: run[^"]*"/, '')]) assert.doesNotMatch(text, /Next: run/);
-  // Setup's ordering: the starter set, if any, comes before the card, so the track choice is the last question and the board is named once.
-  assert.match(SETUP_MD, /Do not wait for an answer: step 6 follows in the same message/);
-  assert.match(TRACK_CARD, /Skip it when setup's starter set offered the board/);
+  assert.doesNotMatch(SETUP_MD, /opens the whole project as a board/);
+  assert.doesNotMatch(cmd('setup'), /opens the whole project as a board|Both add-ons in one line|STARTER SET/);
+  assert.match(TRACK_CARD, /The board line\*\*: as above when the board add-on is installed/);
+  assert.doesNotMatch(TRACK_CARD, /Skip it when setup's starter set offered the board/, 'the starter set is no longer part of setup');
+  assert.match(SETUP_MD, /\*\*See it on the board:\*\* the board line of the first-track card/);
 });

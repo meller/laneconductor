@@ -144,24 +144,27 @@ test('argumentHint reads like a usage line', () => {
   assert.equal(argumentHint(COMMANDS.find((c) => c.name === 'help')), '');
 });
 
-// Track AM-10130: `setup` means "add LaneConductor to this project" and follows the new-project existing-repository path; `scaffold`
-// is the explicit action that goes straight to the files. Both stay "runs only because you named it" and announce changes first.
-test('setup: follows ops/new-project.md (the existing-repository path), scaffold goes straight to setup/scaffold.md; nothing from the old install text', () => {
+// Track AM-10130: `setup` means "add LaneConductor to this project"; `scaffold` is the explicit action that goes straight to the files.
+// Track AM-10144 Phase 12 and AM-10130 Phase 7 (release 1.9.5): setup runs when named OR on `go` to the card of `next`, and it writes FIRST (no
+// pre-write confirmation; it asks only for something unusual); the explicit `scaffold` action still announces what it will create.
+test('setup: follows setup/setup.md (writes first), scaffold goes straight to setup/scaffold.md; nothing from the old install text', () => {
   const setup = COMMANDS.find((c) => c.name === 'setup');
   assert.match(setup.description, /Add LaneConductor to this project/);
-  assert.match(setup.description, /runs only because you named it/);
+  assert.match(setup.description, /runs when you name it, or reply go to a next card/);
   const text = fillProcedure(setup, { action: '' });
   const scaffold = fillProcedure(setup, { action: 'scaffold' });
   for (const t of [text, scaffold]) {
-    assert.match(t, /This runs only because I named it/);
-    assert.match(t, /tell me what you are about to create or change before you write anything/);
-    assert.match(t, /`ops\/new-project\.md`/, "the procedure names the new-project file");
+    assert.match(t, /This runs when I named it, or said go to a `next` card that named it/);
+    assert.match(t, /tell me what you are about to create or change before you write anything/, 'the scaffold action still announces');
+    assert.match(t, /`setup\/setup\.md`/, "the procedure names the setup file");
     assert.match(t, /`setup\/scaffold\.md`/);
-    assert.doesNotMatch(t, /setup\/setup\.md|make install|laneconductorrc|worker|daemon|collection/i, "no stale install text");
+    assert.doesNotMatch(t, /ops\/new-project\.md|make install|laneconductor-rc|laneconductorrc|worker|daemon|collection/i, "no stale install text");
   }
-  assert.match(text, /existing[- ]repository path/i, "setup takes the existing-repository path");
-  assert.match(text, /ask only to confirm/i);
+  assert.match(text, /it writes first/i, "setup writes first");
+  assert.doesNotMatch(text, /Reply ok|write nothing until I reply|ask only to confirm/i, "no pre-write confirmation");
+  assert.match(text, /Stop and ask first, one line each, only for something unusual/);
   assert.match(text, /import nothing silently/i);
+  assert.match(text, /File the first four items of the plan document/, 'it files the plan items');
   assert.match(scaffold, /`scaffold`, go straight to `setup\/scaffold\.md`/);
   assert.match(setup.args.find((a) => a.name === 'action').description, /straight to/);
 });
