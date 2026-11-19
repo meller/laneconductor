@@ -11,7 +11,7 @@ The design is in spec.md. Split out of track 10128, Phase 7. The owner submits.
 ## Phase 2: The portal's Validate
 
 - [x] Task 1 (HUMAN): run the portal's Validate on the current base; paste the blocking items, warnings and reviewer holds here with the date and version. Done 2026-11-19 in the owner's browser at the owner's request: passed, 1 warning (privacyPolicyUrl, no action), 2 policy holds, nothing blocking; the full result is in spec.md, section "Portal Validate result"
-- [x] Task 2: Fix every blocking item (a task each), re-release if the plugin changes, and repeat Task 1 until none blocks. There is no blocking item; the two holds are for a reviewer to release (optional: remove the `.vercel` line from the deploy guide's .gitignore list, which Vercel's own CLI adds itself, to try to clear hold 1)
+- [x] Task 2: Fix every blocking item (a task each), re-release if the plugin changes, and repeat Task 1 until none blocks. There is no blocking item; the two holds are for a reviewer to release (done: the `.vercel` line was removed from the deploy guide's .gitignore list in 1.9.10 and the credential hold cleared on the second portal run)
 
 ## Phase 3: Submit
 

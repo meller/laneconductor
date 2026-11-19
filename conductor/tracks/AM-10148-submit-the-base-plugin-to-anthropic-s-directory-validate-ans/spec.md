@@ -61,6 +61,8 @@ Reviewer hold 2, "Publisher name may be confused with another": "This repository
 
 Repository https://github.com/meller/laneconductor, plugin path `plugins/laneconductor`, `main @ 06b8f55` (plugins 1.9.9): "Validation passed: 1 warning, 2 policy holds", 7 checks. Passed: repository fetched; 58 files, 616.1 kB, within the size limits; plugin.json found and valid; 1 skill, 1 agent, 23 commands; no MCP servers. Passed with warnings: directory lints; name and publisher checks. Warning: the field `privacyPolicyUrl` is unrecognised by Claude Code, which ignores it at load time, and the directory reads it for the listing ("No action needed"). Note: icon.png passed without a code check. Nothing blocks submission. Two policy holds, which a reviewer must release before a held version goes live: (1) uses a credential from the user's machine (see the draft answers); (2) the publisher name "meller" resembles the directory connector publisher "Relier".
 
+Second run, the same day, after plugins 1.9.10 (the `.vercel` line removed from the deploy guide's `.gitignore` list), `main @ a631a12`: "Validation passed: 1 warning, 1 policy hold". Directory lints now pass with no warning. The credential hold is GONE. What remains: the publisher-name hold ("meller" resembles the directory connector publisher "Relier"), which only a reviewer can release, and the `privacyPolicyUrl` warning ("No action needed").
+
 ## Risks and limits
 
 - The portal's safety scan and policy review are not visible to us until the owner runs Validate or submits; a surprise there costs a release cycle.
