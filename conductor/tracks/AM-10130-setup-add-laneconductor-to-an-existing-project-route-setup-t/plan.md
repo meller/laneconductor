@@ -36,3 +36,12 @@ Setup's last step tells the person to run `/laneconductor:next` and not to name 
 - [x] Task 5.2: Keep the committed-or-not question about the context files short and last-but-one; do not ask two questions at the end (the first-track choice and the commit question): ask the commit question only after the track choice, or fold it into the closing line
 - [x] Task 5.3: Text tests (setup's closing has the card and no "Next: run" line) and keep the generated setup command's size from growing
 
+## Phase 6: Setup analyses an existing project (owner feedback, 2026-11-19)
+
+Setup reads the README and `package.json`. For an existing project it should also read the project's own plan, so the owner sees the value at once: it looks for `docs/plan.md`, `ROADMAP.md`, `TODO.md` and roadmap, next-steps or status sections of the README, and says in the confirmation what it found ("Found your plan in docs/plan.md: 6 items"). The closing card then leads with those items (track 10144 Phase 11).
+
+- [ ] Task 6.1: Setup's reading step looks for the project's plan documents and counts their items; the confirmation names the file and the count in one line, and says nothing when there is none
+- [ ] Task 6.2: The plan items are carried into the closing card (written once, shared with `next`); the project definition files (product.md, user-stories.md) may use them as source for facts, never inventing any
+- [ ] Task 6.3: An empty folder or a project with no code goes to `/laneconductor:new-project` (a brainstorm interview, then the scaffold, first tracks and suggested skills), not to the existing-project path
+- [ ] Task 6.4: Text tests and a size check (setup must not grow)
+

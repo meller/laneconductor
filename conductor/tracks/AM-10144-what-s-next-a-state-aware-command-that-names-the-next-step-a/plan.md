@@ -104,6 +104,17 @@ After setup the owner saw: setup closing with "run /laneconductor:next", then `n
 - [x] Task 10.4: Picking a suggestion creates the track with the existing `new` procedure (search first, then create); picking several creates several; nothing is created before the person answers
 - [x] Task 10.5: Text tests (the S04 card has the suggestions, the board line and the own-title option, no primer, at most four items, the audit item last) and keep the size of `next` from growing; update the ops-text-versus-code comparison
 
+## Phase 11: Suggestions that come from the project itself (owner feedback from a real first run, 2026-11-19)
+
+The four first suggestions (licence, secrets, CI, audit) were generic and not interesting; the useful list appeared only when the owner asked about the project, and it came from the project's own `docs/plan.md`. Direction: for an EXISTING project, analyse it and offer valuable next things, at first run and later on; for a NEW project, brainstorm and start the new-project workflow with suggested skills.
+
+- [ ] Task 11.1: The S04 card (set up, no tracks yet) leads with the project's own stated plan: items from `docs/plan.md`, `ROADMAP.md`, `TODO.md` or a roadmap, next-steps or status section of the README, each in the plan's own wording and order, naming its source file; the plan's open decisions appear as questions, not as tracks; at most four shown with "N more in <file>"; the generic items (licence, secrets, CI, audit) come after, only when the plan does not already cover them, at most two, the audit last
+- [ ] Task 11.2: "File all N" (and picking numbers) creates the tracks through the `new` procedure (search first), in the plan's order, in the plan lane, with the plan item as the problem statement and its source file named; nothing is created before the person answers
+- [ ] Task 11.3: Later on: when nothing is ready to rank (the queue is empty, done or blocked), `next` offers the items of the project's plan documents that have no track yet (compared with the existing track titles and problems, conservative: when unsure, show it as "may already be a track"), as the same short card; written once and shared with S04
+- [ ] Task 11.4: A new or empty project (no code to analyse, no plan document) routes to the new-project workflow: a brainstorm interview, the scaffold, the first tracks and the starter set of suggested skills; check by a headless run that the empty-folder card names `/laneconductor:new-project` and that the workflow ends with the first-track card and the suggested skills
+- [ ] Task 11.5: Freshness noise: a repository with no upstream, or a regenerated summary, is not by itself a "state may be stale" line in `next`; unpushed commits, a stale claim and the like still are
+- [ ] Task 11.6: Text tests (S04 leads with the plan items and their source, generic items second and fewer than three, the later-on suggestions, no invented item, the empty-folder route) and keep the size of `next` from growing
+
 ## Phase 8: Stronger signals when the audit tracks land (deferred, not part of this release)
 
 This phase stays unchecked on purpose: it depends on other tracks, and the first version must not be reported as complete against it. Each task is a small edit of `ops/next.md` and the reference classifier.

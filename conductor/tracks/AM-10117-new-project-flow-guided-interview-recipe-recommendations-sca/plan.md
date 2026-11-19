@@ -28,3 +28,11 @@
 - [ ] Task 3: Record the decision on `find_recipe` and `bootstrap_project` in track 10107
 
 **Impact**: A new project starts from a short conversation, reuses what is already known, and teaches the library what it learns.
+
+## Phase 5: Make the new-project workflow the start for a new or empty project (owner direction, 2026-11-19)
+
+For a new project the right start is the brainstorm and the new-project workflow with suggested skills, not the existing-project setup.
+
+- [ ] Task 5.1: Check, with a headless run on an empty folder, that `next` names `/laneconductor:new-project`, that the workflow's interview is a brainstorm (options and decisions explored before any file is written), and that it ends with the first-track card and the starter set of suggested skills; fix any gap
+- [ ] Task 5.2: Keep the closing of new-project consistent with the closing of setup (the same first-track card, one question at the end)
+
