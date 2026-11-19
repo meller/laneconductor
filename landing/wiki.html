@@ -351,6 +351,7 @@
                     <li><a href="#installation">Installation</a></li>
                     <li><a href="#claude-skill">The plugin</a></li>
                     <li><a href="#board">The board</a></li>
+                    <li><a href="#skill-packs">Skill packs</a></li>
                     <li><a href="#safety-privacy">Safety and privacy</a></li>
                     <li><a href="#lane-skills">Skills for each lane</a></li>
                 </ul>
@@ -637,6 +638,27 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                     <li>It needs the plugin's local script, so it works in Claude Code and Cowork, not in claude.ai chat
                         alone.</li>
                 </ul>
+            </section>
+
+            <section id="skill-packs">
+                <h2>Skill packs</h2>
+                <p>Five small plugins of Markdown skills, one per technology. They carry one author's own conventions and the
+                    incidents behind them, as advice and never as orders. Each installs on its own from the same marketplace
+                    (add it once with the install line above), and each has its own version, now 0.1.0.</p>
+                <table>
+                    <thead><tr><th>Pack</th><th>Skills</th><th>Install</th></tr></thead>
+                    <tbody>
+                        <tr><td>Node.js frontend</td><td>An installable Vite PWA with Workbox; audible browser speech</td><td><code>claude plugin install laneconductor-nodejs-frontend@laneconductor</code></td></tr>
+                        <tr><td>Firebase</td><td>One Hosting site and Functions codebase per product in a shared project; cache busting after deploys; Google-only sign-in</td><td><code>claude plugin install laneconductor-firebase@laneconductor</code></td></tr>
+                        <tr><td>Node.js and Postgres</td><td>Local Postgres, Neon in production with the connection string in Secret Manager; Prisma inside Cloud Functions; an isolated test database; a Makefile for local runs</td><td><code>claude plugin install laneconductor-node-postgres@laneconductor</code></td></tr>
+                        <tr><td>Gemini</td><td>Every LLM call through TokenTalos; Gemini on Vertex AI with Application Default Credentials; image generation with retry and a GCS upload</td><td><code>claude plugin install laneconductor-gemini@laneconductor</code></td></tr>
+                        <tr><td>Skill from code</td><td>Turns a pattern or a verified incident of yours, shown by working code, into a new skill</td><td><code>claude plugin install laneconductor-skill-from-code@laneconductor</code></td></tr>
+                    </tbody>
+                </table>
+                <p>The packs hold Markdown and template files only: no script, hook, MCP server or agent, and they send nothing anywhere.
+                    They are not in Anthropic's plugin directory. The format, and how to attach skills to lanes in
+                    <code>conductor/workflow.json</code>, are in
+                    <a href="https://github.com/meller/laneconductor/blob/main/docs/skills.md" target="_blank" rel="noopener">docs/skills.md</a>.</p>
             </section>
 
             <section id="safety-privacy">

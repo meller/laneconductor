@@ -2588,19 +2588,58 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
             <div class="stats-grid">
                 <div class="stat-card fade-in">
                     <div class="stat-value" style="color:var(--purple);">1</div>
-                    <div class="stat-label">Plugin to install</div>
+                    <div class="stat-label">Plugin is enough to start</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.08s">
-                    <div class="stat-value" style="color:var(--cyan);">18</div>
+                    <div class="stat-value" style="color:var(--cyan);">23</div>
                     <div class="stat-label">Slash commands in it</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.16s">
-                    <div class="stat-value" style="color:var(--amber);">2</div>
-                    <div class="stat-label">Subagents in it</div>
+                    <div class="stat-value" style="color:var(--amber);">1</div>
+                    <div class="stat-label">Read-only subagent in it</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.24s">
                     <div class="stat-value" style="color:var(--green);">0</div>
                     <div class="stat-label">Databases or daemons needed</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SKILL PACKS -->
+    <section class="adv-section" id="skills">
+        <div class="container" style="padding-top:100px; padding-bottom:100px;">
+            <div class="section-label">Skill packs</div>
+            <h2 class="section-title">Take only the skills<br />you need.</h2>
+            <p class="section-sub">Five small plugins of Markdown skills, one per technology: the conventions and the incidents behind them,
+                from the author&rsquo;s own projects. They are advice, never orders, and each installs on its own from the same
+                marketplace, at 0.1.0. Add the marketplace once with the install line at the top, then pick the packs you want.</p>
+
+            <div class="adv-grid">
+                <div class="adv-item fade-in">
+                    <div class="adv-title">Node.js frontend</div>
+                    <p class="adv-desc">An installable Vite PWA with Workbox, and browser speech that is actually audible.</p>
+                    <p class="adv-desc" style="margin-top:10px;"><code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);overflow-wrap:anywhere;">claude plugin install laneconductor-nodejs-frontend@laneconductor</code></p>
+                </div>
+                <div class="adv-item fade-in" style="transition-delay: 0.1s;">
+                    <div class="adv-title">Firebase</div>
+                    <p class="adv-desc">One Hosting site and Functions codebase per product in a shared project, cache busting after deploys, and Google-only sign-in.</p>
+                    <p class="adv-desc" style="margin-top:10px;"><code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);overflow-wrap:anywhere;">claude plugin install laneconductor-firebase@laneconductor</code></p>
+                </div>
+                <div class="adv-item fade-in" style="transition-delay: 0.2s;">
+                    <div class="adv-title">Node.js and Postgres</div>
+                    <p class="adv-desc">Local Postgres, Neon in production with the connection string in Secret Manager, Prisma inside Cloud Functions, an isolated test database, and a Makefile for local runs.</p>
+                    <p class="adv-desc" style="margin-top:10px;"><code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);overflow-wrap:anywhere;">claude plugin install laneconductor-node-postgres@laneconductor</code></p>
+                </div>
+                <div class="adv-item fade-in" style="transition-delay: 0.3s;">
+                    <div class="adv-title">Gemini</div>
+                    <p class="adv-desc">Every LLM call through TokenTalos, Gemini on Vertex AI with Application Default Credentials, and image generation with retry and a GCS upload.</p>
+                    <p class="adv-desc" style="margin-top:10px;"><code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);overflow-wrap:anywhere;">claude plugin install laneconductor-gemini@laneconductor</code></p>
+                </div>
+                <div class="adv-item fade-in" style="transition-delay: 0.4s;">
+                    <div class="adv-title">Skill from code</div>
+                    <p class="adv-desc">Turns a pattern or a verified incident of yours, shown by working code, into a new skill.</p>
+                    <p class="adv-desc" style="margin-top:10px;"><code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan);overflow-wrap:anywhere;">claude plugin install laneconductor-skill-from-code@laneconductor</code></p>
                 </div>
             </div>
         </div>
