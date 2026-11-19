@@ -1,7 +1,7 @@
 {
   "name": "laneconductor-parallel",
   "displayName": "LaneConductor Parallel",
-  "version": "1.9.9",
+  "version": "1.9.10",
   "description": "LaneConductor Parallel: an add-on for LaneConductor. A local connector with conflict-checked track writes and automatic commits, and a track-runner subagent that works one track in its own git worktree.",
   "author": {
     "name": "Asaf Meller",

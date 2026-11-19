@@ -121,7 +121,6 @@ Include only providers relevant to the selected components.
 *.tfvars
 *-key.json
 service-account*.json
-.vercel
 ```
 
 **After writing all files, print:**
