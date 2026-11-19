@@ -32,7 +32,7 @@ The confirmation message of setup ran to about 35 lines, and most lines had noth
 
 Setup's last step tells the person to run `/laneconductor:next` and not to name the step. Setup already knows it: the first track. It should show that step itself (the same short S04 card as `next`, track 10144 Phase 10) instead.
 
-- [ ] Task 5.1: Setup's closing message ends with the S04 first-track card (suggested tracks, the board line, own title) and no "run next" line; written once and shared with `next` so the two cannot differ
-- [ ] Task 5.2: Keep the committed-or-not question about the context files short and last-but-one; do not ask two questions at the end (the first-track choice and the commit question): ask the commit question only after the track choice, or fold it into the closing line
-- [ ] Task 5.3: Text tests (setup's closing has the card and no "Next: run" line) and keep the generated setup command's size from growing
+- [x] Task 5.1: Setup's closing message ends with the S04 first-track card (suggested tracks, the board line, own title) and no "run next" line; written once and shared with `next` so the two cannot differ
+- [x] Task 5.2: Keep the committed-or-not question about the context files short and last-but-one; do not ask two questions at the end (the first-track choice and the commit question): ask the commit question only after the track choice, or fold it into the closing line
+- [x] Task 5.3: Text tests (setup's closing has the card and no "Next: run" line) and keep the generated setup command's size from growing
 
