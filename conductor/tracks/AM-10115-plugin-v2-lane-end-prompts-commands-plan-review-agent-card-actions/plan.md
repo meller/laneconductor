@@ -64,5 +64,6 @@ Build order from the spec: Project drawer, then the What's next panel (the ranki
 - [ ] Task 7 (HUMAN): visual check of the board at 375 px width and in the light and dark themes (Project drawer, What's next panel, freshness chip, Move menu); the tests check the source only, not a browser
 - [x] Task 8: Track type on the board: `board.json` carries the track `Type` only when it is not dev; a small text label on the card and drawer for marketing, sales, support and other; type filter chips shown only for types present, combined with search and the backlog section, remembered per viewer; tests; no owner-action fields yet
 - [x] Task 9: Priority on the board: `board.json` carries `Priority` only when high or low; cards sort high first, then normal, then low, stable inside a lane; a small text label "high" or "low" beside the type label; a visible "Type" caption on the chips; tests
+- [x] Task 10: Inside a lane, the cards that finished their step (success) come first, after priority, then the rest newest first (owner, from a real first run); the first-track card gives the board command alone (it checks for its add-on itself)
 
 **Impact**: The plugin does the follow-up work a skill cannot, and the board becomes a place to review and act.
