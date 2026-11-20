@@ -19,6 +19,9 @@ const SPEC_TABLE = {
   'laneconductor-gemini': ['llm-through-tokentalos', 'vertex-gemini-adc', 'vertex-imagen-retry-gcs-fallback'],
   'laneconductor-skill-from-code': ['plugin-from-skills', 'skill-from-code'],
 };
+// A claim of being listed in Anthropic's directory is forbidden until a reviewer has published the plugin (track AM-10148); a plain mention
+// (for example a skill that helps to submit one) is fine.
+const claimsListing = (t) => /\b(listed|available|published|live)\b[^.\n]{0,30}\bdirectory\b/i.test(t) || /\bdirectory\b[^.\n]{0,30}\b(listing|listed)\b/i.test(t);
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const listFiles = (root, rel = '') => fs.readdirSync(path.join(root, rel), { withFileTypes: true }).flatMap((e) => {
   const r = rel ? `${rel}/${e.name}` : e.name;
@@ -33,7 +36,7 @@ test('the pack list is exactly the five packs of the spec, and every skill folde
   const all = packs.flatMap((p) => p.skills);
   assert.equal(new Set(all).size, all.length, 'no skill twice');
   assert.deepEqual([...all].sort(), skillFolders(REPO), 'every folder under skills/ is in a pack, and every pack skill exists');
-  assert.equal(skillFolders(REPO).length, 13);
+  assert.equal(skillFolders(REPO).length, 14);
   // Each pack has its own version, independent of the other plugins and of each other (a pack moves when its skills change).
   for (const p of packs) assert.match(p.version, /^\d+\.\d+\.\d+$/, `${p.name}: its own semver version`);
 });
@@ -110,7 +113,7 @@ test('each pack README names each of its skills with its frontmatter description
     assert.match(md, /never orders/);
     assert.ok(md.includes('https://github.com/meller/laneconductor/blob/main/docs/skills.md'));
     assert.match(md, /Elastic License 2\.0/);
-    assert.ok(!/directory/i.test(md), `${p.name}: no claim about Anthropic's directory`);
+    assert.ok(!claimsListing(md), `${p.name}: no claim about Anthropic's directory`);
     assert.ok(words(md) < 400, `${p.name}: ${words(md)} words`);
   }
 });
@@ -153,7 +156,7 @@ test('the root README has a Skill packs section with every pack and its install 
     assert.ok(section.includes(`\`${p.name}\``), `${p.name} in the table`);
     assert.ok(section.includes(`claude plugin install ${p.name}@laneconductor`), `${p.name}: install command`);
   }
-  assert.ok(!/directory/i.test(section), 'no directory claim in the section');
+  assert.ok(!claimsListing(section), 'no directory claim in the section');
 });
 
 test('the pack build never writes into the base plugin, which stays what the generator makes of its own sources', () => {

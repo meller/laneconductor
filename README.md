@@ -261,7 +261,7 @@ commands; they are not documented here. Use that tag if you want to run it.
 - `scripts/`: the plugin generator and the zip script.
 - `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).
 - `conductor/tracks/`: this project's own tracks.
-- Experimental tier, currently unmaintained (tag `v1-legacy`): `bin/` (its command-line tool, `lc`, which is deprecated: no new features; use the plugin commands), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
+- Experimental tier, currently unmaintained (tag `v1-legacy`): `bin/` (its command-line tool, which is deprecated: no new features, use the plugin commands), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
 
 ## License
 
