@@ -14,6 +14,6 @@ This is a docs track, so the tests are checks of text and pages. Run them from t
 - [ ] TC-10 (REQ-10): the landing page has a Download button linking to a published release, and the README download route links to it. Not testable until a release is published.
 - [ ] TC-11 (REQ-10, human): the release steps (version bump, zip, checksum, tag, `gh release create`) are done with the human approving each outward step.
 - [ ] TC-12 (REQ-11): connector/README.md and the plugin README stay in sync from the one source file. Not verified (the source file was not found).
-- [ ] TC-13 (REQ-8, human): the landing page renders on a phone-width screen with the install box usable, and in its theme(s). Open in a browser; the page has one dark theme only.
+- [x] TC-13 (REQ-8, human): the landing page renders on a phone-width screen with the install box usable, and in its theme(s). Checked live 2026-11-20 at 375 px: no horizontal overflow, install box 343 px wide with its Copy button; the page has one dark theme only.
 - [ ] TC-14 (REQ-9, human): every claim on the README, the wiki and the landing page is checked against the current code and plan; no unmeasured number or screenshot. A person reads the pages against the code.
 - [ ] TC-15 (REQ-8, human): the landing edits do not include another track's uncommitted drafts (check `git diff` of landing/ before any deploy).

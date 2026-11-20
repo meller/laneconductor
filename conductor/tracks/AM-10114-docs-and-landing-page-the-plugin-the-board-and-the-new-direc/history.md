@@ -1,0 +1,1 @@
+- 2026-11-20 12:10Z ⚠️ QUALITY GATE FAILED (needs the owner's judgment, not a retry): the checks pass, but REQ-10 is unmet (no release exists, so no Download button), "legacy" is still in tech-stack.md and product.md, REQ-11 is unverified, and the claim-by-claim pass was not done.

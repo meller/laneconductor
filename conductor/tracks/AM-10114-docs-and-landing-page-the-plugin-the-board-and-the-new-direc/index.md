@@ -1,14 +1,16 @@
 # Track AM-10114: Docs and landing page: the plugin, the board, and the new direction
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: waiting
 **Progress**: 90%
-**Phase**: Merged, pushed (main 15f9157b) and DEPLOYED 2026-11-17 to laneconductor-site.web.app from a clean checkout of main (the other session's uncommitted drafts were not included). Open: Download button and release steps (need a published GitHub release), landing section for the comparison tables (track 10119).
+**Phase**: Quality gate 2026-11-20: not done, needs the owner. Live checks pass (897 tests, drift check, the live landing page at 375 px). Open: REQ-10 (Download button and release steps: no GitHub release exists), "legacy" still in tech-stack.md and product.md, REQ-11 (the READMEs sync source was not found), the claim-by-claim pass. Decide: split REQ-10 into a release track and close this one, or keep it open.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
+**Verdict**: fail
+**Waiting for reply**: yes
 **Depends On**: 10106
 **Problem**: Update the public docs and the landing page so they describe LaneConductor as it is now, not as the Postgres-and-daemon product.
 
