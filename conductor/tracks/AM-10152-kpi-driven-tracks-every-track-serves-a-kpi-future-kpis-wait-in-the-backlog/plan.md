@@ -1,8 +1,8 @@
 # Plan: AM-10152
 
 ## Phase 1: Decide (brainstorm lane)
-- [ ] Task 1: Brainstorm the open questions in the spec with the owner; record the answers in the spec
-- [ ] Task 2: Check that a plain `**Serves**` marker needs no change to the parallel connector's marker parser, or list the changes (REQ-6)
+- [x] Task 1: Brainstorm the open questions in the spec with the owner; record the answers in the spec
+- [x] Task 2: Check that a plain `**Serves**` marker needs no change to the parallel connector's marker parser, or list the changes (REQ-6)
 
 ## Phase 2: Release train
 - [~] Task 3: Superseded 2026-11-20: the owner said not to wait for the directory review; Phase 3 ships as the next base version (after 1.9.12)

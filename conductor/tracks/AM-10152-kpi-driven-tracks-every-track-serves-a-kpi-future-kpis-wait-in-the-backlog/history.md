@@ -1,2 +1,3 @@
 - 2026-11-20 Moved to implement by the owner; the dependency on the directory decision (10148) is dropped.
 - 2026-11-20 Phase 1 started with the owner: the four open questions are being decided.
+- 2026-11-20 Phase 1 done: decisions recorded in the spec (several KPIs per track, no KPI dependencies, value by hand, plan lane warns and gate only notes); Serves needs no connector change.
