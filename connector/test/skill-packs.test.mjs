@@ -250,3 +250,8 @@ test('the skills library checks still pass on skills/: the checker with no error
   const gate = spawnSync(process.execPath, [path.join(REPO, 'skills-tools/bin/gate.mjs'), '--no-deny-list'], { encoding: 'utf8', cwd: REPO });
   assert.equal(gate.status, 0, `${gate.stdout}\n${gate.stderr}`);
 });
+
+test('the directory guard still catches a real listing claim and allows a plain mention', () => {
+  for (const bad of ['It is listed in Anthropic\'s plugin directory.', 'Now available in the Anthropic directory', 'Install it from the directory listing', 'Live in Anthropic\'s directory']) assert.ok(claimsListing(bad), bad);
+  for (const ok of ['Packages your skills as a plugin and walks the submission to Anthropic\'s plugin directory.', 'ready for Anthropic\'s directory', 'A skill that helps submit a plugin to the plugin directory']) assert.ok(!claimsListing(ok), ok);
+});
