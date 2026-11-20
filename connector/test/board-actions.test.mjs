@@ -134,3 +134,17 @@ test('the action comes from the track\'s own markers only: no Problem, Summary o
   assert.ok(!JSON.stringify(b.tracks[0].action).includes(SENT));
   assert.ok(!JSON.stringify(b.tracks[0].action).includes('Title'));
 });
+
+test('running: a track with a Phase says it (cut at a word, 140 characters at most); no Phase, or the placeholder New, keeps the plain wording; a stale claim is unchanged', () => {
+  const long = 'Phase 1 running (2026-11-20): settling the four open questions in the spec with the owner (KPI dependencies, several KPIs per track, where the measured value lives, whether the gate checks the mapping). Nothing is built until they are answered.';
+  const started = '**Run Started**: 2026-11-18T09:30:00.000Z\n', old = '**Run Started**: 2026-11-17T01:00:00.000Z\n';
+  const rows = [[1, 'implement', started, 'Writing the catalog entries'], [2, 'implement', started, 'New'], [3, 'implement', started, long], [4, 'review', old, 'Reviewing']];
+  const entries = rows.map(([n, lane, extra, phase]) => ({ folder: `AM-${n}-t${n}`, index: { content: INDEX(n, `T${n}`, { lane, status: 'running', extra }).replace('**Phase**: New', `**Phase**: ${phase}`) } }));
+  const b = buildBoard(entries, { lanes: LANES, generatedAt: NOW, project: 'p', workflow: WF });
+  const a = Object.fromEntries(b.tracks.map((t) => [t.number, t.action ?? null]));
+  assert.deepEqual(a[1], { c: null, w: 'Writing the catalog entries' });
+  assert.deepEqual(a[2], { c: null, w: 'running; nothing to do' });
+  assert.ok(a[3].w.length <= 141 && a[3].w.endsWith('…') && long.startsWith(a[3].w.slice(0, -1)), a[3].w);
+  assert.equal(a[3].c, null);
+  assert.deepEqual(a[4], { c: '/laneconductor:move 4 review:queue', w: 'stale claim: release it if nothing is running' });
+});

@@ -29,6 +29,15 @@ const FAILURE = {
 };
 
 const lower = (s) => String(s ?? '').trim().toLowerCase();
+// A running track says what it is doing now: its Phase text, cut at a word near 140 characters. A track with no Phase, or only the placeholder `New`, keeps the plain wording.
+const RUNNING_PLAIN = 'running; nothing to do';
+function runningReason(row) {
+  const phase = String(row.phase ?? '').replace(/\s+/g, ' ').trim();
+  if (!phase || lower(phase) === 'new') return RUNNING_PLAIN;
+  if (phase.length <= 140) return phase;
+  const cut = phase.slice(0, 140), at = cut.lastIndexOf(' ');
+  return `${cut.slice(0, at > 80 ? at : 140).replace(/[ ,;:.\-]+$/, '')}…`;
+}
 const cmd = (verb, n) => `/laneconductor:${verb} ${n}`;
 const act = (c, w) => ({ c, w });
 
@@ -64,7 +73,7 @@ export function actionOf({ row, stale = null, dep = null, lanes, workflow = null
   if (status === 'running') {
     return stale
       ? act(`/laneconductor:move ${n} ${known}:queue`, 'stale claim: release it if nothing is running')
-      : act(null, 'running; nothing to do');
+      : act(null, runningReason(row));
   }
   if (dep?.ready_to_resume) return act(`/laneconductor:move ${n} ${known}:queue`, 'its dependencies shipped; resume it');
   if (dep?.blocked_by?.length) return act(null, `blocked by ${dep.blocked_by.join(', ')}`);
