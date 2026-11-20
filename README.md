@@ -102,13 +102,7 @@ claude plugin install laneconductor-board@laneconductor
 **Moving from the all-in-one plugin (0.x):** version 1.0.0 of `laneconductor` no longer holds the connector or the board. Uninstall
 the old one (`claude plugin uninstall laneconductor`), install the base and the add-ons you want, and restart your sessions (a running
 connector keeps the version it started with). Your track files are unchanged. To try all three in a scratch repository:
-`scripts/try-local.sh --dry-run <scratch-repo-path>`. Hooks are planned as a separate opt-in extension and are not available yet.
-
-### Other ways to get it
-
-A zip of the plugin can be built with `node scripts/make-zip.mjs --out <dir>` (a deterministic zip of
-`plugins/laneconductor`). It can be loaded with "Upload plugin" in the Claude desktop app or claude.ai
-(Customize, Plugins, Add). No release zip has been published yet, so use the marketplace route above for now.
+`scripts/try-local.sh --dry-run <scratch-repo-path>`. The board add-on has hooks that keep the board current (on by default once a board exists; `board.auto_update: false` turns them off).
 
 ### What works where
 
@@ -258,7 +252,7 @@ commands; they are not documented here. Use that tag if you want to run it.
 
 - `plugins/laneconductor/`, `plugins/laneconductor-parallel/`, `plugins/laneconductor-board/`: the built plugins (generated; do not edit by hand).
 - `connector/`: the connector's source, its tests and the plugin's extra files.
-- `scripts/`: the plugin generator and the zip script.
+- `scripts/`: the plugin generator.
 - `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).
 - `conductor/tracks/`: this project's own tracks.
 - Experimental tier, currently unmaintained (tag `v1-legacy`): `bin/` (its command-line tool, which is deprecated: no new features, use the plugin commands), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
