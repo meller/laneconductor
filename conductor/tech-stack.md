@@ -15,9 +15,9 @@ Everything below this heading is the legacy tier (parked, git tag `v1-legacy`): 
 
 ---
 
-# Legacy tier
+# Experimental tier (currently unmaintained)
 
-## Heartbeat Worker (legacy)
+## Heartbeat Worker (experimental, currently unmaintained)
 - **Runtime**: Node.js (ESM, `.mjs`)
 - **DB client**: `pg` (node-postgres)
 - **File watcher**: `chokidar`
@@ -65,7 +65,7 @@ retry buffer, all for free). Capped at 20,000 paths (`truncated: true` beyond th
 `projects.file_manifest` / `file_manifest_digest` / `file_manifest_updated_at`.
 
 ## Database
-- **Engine**: PostgreSQL (local, default port 5432) — legacy and optional: used only by the UI tier, as a rebuildable one-way index of the track files (files -> DB; UI actions go through the same code that edits files). Track files are the source of truth; nothing in the skill or the connector requires a database.
+- **Engine**: PostgreSQL (local, default port 5432) — experimental and optional: used only by the UI tier, as a rebuildable one-way index of the track files (files -> DB; UI actions go through the same code that edits files). Track files are the source of truth; nothing in the skill or the connector requires a database.
 - **DB name**: `laneconductor` (default)
 - **Schema**: `projects` + `tracks` + `track_locks` tables
 - **ORM**: Prisma (type-safe query builder)
@@ -97,7 +97,7 @@ retry buffer, all for free). Capped at 20,000 paths (`truncated: true` beyond th
 - **DB queue**: `file_sync_queue` Postgres table — pending file writes (DB→fs direction)
 - **Worker**: `laneconductor.sync.mjs` — sole consumer of both queues, runs as background daemon
 
-## Developer Experience (legacy CLI)
-- **Install**: `make install` → writes `~/.laneconductorrc` (legacy only; the plugin install is at the top)
+## Developer Experience (the deprecated `lc` command line)
+- **Install**: `make install` → writes `~/.laneconductorrc` (experimental tier only; the plugin install is at the top)
 - **Per-project**: `lc setup` from project directory
 - **No-LLM ops**: `lc start / lc stop / lc ui start / lc status`

@@ -539,7 +539,7 @@ lifecycle is controlled by `project.worktree_lifecycle` in
   - Cleanup: Only when track reaches `done:success` (merge to main + remove worktree)
   - Benefit: Uncommitted work and git state persist across retries and lane changes
 
-- **per-lane** (legacy): Worktree is created/destroyed per lane run (old behavior)
+- **per-lane** (old behavior): Worktree is created/destroyed per lane run
   - Created: When track enters a lane with `lane_action_status: queue`
   - Cleanup: When exiting the lane (regardless of success/failure)
   - Use case: Strict isolation, each lane starts fresh with no context

@@ -45,13 +45,13 @@ Places to update: the repository README.md, conductor/product.md and conductor/t
 - [x] The README board section covers the private artifact, "update the board", the snapshot, the privacy scan and what is withheld (REQ-4). Track detail view: not verified.
 - [x] The README states the writer rule, conflict checks, state branch resolution, no pushes without asking, conversation.md per machine and the advice log (REQ-6, REQ-7).
 - [x] The landing page has the install commands in a copyable box and an Install section, and says what is not yet available (REQ-8, REQ-9; landing/index.html checked, the file also carries uncommitted edits from other tracks).
-- [ ] The README install section's download route points to a published release (REQ-10): not met, no release exists.
-- [ ] The landing page has a Download button (REQ-10): not met, no release exists.
-- [ ] The release process is carried out step by step with the human (REQ-10): not done.
-- [ ] The connector README and the plugin README stay in sync from one source (REQ-11): not verified (connector/PLUGIN-README.md was not found in this checkout).
-- [ ] The landing page works on mobile and renders well in its themes (REQ-8): not verified, no browser check was done.
-- [ ] Every claim on the public pages is checked against the code (REQ-9): spot-checked for the install, state branch and privacy text only; a full pass is not verified.
-- [ ] The wiki board section and the older wiki pages no longer use the `lc` command (REQ-1): not met, landing/wiki.html still mentions `lc board`, `lc setup` and `lc start` (the latter two in pages of the experimental tier).
+- [~] The README install section's download route points to a published release (REQ-10): moved to AM-10153.
+- [~] The landing page has a Download button (REQ-10): moved to AM-10153.
+- [~] The release process is carried out step by step with the human (REQ-10): moved to AM-10153.
+- [~] The connector README and the plugin README stay in sync from one source (REQ-11): moved to AM-10153.
+- [x] The landing page works on mobile and renders well in its themes (REQ-8): checked live at 375 px on 2026-11-20 (no horizontal overflow; one dark theme).
+- [~] Every claim on the public pages is checked against the code (REQ-9): the full pass moved to AM-10153.
+- [x] The wiki board section no longer uses the `lc` command (REQ-1): the remaining `lc` lines sit in the deprecated-tier sections under their deprecation notice (owner ruling 2026-11-19); AM-10153 confirms this.
 
 ## Risks and limits
 

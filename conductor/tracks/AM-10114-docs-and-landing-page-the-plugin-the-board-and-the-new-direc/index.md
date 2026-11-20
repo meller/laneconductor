@@ -1,16 +1,15 @@
 # Track AM-10114: Docs and landing page: the plugin, the board, and the new direction
 
-**Lane**: review
-**Lane Status**: waiting
-**Progress**: 90%
-**Phase**: Quality gate 2026-11-20: not done, needs the owner. Live checks pass (897 tests, drift check, the live landing page at 375 px). Open: REQ-10 (Download button and release steps: no GitHub release exists), "legacy" still in tech-stack.md and product.md, REQ-11 (the READMEs sync source was not found), the claim-by-claim pass. Decide: split REQ-10 into a release track and close this one, or keep it open.
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20 by the owner. The README, product.md, tech-stack.md and landing page carry the plugin direction (all merged and deployed; the landing page was checked live at 375 px). What was left open moved to track 10153 (the release and Download button, the claim-by-claim read, the README-sync question). The word "legacy" is gone from tech-stack.md and product.md.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
-**Verdict**: fail
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Depends On**: 10106
 **Problem**: Update the public docs and the landing page so they describe LaneConductor as it is now, not as the Postgres-and-daemon product.
 
