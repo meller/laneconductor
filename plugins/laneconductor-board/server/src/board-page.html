@@ -707,7 +707,7 @@ td .act { border-top: 0; padding-top: 0; }
       }
       // Discuss, do not act: a plain prompt (no command of ours) that asks Claude to read the track and talk it through first. It runs no lane and changes no file.
       if (disc) {
-        var prompt = discussPrompt(t), pcode = el('code', 'sr', prompt);
+        var prompt = discussPrompt(t), pcode = el('code', 'sr', prompt); pcode.setAttribute('aria-hidden', 'true');
         var d = el('button', 'copy disc', 'Discuss'); d.type = 'button'; d.setAttribute('title', 'Copy a prompt that asks Claude to talk this track through first, without running a lane or changing a file');
         d.setAttribute('aria-label', 'Copy a prompt to discuss ' + idOf(t) + ' with Claude, without running anything');
         d.addEventListener('click', function (e) { e.stopPropagation(); copyText(prompt, pcode, note, 'Copied the discuss prompt'); });
