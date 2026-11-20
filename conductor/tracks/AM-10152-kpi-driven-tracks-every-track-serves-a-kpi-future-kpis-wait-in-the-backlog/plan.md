@@ -4,8 +4,8 @@
 - [ ] Task 1: Brainstorm the open questions in the spec with the owner; record the answers in the spec
 - [ ] Task 2: Check that a plain `**Serves**` marker needs no change to the parallel connector's marker parser, or list the changes (REQ-6)
 
-## Phase 2: Wait for the directory decision (track 10148)
-- [ ] Task 3: When the base plugin is approved, rejected or has requested changes, start Phase 3 in the same release train as track 10150 or the one after it
+## Phase 2: Release train
+- [~] Task 3: Superseded 2026-11-20: the owner said not to wait for the directory review; Phase 3 ships as the next base version (after 1.9.12)
 
 ## Phase 3: Build
 - [ ] Task 4: `kpis.md` template and track template with `Serves` (REQ-1, REQ-2, REQ-8)
