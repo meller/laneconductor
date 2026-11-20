@@ -1,7 +1,7 @@
 # Track AM-10114: Docs and landing page: the plugin, the board, and the new direction
 
-**Lane**: review
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 90%
 **Phase**: Merged, pushed (main 15f9157b) and DEPLOYED 2026-11-17 to laneconductor-site.web.app from a clean checkout of main (the other session's uncommitted drafts were not included). Open: Download button and release steps (need a published GitHub release), landing section for the comparison tables (track 10119).
 **Track Kind**: feature
