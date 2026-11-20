@@ -9,6 +9,7 @@
 - [ ] Task 2: Catalog entries for the four stack packs, the stack tags `postgres` and `gemini` and their detection markers (REQ-1)
 - [ ] Task 3: The `skill-from-code` pointer in `suggest-skills` (REQ-2)
 - [ ] Task 4: The `board.auto_update` row in `ops/settings.md` (REQ-3)
+- [ ] Task 4b: The `board` command creates a missing board without a second question, with the privacy facts said afterwards (`board` command text, `ops/board.md` step 3b, `ops/settings.md`) (REQ-6)
 - [ ] Task 5: Pay for the added text so the ceilings hold (REQ-4); run the tests
 - [ ] Task 6: Release with the base version knob; validate strict and the directory profile; tell the owner first (REQ-5)
 

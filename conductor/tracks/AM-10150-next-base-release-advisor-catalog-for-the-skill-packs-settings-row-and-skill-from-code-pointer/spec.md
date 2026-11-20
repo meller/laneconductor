@@ -10,6 +10,8 @@ Why it waits: the base plugin `laneconductor` is in Anthropic's directory review
 - REQ-4 Ceilings: the commands must not grow, `run.md` stays under 68 KB, the base README stays at or under 900 words; the base keeps no hooks, scripts or servers. Tighten other text to pay for what is added.
 - REQ-5 Release with the versions knob (`connector/plugin-extras/versions.json`, key `base`), validate the base with `claude plugin validate --strict` and `--profile directory`, and tell the owner before pushing because it creates a new directory version.
 
+- REQ-6 Create a missing board without a second question (owner, 2026-11-20): when `/laneconductor:board` (with or without `refresh`) finds no stored board, it builds and publishes one at once, stores the URL, and then says plainly what is on it: private, a snapshot, the index, plan, spec and test documents of every track that is not done are included, what the privacy scan withheld (by track number and file), and that `board.include_docs: false` turns the documents off. It still asks before the one change to a project file (adding `.laneconductor.json` to `.gitignore` when it is not listed), never shares the board, and never turns `board.include_conversation` on. Text changes: the command text of `board` and `ops/board.md` step 3b (and the matching lines in `ops/settings.md`); pay for them under REQ-4. First example: the MakroDash project, where the command only asked "Create a private board for this project?" and created nothing.
+
 ## Owner steps (small)
 
 - Add the `agent-skill` topic to the GitHub repository meller/laneconductor (a repository setting).

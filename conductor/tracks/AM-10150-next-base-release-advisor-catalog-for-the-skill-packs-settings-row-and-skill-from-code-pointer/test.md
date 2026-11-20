@@ -9,3 +9,4 @@ Run command: `cd connector && npm test`, `node scripts/build-plugin.mjs --check`
 - [ ] TC-5 (REQ-4): the size-ceiling tests pass with no ceiling raised, the base README is at or under 900 words, and the base has no hooks, scripts or servers
 - [ ] TC-6 (REQ-5): the released base passes both validations and carries the new version only in the base manifest
 - [ ] TC-7: `npx skills add meller/laneconductor --list` finds the skills (with the owner's yes)
+- [ ] TC-8 (REQ-6): in a scratch project with no stored board, `/laneconductor:board` publishes a board, stores `board.artifact_url`, and its reply names the privacy facts and any withheld file; it asks only about the `.gitignore` line when the file is not listed; with a stored board it still only opens it; the board is never shared

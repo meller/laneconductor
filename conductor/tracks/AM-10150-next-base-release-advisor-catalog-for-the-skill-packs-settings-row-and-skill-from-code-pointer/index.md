@@ -12,4 +12,4 @@
 **Author**: AM
 **Depends On**: 10148
 **Problem**: Four small changes to the base plugin were deliberately held back while its directory review runs, plus two small owner steps left over from the skills track (10129). Together they are the "next base release".
-**Summary**: One base release after the directory decision: advisor catalog entries for the packs, the `board.auto_update` row, a `skill-from-code` pointer in `suggest-skills`, and the two after-release skill checks.
+**Summary**: One base release after the directory decision: advisor catalog entries for the packs, the `board.auto_update` row, a `skill-from-code` pointer in `suggest-skills`, the board command creating a missing board without a second question, and the two after-release skill checks.
