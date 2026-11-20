@@ -1,9 +1,9 @@
 # Track AM-10152: KPI-driven tracks: every track serves a KPI, tracks for future KPIs wait in the backlog
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
-**Phase**: In implement (owner, 2026-11-20). Phase 1 first: settle the open questions in the spec (does a KPI depend on another, can a track serve several KPIs, where the measured value lives, does the quality gate check the mapping), then build. It no longer waits for the directory decision (owner: do not wait for the review).
+**Phase**: Phase 1 running (2026-11-20): settling the four open questions in the spec with the owner (KPI dependencies, several KPIs per track, where the measured value lives, whether the gate checks the mapping). Nothing is built until they are answered.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low
