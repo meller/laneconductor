@@ -17,6 +17,8 @@ Moved from track 10115 on 2026-11-19 (its plan tasks Phase 2 task 8, Phase 3 tas
 
 - REQ-9 The board shows a lane as running when it starts (owner, 2026-11-20: a plan run in Otralingo did not show running; the first Stop came after the plan was done). The hook's tool-call check notices a track set to running in plan, implement, review or quality-gate (an Edit or Write of its index.md, or an update_track setting both markers), once per claim, and asks Claude to run the refresh right then and carry on. Never from a sub-agent (it cannot publish), and not when `board.auto_update` is false or no board is stored. The refresh asked for by the hook, at a lane start or at the end of a turn, is quiet: it reports nothing, not the link, the counts or the withheld files, unless a step failed (owner: the report distracts from what the person was doing). Built as board 1.10.9.
 
+- REQ-10 Everything is typed under `/laneconductor:` (owner, 2026-11-20: no `laneconductor-board:` commands). The partial-publish refresh moved into the base command `/laneconductor:board refresh` (read the live manifest and board, `--previous` and `--live-board`, send only what `publish` lists, then the hook script's `seen` step found by Glob); the board add-on ships no commands; the hook asks for `/laneconductor:board refresh`. Built as base 1.9.14 (and parallel 1.9.14) with board 1.10.10. The old `/laneconductor-board:refresh` is gone.
+
 ## Out of scope
 
 The board add-on's refresh and hooks (done in 10115); the extra hooks of 10115 Phase 1 (not built, reopen as a new track if wanted).

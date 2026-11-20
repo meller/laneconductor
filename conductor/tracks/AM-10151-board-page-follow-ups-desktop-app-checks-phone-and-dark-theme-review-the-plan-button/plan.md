@@ -9,3 +9,4 @@
 - [x] Task 7: Blocked-by links, the KPI link and the Discuss button in the drawer (REQ-6, REQ-7; board 1.10.3)
 - [x] Task 8: The hook's `seen` step and the refresh command's last step (REQ-8; board 1.10.8; tests H5 in `board-hooks.test.mjs`)
 - [x] Task 9: The lane-start refresh and the quiet refresh (REQ-9; board 1.10.9; tests H6 in `board-hooks.test.mjs`)
+- [x] Task 10: One namespace: the base `board refresh` is the partial publish, the add-on ships no commands (REQ-10; base 1.9.14, board 1.10.10)
