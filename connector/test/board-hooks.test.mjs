@@ -147,7 +147,7 @@ test('H3 option on with the marker and a stored board: Stop asks Claude to conti
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.equal(out.decision, 'block');
-  assert.ok(out.reason.includes('/laneconductor-board:refresh') && out.reason.length < 300, out.reason);
+  assert.ok(out.reason.includes('/laneconductor:board refresh') && out.reason.length < 300, out.reason);
   assert.equal(markers(data).length, 0, 'cleared before asking: the refresh itself cannot re-arm a loop');
   assert.ok(!/https?:|abc|\.md/.test(out.reason), 'no URL and no file names');
   silent(stop(proj, data), 'the next Stop: nothing is left to do');
@@ -224,7 +224,7 @@ test('the board add-on\'s hooks.json: the documented shape, the two events, ever
   assert.equal(manifest.dependencies, undefined);
 });
 
-test('the hook script: no network, no write inside a project, and the only child process is a read-only git (rev-parse, status); the stop instruction names a command the add-on ships', () => {
+test('the hook script: no network, no write inside a project, and the only child process is a read-only git (rev-parse, status); the stop instruction names a command of the base plugin', () => {
   const src = fs.readFileSync(SCRIPT, 'utf8');
   assert.ok(!/node:(http|https|net|dgram|dns|tls)|fetch\(|XMLHttpRequest|spawn|exec\(|execSync/.test(src));
   const imports = [...src.matchAll(/from 'node:child_process'/g)].length;
@@ -235,33 +235,35 @@ test('the hook script: no network, no write inside a project, and the only child
   const verbs = [...src.matchAll(/\bgit\(root, \['([a-z-]+)'/g)].map((m) => m[1]);
   assert.ok(verbs.length >= 2 && verbs.every((v) => ['rev-parse', 'status'].includes(v)), `only read-only git verbs: ${verbs}`);
   assert.ok(src.length < 16000);
-  const name = JSON.parse(fs.readFileSync(path.join(BOARD, '.claude-plugin/plugin.json'), 'utf8')).name;
-  const command = /const REFRESH = '\/([a-z-]+):([a-z-]+)'/.exec(src);
-  assert.deepEqual([command[1], command[2]], [name, 'refresh']);
-  assert.ok(fs.existsSync(path.join(BOARD, 'commands', `${command[2]}.md`)));
+  // The hook asks for a BASE command, so everything is typed under /laneconductor: (the add-on ships no commands).
+  const baseName = JSON.parse(fs.readFileSync(path.join(BASE, '.claude-plugin/plugin.json'), 'utf8')).name;
+  const command = src.match(/const REFRESH = '\/([a-z-]+):([a-z-]+) ([a-z]+)'/);
+  assert.deepEqual([command[1], command[2], command[3]], [baseName, 'board', 'refresh']);
+  assert.ok(fs.existsSync(path.join(BASE, 'commands', `${command[2]}.md`)), 'the base has that command');
+  assert.ok(!fs.existsSync(path.join(BOARD, 'commands')), 'the add-on has no commands folder');
 });
 
-test('the refresh command: reads the live manifest, passes it to --previous, publishes only the publish map, full publish on first publish, conflict or failure, keeps the privacy handling', () => {
-  const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
-  assert.match(text, /^---\ndescription: .+\n---\n/);
+const BOARD_OPS = () => fs.readFileSync(path.join(BASE, 'skills/laneconductor/ops/board.md'), 'utf8');
+test('the base board refresh: reads the live manifest, passes it to --previous, publishes only the publish map, full publish on first publish, conflict or failure, keeps the privacy handling', () => {
+  const text = BOARD_OPS();
   assert.ok(text.includes('"manifest.json", "board.json"') && text.includes('--previous') && text.includes('--live-board') && text.includes('`none`'));
-  assert.ok(text.includes('${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs'), 'the add-on\'s own script, no Glob needed');
   assert.match(text, /`files` = the `publish` map and nothing more/);
-  assert.match(text, /A conflict or any failure: run step 3 again with `none`/);
+  assert.match(text, /A conflict or any failure: run step 2 again with `none`/);
   assert.match(text, /scope: "files"/);
-  assert.match(text, /Only Claude can publish an artifact/);
+  assert.match(text, /Only Claude can create or update an artifact/);
   assert.match(text, /withheld/);
-  assert.match(text, /never the matched text/);
-  assert.match(text, /never share it/i);
-  assert.ok(Buffer.byteLength(text) < 4000, 'short');
-  // It never creates a board: with no stored URL it points to the base command, which asks first.
-  assert.match(text, /If there is none, say so, point to `\/laneconductor:board`/);
+  assert.match(text, /never repeat or look for the matched text/);
+  assert.match(text, /never share/i);
+  // With no stored URL the base command creates the board (owner: running the command is the request); the add-on is found by Glob.
+  assert.match(text, /## 3b\. No URL: create/);
+  assert.ok(text.includes('**/laneconductor-board/**/bin/lc-board.mjs'));
 });
 
 test('the BASE plugin still has no hooks: no hooks folder, no hooks key in its manifest, no hook script, and no command or file of the board add-on', () => {
   assert.ok(!fs.existsSync(path.join(BASE, 'hooks')));
   assert.equal(JSON.parse(fs.readFileSync(path.join(BASE, '.claude-plugin/plugin.json'), 'utf8')).hooks, undefined);
   assert.ok(!fs.existsSync(path.join(BASE, 'commands/refresh.md')));
+  assert.ok(!fs.existsSync(path.join(BOARD, 'commands')), 'and the add-on ships no command either');
   const all = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? all(path.join(dir, e.name)) : [path.join(dir, e.name)]));
   for (const f of all(BASE)) {
     assert.ok(!/lc-board-hook|hooks\.json/.test(path.basename(f)), f);
@@ -284,7 +286,7 @@ const pushTrackChange = (dir, text = '# Track AM-1: One\n\n**Lane**: implement\n
   sh(dir, 'checkout', '-q', '-b', 'scratch'); write(dir, 'conductor/tracks/AM-1-one/index.md', text);
   sh(dir, 'commit', '-qam', 'track'); sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD'); sh(dir, 'checkout', '-q', 'main');
 };
-const REFRESH_ASK = /Run `\/laneconductor-board:refresh` now/;
+const REFRESH_ASK = /Run `\/laneconductor:board refresh` now/;
 
 test('H4 the first Stop only remembers the tracks (silent, state in the plugin data directory); a later push of a track change asks for one refresh, then stays silent', () => {
   const dir = gitProject(); const data = tmp('lc-hook-data-');
@@ -378,10 +380,11 @@ test('H5 `seen` in a project that is not a git repository, or with no tracks fol
   const empty = tmp('lc-hook-empty-'); quiet(seenRun(empty, data), 'no tracks folder');
 });
 
-test('H5 the refresh command ends with the `seen` step, after a successful publish', () => {
-  const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
-  assert.match(text, /8\. After a successful publish, from the project root: `node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/lc-board-hook\.mjs" seen`/);
-  assert.ok(text.indexOf('7. Report the link') < text.indexOf('8. After a successful publish'));
+test('H5 the base board refresh ends with the `seen` step, found by Glob, after a successful publish', () => {
+  const text = BOARD_OPS();
+  assert.match(text, /7\. After a success, from the project root run `node <path> seen`, with `<path>` found by Glob `\*\*\/laneconductor-board\/\*\*\/hooks\/lc-board-hook\.mjs` under `~\/\.claude\/plugins\/cache` \(skip it if not found\)/);
+  assert.ok(text.indexOf('4. Artifact tool, action `publish`') < text.indexOf('7. After a success'));
+  assert.match(fs.readFileSync(path.join(BASE, 'commands/board.md'), 'utf8'), /record the state with the `seen` step of the hook script/);
 });
 
 // ---- H6: a lane that starts asks for one quiet refresh right then; the end-of-turn refresh is quiet too.
@@ -398,7 +401,7 @@ test('H6 setting a track to running in plan, implement, review or quality-gate a
   for (const lane of ['plan', 'implement', 'review', 'quality-gate']) {
     const proj = project(auto()); const data = tmp('lc-hook-data-');
     const reason = asksNow(editIndex(proj, data, lane, 'running'));
-    assert.match(reason, /Run `\/laneconductor-board:refresh` once now, quietly/, lane);
+    assert.match(reason, /Run `\/laneconductor:board refresh` once now, quietly/, lane);
     assert.match(reason, /say nothing about it unless it fails/, lane);
     assert.match(reason, /carry on with the lane exactly where you were/, lane);
     assert.equal(markers(data).length, 1, `${lane}: the end-of-turn marker is set as before`);
@@ -428,11 +431,11 @@ test('H6 a sub-agent, board.auto_update false and no stored board are never aske
   silent(editIndex(noset, d4, 'plan', 'running'), 'no settings file');
 });
 
-test('H6 the end-of-turn instruction is quiet too, and the refresh command reports nothing when asked quietly unless a step failed', () => {
+test('H6 the end-of-turn instruction is quiet too, and the base board refresh reports nothing when asked quietly unless a step failed', () => {
   const dir = gitProject(); const data = tmp('lc-hook-data-');
   silent(stop(dir, data), 'baseline'); pushTrackChange(dir);
-  assert.match(JSON.parse(stop(dir, data).stdout).reason, /Run `\/laneconductor-board:refresh` now, quietly \(it publishes only the changed files; say nothing about it unless it fails\), then stop/);
-  const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
-  assert.match(text, /\*\*If you were asked to do this quietly\*\*[^]*report nothing at all, not the link, not the counts, not the withheld files, unless a step failed: then one line with the step and the error/);
-  assert.ok(text.indexOf('7. Report the link') < text.indexOf('8. After a successful publish'));
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, /Run `\/laneconductor:board refresh` now, quietly \(it publishes only the changed files; say nothing about it unless it fails\), then stop/);
+  const text = BOARD_OPS();
+  assert.match(text, /8\. \*\*Quiet\.\*\* When the check at a lane start or at the end of a turn asked for this \(its message says quietly\), report nothing, not the link, the counts or the withheld files, unless a step failed: then one line with the step and the error\./);
+  assert.match(fs.readFileSync(path.join(BASE, 'commands/board.md'), 'utf8'), /When the check at a lane start or at the end of a turn asked for it, say nothing unless it failed/);
 });

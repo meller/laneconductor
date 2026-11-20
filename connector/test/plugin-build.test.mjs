@@ -170,7 +170,7 @@ test('listing: each README has its words, LICENSE, the install commands (one per
     assert.ok(parallel.includes(must), `parallel README must mention ${must}`);
   }
   const board = norm(fs.readFileSync(path.join(BOARD, 'README.md'), 'utf8'));
-  for (const must of ['**/laneconductor-board/**/bin/lc-board.mjs', '/laneconductor-board:refresh', 'board.auto_update', 'private artifact', 'secrets and personal data', 'works alone']) assert.ok(board.includes(must), `board README must mention ${must}`);
+  for (const must of ['**/laneconductor-board/**/bin/lc-board.mjs', '/laneconductor:board refresh', 'board.auto_update', 'private artifact', 'secrets and personal data', 'works alone']) assert.ok(board.includes(must), `board README must mention ${must}`);
 });
 
 test('no top-level bin/ in any plugin, no symlinks, no node_modules committed', () => {

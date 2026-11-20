@@ -24,11 +24,11 @@
     {
       "name": "laneconductor-board",
       "source": "./plugins/laneconductor-board",
-      "description": "Add-on: the board script and page, a private snapshot of every track by lane; a refresh command that publishes only what changed, and opt-in hooks that keep it current.",
+      "description": "Add-on: the board script and page, a private snapshot of every track by lane; and opt-in hooks that keep it current. No commands: it is refreshed with /laneconductor:board refresh.",
       "author": {
         "name": "Asaf Meller"
       },
-      "version": "1.10.9"
+      "version": "1.10.10"
     },
     {
       "name": "laneconductor-nodejs-frontend",

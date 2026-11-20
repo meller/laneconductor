@@ -17,7 +17,7 @@ If it is `refresh`, refresh:
 Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.
 
 1. Generate the page and data (step 1) with the board script, found as step 1 of `ops/board.md` says. If it does not exist, say so and stop; do not build the page by hand.
-2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, create the board now without asking (step 3b), store the URL and open it.
+2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, create the board now without asking (step 3b), store the URL and open it. With a stored URL it is a partial publish: read the live `manifest.json` and `board.json`, pass them to the script as `--previous` and `--live-board`, send only what `publish` lists, then record the state with the `seen` step of the hook script (3a). When the check at a lane start or at the end of a turn asked for it, say nothing unless it failed.
 3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name. For a board created now, also say what it holds: private, a snapshot, the documents of every track that is not done, and that `board.include_docs: false` turns the documents off.
 
 In Claude Code, type the refresh as `/laneconductor:board refresh`.
@@ -62,6 +62,8 @@ LaneConductor repository. From the project root:
 site=$(mktemp -d) && node <that path> --repo . --site "$site" --json
 ```
 
+When you update a stored board (step 3a) add `--previous` and `--live-board`, described there.
+
 If the script is not found, the laneconductor-board add-on is not installed: say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop. The temp dir stays outside the repo (the script refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
 "root": "<dir>", "files": ["board.json", "ctx/overview.json", "docs/1.json", ...] }`. `board.html` is the page (identical
@@ -74,7 +76,7 @@ sources resolve against `root`).
 stderr lists anything the privacy scan withheld, one line per file (`board: withheld track 10106
 spec.md: 2 possible secret or personal data matches (lines 3, 4); not published`), and any tracks
 left without documents because of the 200-file limit. Report each withheld file to the human by
-track number and file name (never repeat or look for the matched text). A site has at most 200 ctx and docs
+track number and file name (never repeat or look for the matched text), except when quiet (3a, step 8). A site has at most 200 ctx and docs
 files together, plus `board.json` and the page, well under the Artifact tool's 255 files per publish; if you
 ever see more files than that, stop and say so instead of publishing part of the set.
 
@@ -82,18 +84,16 @@ ever see more files than that, stop and say so instead of publishing part of the
 
 Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file (`ops/settings.md`). The file may be missing or have no `board` key; then there is no stored URL.
 
-#### 3a. URL exists: update
+#### 3a. URL exists: update (a partial publish: only the files that changed)
 
-1. Artifact tool, action `read`, with that URL. A new conversation must read once before it may update.
-2. Artifact tool, action `list` with `scope: "files"` and that `url`: every `docs/<n>.json` or `ctx/<key>.json` it shows
-   that is not in the new `files` list belongs to a track that is now done, dropped or withheld
-   entirely, or to a project file that is gone; add it to the map as `"docs/<n>.json": null` (or `"ctx/<key>.json": null`) so the old documents are removed (a
-   publish keeps files it is not told about).
-3. Artifact tool, action `publish`, with `url` set, `file_path` = `page`, `root` = `root` and the
-   `files` map. If the read showed a page identical to the generated `board.html`, the page is
-   already right; the publish still passes the files so the data and documents are replaced. Never
-   edit the page to put data in it.
-4. If the read says you have no edit access, say so, do not create a second board silently: ask.
+1. Artifact tool, action `read`, with that URL (a new conversation must read once before it may update), then `read` with `paths: ["manifest.json", "board.json"]`; keep the saved paths, or use `none` for both when the board has no `manifest.json` or a read fails.
+2. Run step 1 with `--previous <saved manifest.json or none> --live-board <saved board.json or none>`. Stdout then also has `mode` (`partial` or `full`), `changed`, `removed`, `pageChanged` and `publish`, the map to send.
+3. Artifact tool, action `list` with `scope: "files"` and that `url`: every `docs/<n>.json` or `ctx/<key>.json` it shows that is not in `files` belongs to a track that is now done, dropped or withheld entirely, or to a project file that is gone; add it to `publish` as `"<path>": null` (a publish keeps files it is not told about).
+4. Artifact tool, action `publish`, with `url` set, `file_path` = `page`, `root` = `root` and `files` = the `publish` map and nothing more: the changed files, the `null`s, `manifest.json` and `version.json`. Never edit the page or add a file the script did not list.
+5. A conflict or any failure: run step 2 again with `none` for both and publish that map once; if that fails too, report the step and the error and publish nothing.
+6. If the read says you have no edit access, say so, do not create a second board silently: ask.
+7. After a success, from the project root run `node <path> seen`, with `<path>` found by Glob `**/laneconductor-board/**/hooks/lc-board-hook.mjs` under `~/.claude/plugins/cache` (skip it if not found). It prints nothing: it records that the board shows the tracks as they are, so the end-of-turn check does not ask for this refresh again.
+8. **Quiet.** When the check at a lane start or at the end of a turn asked for this (its message says quietly), report nothing, not the link, the counts or the withheld files, unless a step failed: then one line with the step and the error.
 
 #### 3b. No URL: create
 

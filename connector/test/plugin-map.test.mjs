@@ -40,7 +40,7 @@ test('docs/plugin-map.md says exactly that: every provided name appears in its c
   const cmds = row('Slash commands');
   for (const c of CATALOG) assert.ok(cmds[1].includes(`\`${c.name}\``), `${c.name} is a base command`);
   assert.match(cmds[2], /none/);
-  assert.match(cmds[3], /`\/laneconductor-board:refresh` only/);
+  assert.match(cmds[3], /none/, 'the board add-on has no slash commands');
   assert.match(row('Hooks')[3], /`PostToolUse`, `Stop`/);
   assert.equal(row('Hooks')[1], 'none');
   assert.ok(row('MCP tools')[2].includes(`${CONNECTOR_TOOL_PREFIX}<tool>`));
@@ -69,7 +69,7 @@ test('every README carries the same short plugin map, generated from the same fa
     assert.ok(readme.includes(shortMap(facts, p)), `${NAMES[p]} README holds the short map`);
   }
   // The base and parallel READMEs keep the board row of the released 1.9.11 (the base stays byte-identical); only the board's own README names its new command.
-  assert.ok(shortMap(facts, 'board').includes('`/laneconductor-board:refresh`') && !short.includes('refresh'));
+  assert.ok(shortMap(facts, 'board').includes('`/laneconductor:board refresh`') && short.includes('`/laneconductor:board refresh`'), 'every README names the one refresh command');
   assert.ok(short.includes('`laneconductor-parallel` (add-on) | the connector\'s tools') && short.includes('No slash commands.'));
   assert.ok(!/\b\d+\s+(slash\s+)?commands\b/.test(short), 'no command count');
 });

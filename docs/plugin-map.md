@@ -6,7 +6,7 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 
 | | `laneconductor` (base) | `laneconductor-parallel` (add-on) | `laneconductor-board` (add-on) |
 | :--- | :--- | :--- | :--- |
-| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the base commands detect the add-ons) | `/laneconductor-board:refresh` only (the base commands detect the add-ons) |
+| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the base commands detect the add-ons) | none (the base commands detect the add-ons) |
 | Hooks | none | none | `PostToolUse`, `Stop` |
 | Skills | `laneconductor` | none | none |
 | Agents | `plan-reviewer` | `track-runner` (isolation: worktree) | none |

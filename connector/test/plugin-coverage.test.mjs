@@ -261,7 +261,7 @@ test('commands that use the connector name its tools only for when they are pres
 test('TC-5/TC-9 shape: all slash commands live in the base; the add-ons ship no commands/ or skills/ folder', () => {
   assert.equal(JSON.parse(read('.claude-plugin/plugin.json')).name, PLUGIN_NAME);
   assert.ok(!fs.existsSync(path.join(PARALLEL, 'commands')), `${PARALLEL} has a commands/ folder`);
-  assert.deepEqual(fs.readdirSync(path.join(BOARD, 'commands')), ['refresh.md'], 'the board add-on ships only its own refresh command (track AM-10115 Phase 0)');
+  assert.ok(!fs.existsSync(path.join(BOARD, 'commands')), 'the board add-on ships no commands: all of them live in the base');
   for (const dir of [PARALLEL, BOARD]) assert.ok(!fs.existsSync(path.join(dir, 'skills')), `${dir} has a skills/ folder`);
   assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-firebase', 'laneconductor-gemini', 'laneconductor-node-postgres', 'laneconductor-nodejs-frontend', 'laneconductor-parallel', 'laneconductor-skill-from-code']);
 });

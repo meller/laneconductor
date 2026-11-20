@@ -86,7 +86,7 @@ export const SERVER_ASSETS = { parallel: [], board: ['src/board-page.html'] };
 export const SERVER_DIRS = { parallel: ['guides'], board: [] };
 // The board add-on's own command and hooks (track AM-10115 Phase 0): the base stays Markdown only, with no hooks.
 export const BOARD_EXTRAS_SRC = 'connector/plugin-extras-board';
-export const BOARD_EXTRAS = ['commands/refresh.md', 'hooks/hooks.json', 'hooks/lc-board-hook.mjs'];
+export const BOARD_EXTRAS = ['hooks/hooks.json', 'hooks/lc-board-hook.mjs'];
 const AGENTS = { base: ['agents/plan-reviewer.md'], parallel: ['agents/track-runner.md'], board: [] };
 const KEYWORDS = {
   base: ['laneconductor', 'tracks', 'planning', 'git'],
@@ -440,10 +440,7 @@ export function shortMap(facts, profile = 'base') {
     '| :--- | :--- |',
     `| \`${b.name}\` (base) | the ${list(b.skills, (s) => `\`${s}\``)} skill, every slash command (\`/${b.name}:<name>\`), the ${list(b.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent. Markdown only. |`,
     `| \`${p.name}\` (add-on) | the connector's tools (\`${CONNECTOR_TOOL_PREFIX}*\`) and MCP prompts, the ${list(p.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent (one per track, in its own worktree), ${list(p.scripts.filter((s) => s !== 'lc-connector.mjs'), (s) => `\`${s}\``)}. No slash commands. |`,
-    // The base and parallel READMEs keep the board row as released with 1.9.11 (the base stays byte-identical until the owner releases it); the board's own README says what it now ships.
-    profile !== 'board'
-      ? `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page. No slash commands. |`
-      : `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page, the \`/${d.name}:refresh\` command (publishes only what changed) and opt-in hooks that keep the board current. |`,
+    `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page and hooks. No slash commands; refresh with \`/${b.name}:board refresh\`. |`,
   ].join('\n');
 }
 
@@ -493,7 +490,7 @@ export function buildMarketplace(repo = REPO) {
       {
         name: NAMES.board,
         source: `./${RELS.board}`,
-        description: 'Add-on: the board script and page, a private snapshot of every track by lane; a refresh command that publishes only what changed, and opt-in hooks that keep it current.',
+        description: 'Add-on: the board script and page, a private snapshot of every track by lane; and opt-in hooks that keep it current. No commands: it is refreshed with /laneconductor:board refresh.',
         author: { name: AUTHOR },
         ...ver('board'),
       },

@@ -62,7 +62,7 @@ test('laneconductor-board ships the script and its page, imports no npm package,
   const files = walk(BOARD);
   for (const f of [BOARD_SCRIPT_REL, 'server/src/board-page.html', 'server/src/board.mjs', 'server/src/board-docs.mjs', 'server/src/scan.mjs', '.claude-plugin/icon.png', 'README.md', 'LICENSE']) assert.ok(files.includes(f), f);
   assert.ok(!files.some((f) => f.startsWith('skills/') || f.startsWith('agents/')), 'no skill or agents');
-  assert.deepEqual(files.filter((f) => f.startsWith('commands/')), ['commands/refresh.md'], 'one command: the partial-publish refresh (track AM-10115 Phase 0)');
+  assert.deepEqual(files.filter((f) => f.startsWith('commands/')), [], 'no commands: everything is typed under /laneconductor: (the base `board refresh` is the partial publish)');
   assert.ok(!files.includes('.mcp.json') && !files.includes('package.json') && !files.includes('server/bin/lc-connector.mjs'));
   importsResolveInside(BOARD, new Set());
   assert.ok(fs.readFileSync(path.join(BOARD, 'server/src/board-page.html')).equals(fs.readFileSync(path.join(REPO, 'connector/src/board-page.html'))), 'the page is the repository\'s page');

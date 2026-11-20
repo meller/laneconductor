@@ -4,14 +4,14 @@ LaneConductor Board is an optional add-on for LaneConductor, which keeps a proje
 track under `conductor/tracks/`). It builds the board: one private page that shows every track by lane, with a needs-attention
 list, which Claude publishes as a private artifact.
 
-Version 1.10.9. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
+Version 1.10.10. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
 dependency on the base plugin or on the connector: it is one script and one page, and it works alone.
 
 | Plugin | Provides |
 | :--- | :--- |
 | `laneconductor` (base) | the `laneconductor` skill, every slash command (`/laneconductor:<name>`), the `plan-reviewer` subagent. Markdown only. |
 | `laneconductor-parallel` (add-on) | the connector's tools (`mcp__plugin_laneconductor-parallel_lc__*`) and MCP prompts, the `track-runner` subagent (one per track, in its own worktree), `lc-scaffold.mjs`. No slash commands. |
-| `laneconductor-board` (add-on) | `lc-board.mjs` and its page, the `/laneconductor-board:refresh` command (publishes only what changed) and opt-in hooks that keep the board current. |
+| `laneconductor-board` (add-on) | `lc-board.mjs` and its page and hooks. No slash commands; refresh with `/laneconductor:board refresh`. |
 
 ## What is in it
 
@@ -19,15 +19,13 @@ dependency on the base plugin or on the connector: it is one script and one page
   finds the script (it Globs for `**/laneconductor-board/**/bin/lc-board.mjs` under
   `~/.claude/plugins/cache`, where installed plugins live) and runs it; it shows how to install this add-on when it does not find it.
 
-- `/laneconductor-board:refresh`: rebuilds the board and publishes only the files that changed (a partial publish: one track edited sends `board.json`, that track's
-  document and a small `manifest.json`). It needs a stored board; the base plugin's `board refresh` still publishes everything. The first publish, a conflict or a
-  failure publishes everything.
+- no commands of its own: everything is typed under `/laneconductor:`. The base command `/laneconductor:board refresh` rebuilds the board and publishes only the files that changed (a partial publish: one track edited sends `board.json`, that track's document and a small `manifest.json`); the first publish, a conflict or a failure publishes everything. It needs a stored board.
 - two hooks (`hooks/hooks.json`, one script, `hooks/lc-board-hook.mjs`) that note when a track changed (Edit or Write of a track file, the connector's `create_track` and
-  `update_track`) in the plugin's data directory, never in your project. By default, when Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run the refresh command; set `board.auto_update: false` in `.laneconductor.json` to turn that off. With no stored board they do nothing at all.
-  The hooks make no network request, run no other program and print no file text.
+  `update_track`) in the plugin's data directory, never in your project. By default, when Claude finishes a turn after a track changed and `board.artifact_url` is stored, it is asked once to run `/laneconductor:board refresh`, and so is it when a lane starts running (plan, implement, review or quality gate), so the board shows the work as it begins; the refresh it asks for is quiet and reports nothing unless it failed. Set `board.auto_update: false` in `.laneconductor.json` to turn that off. With no stored board they do nothing at all.
+  The hooks make no network request, run no program but a read-only `git` and print no file text.
 - an open board refreshes its own view: while its tab is visible the page reads a tiny index, `version.json` (the board's generated time, about 60 bytes), every 15 seconds and never the board itself. When a newer board was published it reloads itself, unless you have a track open or a search typed; then it shows a "newer board" button instead. One automatic reload per two minutes at most.
 
-The base plugin's commands are unchanged: it adds no other slash commands. You can also run the script yourself:
+This add-on adds no slash commands. You can also run the script yourself:
 `node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json` and one documents file per track that
 is not done into `<dir>`, which must be outside `conductor/`; with `--previous <the manifest.json read from the live artifact>` its JSON also lists what changed.
 

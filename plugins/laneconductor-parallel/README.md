@@ -4,14 +4,14 @@ LaneConductor Parallel is an optional add-on for LaneConductor, which keeps a pr
 track under `conductor/tracks/`). It lets several Claude sessions, people or sub-agents work on tracks at the same time without
 overwriting each other, each track in its own git worktree.
 
-Version 1.9.13. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory, and it has no
+Version 1.9.14. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory, and it has no
 dependency on the base plugin: it works alone (its tools and the sub-agent), and best together with the base `laneconductor`.
 
 | Plugin | Provides |
 | :--- | :--- |
 | `laneconductor` (base) | the `laneconductor` skill, every slash command (`/laneconductor:<name>`), the `plan-reviewer` subagent. Markdown only. |
 | `laneconductor-parallel` (add-on) | the connector's tools (`mcp__plugin_laneconductor-parallel_lc__*`) and MCP prompts, the `track-runner` subagent (one per track, in its own worktree), `lc-scaffold.mjs`. No slash commands. |
-| `laneconductor-board` (add-on) | `lc-board.mjs` and its page. No slash commands. |
+| `laneconductor-board` (add-on) | `lc-board.mjs` and its page and hooks. No slash commands; refresh with `/laneconductor:board refresh`. |
 
 ## What is in it
 

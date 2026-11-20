@@ -4,7 +4,7 @@
 //         "board is stale" marker. Silent otherwise.
 //         A lane that STARTS (a track set to running in plan, implement, review or quality-gate, once per claim) also asks Claude to refresh right then,
 //         quietly, so the board shows it running; plan and review run inline, so without this the first Stop comes after they finished. Never from a sub-agent.
-//   seen  (run by the refresh command after it published): record the tracks' current state as the one the board shows, and clear the marker, so the
+//   seen  (run by the base `/laneconductor:board refresh` after it published): record the tracks' current state as the one the board shows, and clear the marker, so the
 //         next Stop does not ask for a refresh that was just made. No stdin needed.
 //   stop  (Stop): ON BY DEFAULT (owner, 2026-11-19). When the marker is set and `board.artifact_url` is stored in the project's
 //         .laneconductor.json, clear the marker and ask Claude to run the board refresh once. Only `board.auto_update: false` turns it
@@ -24,7 +24,7 @@ import { execFileSync } from 'node:child_process';
 const CONNECTOR_TOOL = /^mcp__.+__(create_track|update_track)$/;
 const TRACK_DOCS = new Set(['index.md', 'plan.md', 'spec.md', 'test.md']); // what the board shows (conversation.md only with board.include_conversation)
 const KEEP_MS = 14 * 24 * 3600 * 1000;
-const REFRESH = '/laneconductor-board:refresh';
+const REFRESH = '/laneconductor:board refresh'; // the base command; this add-on ships no commands, so everything is typed under /laneconductor:
 // Lanes whose start is worth an immediate refresh; the standard names and the older ones a project may still use.
 const CLAIM_LANES = { plan: 'plan', planning: 'plan', implement: 'implement', 'in-progress': 'implement', review: 'review', 'quality-gate': 'quality-gate', qualitygate: 'quality-gate' };
 

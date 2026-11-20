@@ -4,7 +4,7 @@ LaneConductor teaches Claude a plan-first way of working on a project whose plan
 under `conductor/tracks/`, holding `index.md` (state markers), `spec.md`, `plan.md`, `test.md` and `conversation.md`. It covers how
 to plan, implement, review, quality-gate and merge a track, how to set LaneConductor up in a new project, and how to deploy.
 
-Version 1.9.13.
+Version 1.9.14.
 
 ## Getting started
 
@@ -47,7 +47,7 @@ use it; when it is missing, LaneConductor mentions it at most once per session, 
 | :--- | :--- |
 | `laneconductor` (base) | the `laneconductor` skill, every slash command (`/laneconductor:<name>`), the `plan-reviewer` subagent. Markdown only. |
 | `laneconductor-parallel` (add-on) | the connector's tools (`mcp__plugin_laneconductor-parallel_lc__*`) and MCP prompts, the `track-runner` subagent (one per track, in its own worktree), `lc-scaffold.mjs`. No slash commands. |
-| `laneconductor-board` (add-on) | `lc-board.mjs` and its page. No slash commands. |
+| `laneconductor-board` (add-on) | `lc-board.mjs` and its page and hooks. No slash commands; refresh with `/laneconductor:board refresh`. |
 
 ### `laneconductor-parallel`
 
