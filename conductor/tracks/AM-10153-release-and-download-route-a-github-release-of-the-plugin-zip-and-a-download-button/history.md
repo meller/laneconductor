@@ -1,3 +1,4 @@
 # History
 
 - 2026-11-20 Created by splitting REQ-10 (and the open claim-by-claim read and README-sync items) out of track 10114, by the owner's decision.
+- 2026-11-20 Replanned with the owner: one rolling `latest` zip kept by a GitHub Action instead of numbered releases by hand; sent to implement.
