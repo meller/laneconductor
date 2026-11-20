@@ -3,16 +3,16 @@
 ## Phase 1: Baseline and snapshots
 
 - [x] Task 1.1: Read the baseline with `gh api` (stars, forks, watchers, clones, views, referrers) and record it in the spec (2026-11-19)
-- [ ] Task 1.2: Weekly snapshot: run `gh api repos/meller/laneconductor/traffic/clones`, `.../traffic/views`, `.../traffic/popular/referrers` and the repository's star and fork counts, and append one dated line to history.md (every week; ask `next` to be reminded; GitHub keeps only 14 days)
+- [x] Task 1.2 (first one 2026-11-20; repeat every week): Weekly snapshot: run `gh api repos/meller/laneconductor/traffic/clones`, `.../traffic/views`, `.../traffic/popular/referrers` and the repository's star and fork counts, and append one dated line to history.md (every week; ask `next` to be reminded; GitHub keeps only 14 days)
 - [ ] Task 1.3: Check whether a `git fetch` or plugin update shows in the clone count (compare the day's count before and after one update) and write the answer in the spec
 
 ## Phase 2: Measure the site
 
-- [ ] Task 2.1 (HUMAN): Choose the analytics tool and create its account; tell the agent the site id
-- [ ] Task 2.2: Add the script to landing/index.html and landing/wiki.html, and the events: copy-install click, GitHub button click, "Read the full comparison" click, wiki click
-- [ ] Task 2.3: One sentence on the site saying what is counted (page views and those clicks, no cookies, no personal data), after checking the tool's own behaviour
-- [ ] Task 2.4: Add real `landing/sitemap.xml` and `landing/robots.txt` (the hosting rewrite returns the home page for both today); check with curl after deploy
-- [ ] Task 2.5 (HUMAN): Verify laneconductor.com in Search Console (DNS record) and submit the sitemap
+- [ ] Task 2.1 (HUMAN): Analytics tool chosen: Google Analytics 4. Create the property and web stream (or link it through the Firebase project) and tell the agent the measurement id
+- [ ] Task 2.2: Add the Google tag to landing/index.html and landing/wiki.html after a consent notice (the Otralingo pattern, ads features off), and the events: copy-install click, GitHub button click, "Read the full comparison" click, wiki click
+- [ ] Task 2.3: One sentence on the site saying what is counted (page views and those clicks, only after the visitor accepts; no ads features), after checking the tool's own behaviour
+- [x] Task 2.4: Real `landing/sitemap.xml` and `landing/robots.txt` added 2026-11-20 with a test (not deployed; a file is served before the catch-all rewrite); check with curl after the deploy
+- [ ] Task 2.5 (HUMAN): Add laneconductor.com in Search Console as a URL-prefix property and send the agent the verification file or meta tag (no DNS record needed); the agent adds it, and after the deploy the owner verifies and submits the sitemap
 - [ ] Task 2.6 (HUMAN): Say "deploy"; then deploy from a clean worktree of main and verify live (tool receives a visit; events fire)
 
 ## Phase 3: First campaign (the demo post)
