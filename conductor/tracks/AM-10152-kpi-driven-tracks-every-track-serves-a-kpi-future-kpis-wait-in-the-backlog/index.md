@@ -1,9 +1,9 @@
 # Track AM-10152: KPI-driven tracks: every track serves a KPI, tracks for future KPIs wait in the backlog
 
-**Lane**: backlog
+**Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Parked in the backlog 2026-11-20: an idea from the owner, not yet brainstormed. It changes the base plugin (plan lane guide, marker table, next, setup), so it cannot ship before the directory decision on track 10148.
+**Phase**: New: an idea from the owner, not yet brainstormed. It changes the base plugin (plan lane guide, marker table, next, setup), so it cannot ship before the directory decision on track 10148.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low
