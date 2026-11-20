@@ -13,7 +13,6 @@ import {
   buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, BASE_HABITS, REPO,
   PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, VERSIONS_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND, pluginVersion,
 } from '../../scripts/build-plugin.mjs';
-import { makeZip, readZip } from '../../scripts/make-zip.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const BASE = path.join(REPO, PLUGIN_REL);
@@ -350,35 +349,6 @@ test('skill path audit: no hard-coded project or machine paths outside the setup
   const head = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
   assert.match(head, /Paths below are relative to this file's directory/);
   assert.match(head, /skills\/laneconductor\/` when installed as the LaneConductor plugin/);
-});
-
-test('make-zip: deterministic, holds exactly the plugin files at the zip root, keeps modes, refuses to write inside the repo', (t) => {
-  const files = buildPlugin(REPO, 'base');
-  const a = makeZip(files);
-  assert.ok(a.equals(makeZip(buildPlugin(REPO, 'base'))), 'same sources, same bytes');
-  const back = readZip(a);
-  assert.deepEqual([...back.keys()], [...files.keys()].sort());
-  assert.ok(back.has('.claude-plugin/plugin.json'), 'the plugin root is the zip root');
-  for (const [name, f] of files) {
-    assert.ok(back.get(name).content.equals(f.content), name);
-    assert.ok(f.content.equals(fs.readFileSync(path.join(BASE, name))), `${name} equals the committed plugin file`);
-    assert.equal(back.get(name).mode & 0o777, f.exec ? 0o755 : 0o644, `${name} mode`);
-  }
-  const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-zip-'));
-  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
-  const run = (...args) => spawnSync(process.execPath, [path.join(REPO, 'scripts/make-zip.mjs'), ...args], { encoding: 'utf8' });
-  const ok = run('--out', path.join(tmp, 'dist'));
-  assert.equal(ok.status, 0, ok.stderr);
-  const zipPath = path.join(tmp, 'dist', `laneconductor-${version}.zip`);
-  assert.ok(fs.readFileSync(zipPath).equals(a));
-  assert.match(ok.stdout, new RegExp(`files:\\s+${files.size}\\n`));
-  assert.match(ok.stdout, /sha256: [0-9a-f]{64}/);
-  const board = run('--out', path.join(tmp, 'dist'), '--plugin', 'board');
-  assert.equal(board.status, 0, board.stderr);
-  assert.ok(fs.existsSync(path.join(tmp, 'dist', `laneconductor-board-${pluginVersion('board')}.zip`)));
-  assert.match(run('--out', path.join(tmp, 'dist'), '--plugin', 'full').stderr, /--plugin must be one of/);
-  assert.equal(run().status, 1, '--out is required');
-  assert.match(run('--out', path.join(REPO, 'x.zip')).stderr, /refusing to write inside the repository/);
 });
 
 test('the install commands are one source: installCommands() and the marketplace add command', () => {

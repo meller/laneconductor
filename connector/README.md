@@ -189,8 +189,7 @@ Decision (human, 2026-11-18, track AM-10128): Anthropic's plugin directory does 
 (run 2026-11-18) blocks, for an organization that is not Verified, the local MCP server (`.mcp.json`), the `package.json` and lockfile,
 every script and `.mjs` file, config fields outside its allowed lists, and frontmatter keys such as `isolation` in the agents. So the
 product is three plugins from one generator, installed from the owner's marketplace (`meller/laneconductor`,
-`.claude-plugin/marketplace.json` at the repo root, base first) or by uploading a zip (`node scripts/make-zip.mjs --out <dir>
-[--plugin base|parallel|board]`). Only the first is submitted to the directory (the owner submits):
+`.claude-plugin/marketplace.json` at the repo root, base first). Only the first is submitted to the directory (the owner submits):
 
 - `plugins/laneconductor`, the BASE (version 1.0.0): Markdown, JSON and one PNG only. The skill, every slash command
   (`/laneconductor:<name>`), the read-only `plan-reviewer` subagent, README, `ADD-ONS.md`, LICENSE and an icon. It does the whole
@@ -243,7 +242,6 @@ node scripts/build-plugin.mjs          # rebuild plugins/, the marketplace file 
 node scripts/build-plugin.mjs --check  # exit 1 if the committed output differs from a fresh build
 claude plugin validate ./plugins/laneconductor --strict   # and laneconductor-parallel, laneconductor-board
 claude plugin validate . --strict
-node scripts/make-zip.mjs --out <dir>  # laneconductor-<version>.zip for "Upload plugin"; prints file count and SHA-256
 scripts/try-local.sh --dry-run <scratch-repo-path>   # prints how to try the three together in a scratch repository
 ```
 
