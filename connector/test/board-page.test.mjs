@@ -912,7 +912,7 @@ test('actions: cards, Needs-attention rows and the drawer header show the reason
   assert.ok(c201.textContent.includes('/laneconductor:plan 201'));
   assert.ok(c201.textContent.includes('ready to plan'));
   assert.ok(cardN(ids, 202).textContent.includes('running; nothing to do'));
-  assert.equal(all(cardN(ids, 202), cls('copy')).length, 0, 'no command, so no Copy button');
+  assert.equal(all(cardN(ids, 202), cls('actc')).length, 0, 'no command, so no command Copy button (only Discuss)');
   assert.ok(ids['attn-rows'].textContent.includes('/laneconductor:comment 204 <your reply>'));
   assert.ok(ids['attn-rows'].children.every((r) => r.children.length === 5), 'the Needs-attention rows have a Next step column');
   ids['backlog-toggle'].onclick();
@@ -980,13 +980,17 @@ test('actions: the drawer header carries the Copy button and it is part of the f
     const ids = await runPage(serve(dataFor()));
     cardN(ids, 201).handlers.click();
     await flush();
-    const copy = all(ids['d-act'], cls('copy'))[0];
+    const copy = all(ids['d-act'], cls('copy')).filter((b) => b._text === 'Copy')[0];
     assert.ok(copy);
-    // This board has no docs for the track, so the cycle is [Close, Copy]: Shift+Tab on Close lands on Copy, Tab on Copy wraps to Close.
+    // This board has no docs for the track, so the cycle is [Close, Copy, Discuss]: Shift+Tab on Close lands on Discuss, then Copy; Tab on Discuss wraps to Close.
     ids['d-close'].focus();
     const back = ev('Tab', { shiftKey: true }); ids.__doc.handlers.keydown(back);
     assert.equal(back.prevented, true);
-    assert.equal(ids.__doc.activeElement, copy, 'the Copy button is in the focus trap');
+    const disc = ids.__doc.activeElement; assert.equal(disc._text, 'Discuss');
+    ids.__doc.activeElement = copy;
+    const mid = ev('Tab'); ids.__doc.handlers.keydown(mid);
+    assert.ok(!mid.prevented, 'the Copy button is inside the trap: Tab from it is left to the browser');
+    ids.__doc.activeElement = disc;
     const fwd = ev('Tab'); ids.__doc.handlers.keydown(fwd);
     assert.equal(ids.__doc.activeElement, ids['d-close']);
     copy.handlers.click(fakeEv('x')); await flush();
@@ -1540,4 +1544,62 @@ test('newer board: an older or unreadable generated time changes nothing; a 404 
     await env2.timers[0].fn(); await flush();
     assert.equal(env2.reloads(), 0, 'without sessionStorage the loop guard cannot work, so there is no automatic reload');
   } finally { env2.restoreEnv(); }
+});
+
+// ---- Deep links (blocked by, KPI) and the Discuss button.
+test('board.json: bb lists Depends On and Waiting On Tracks once each; kp is Serves, or empty with only a KPI Check After; neither: both absent', () => {
+  const d = actionData([
+    [301, 'plan', 'queue', '**Depends On**: 302, 303\n**Waiting On Tracks**: 303, 301\n**Serves**: Awareness: GitHub stars\n'],
+    [302, 'implement', 'queue', '**KPI Check After**: 2026-12-17T09:00:00.000Z\n'],
+    [303, 'done', 'success'],
+  ]);
+  const t = (n) => d.tracks.find((x) => x.n === n);
+  assert.deepEqual(t(301).bb, [302, 303], 'each once, never itself');
+  assert.equal(t(301).kp, 'Awareness: GitHub stars');
+  assert.equal(t(302).kp, '', 'a KPI Check After with no Serves: the track has a KPI, the name is in its spec');
+  assert.ok(!('bb' in t(303)) && !('kp' in t(303)), 'a track with neither carries neither key');
+});
+
+test('drawer: Blocked by opens the other track; a done one reads Needs (done); KPI opens the KPIs tab of the Project drawer', async () => {
+  const d = actionData([
+    [301, 'plan', 'queue', '**Depends On**: 302, 303\n**Serves**: KPI-1\n'],
+    [302, 'implement', 'queue'],
+    [303, 'done', 'success'],
+  ]);
+  d.project_docs = [{ k: 'overview', t: 'Overview', f: 'ctx/overview.json' }, { k: 'kpis', t: 'KPIs', f: 'ctx/kpis.json' }];
+  const ids = await runPage(async (u) => ({ ok: true, status: 200, json: async () => (String(u).includes('ctx/') ? { k: String(u).includes('kpis') ? 'kpis' : 'overview', md: '# KPIs' } : d) }));
+  cardN(ids, 301).handlers.click(); await flush();
+  const lnks = all(ids['d-lnks'], cls('lnk'));
+  assert.equal(ids['d-lnks'].hidden, false);
+  assert.equal(lnks.length, 3);
+  assert.ok(ids['d-lnks'].textContent.includes('Blocked by:') && ids['d-lnks'].textContent.includes('Needs (done):'));
+  assert.ok(lnks[0].textContent.startsWith('AM-302'), 'the open blocker first');
+  assert.ok(String(lnks[0].attrs['aria-label']).includes('blocks this track'));
+  lnks[0].handlers.click(fakeEv('x')); await flush();
+  assert.equal(ids['d-id'].textContent, 'AM-302', 'clicking it opens that track');
+  assert.equal(ids['d-lnks'].hidden, true, 'a track with no links draws none');
+  cardN(ids, 301).handlers.click(); await flush();
+  all(ids['d-lnks'], cls('kpi'))[0].handlers.click(fakeEv('x')); await flush();
+  assert.equal(ids['d-id'].textContent, 'PROJECT');
+  const sel = all(ids['d-tabs'], (x) => x.attrs && x.attrs['aria-selected'] === 'true')[0];
+  assert.equal(sel.dataset.k, 'kpis', 'the KPIs tab is the one shown');
+});
+
+test('Discuss: copies a prompt that asks to read and talk first, runs no lane, and sits beside Copy', async () => {
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  try {
+    const ids = await runPage(serve(dataFor()));
+    const card = cardN(ids, 201);
+    const btns = all(card, cls('copy'));
+    assert.deepEqual(btns.map((b) => b._text), ['Copy', 'Discuss']);
+    const e = fakeEv('x'); btns[1].handlers.click(e);
+    assert.equal(e.stopped, true, 'the click does not open the card');
+    assert.equal(written.length, 1);
+    assert.ok(written[0].includes('AM-201') && /Do not run any lane command/.test(written[0]) && /do not change any file until I say so/.test(written[0]));
+    assert.ok(!/^\//.test(written[0]) && !written[0].includes('/laneconductor:'), 'a plain prompt, no command');
+    await flush();
+    assert.equal(all(card, cls('copied'))[0].textContent, 'Copied the discuss prompt');
+    assert.equal(all(cardN(ids, 202), cls('copy')).map((b) => b._text).join(), 'Discuss', 'a running track has no command, but can be discussed');
+  } finally { unstub(); }
 });

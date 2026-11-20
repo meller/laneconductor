@@ -210,6 +210,11 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
 .md .mdtable { overflow-x: auto; margin: .8em 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .md table { min-width: 0; width: auto; }
 .md th, .md td { padding: 6px 10px; font-size: 13px; }
+.lnks { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.lnks .lnk { font: inherit; font-size: 12.5px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.lnks .lnk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lnks .lnk.kpi { border-color: var(--accent); background: var(--accent-soft); }
+.act .copy.disc { color: var(--muted); }
 /* Card actions: the next step with its exact command and a Copy button; and, only where the page can reach the local connector, a Move menu. */
 .act { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 6px; border-top: 1px dashed var(--line); }
 .act .actw { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -345,6 +350,7 @@ td .act { border-top: 0; padding-top: 0; }
       <div class="d-prog" id="d-prog"><div class="bar" id="d-bar"></div><span class="mono" id="d-pct"></span></div>
       <div class="phase" id="d-phase"></div>
       <div id="d-own" hidden></div>
+      <div class="lnks" id="d-lnks" hidden></div>
       <div class="d-note" id="d-note" hidden></div>
       <div id="d-act"></div>
     </div>
@@ -677,19 +683,38 @@ td .act { border-top: 0; padding-top: 0; }
     selectIt();
   }
 
+  // The text of the Discuss button: read first, talk, change nothing until told.
+  function discussPrompt(t) {
+    return 'Let us discuss track ' + idOf(t) + ' (' + (t.t || 'no title') + ') before anything is done. Read its index.md, spec.md and plan.md, then tell me where it stands, what you would do next and what is unclear, and ask me what you need. Do not run any lane command, do not start any work and do not change any file until I say so.';
+  }
   // The next step of one track, as drawn on a card, in a Needs-attention row and in the drawer header.
   function actionLine(t, kind, x) {
     var a = x === undefined ? t.x : x, moved = state.moved[idOf(t)], ctl = moveControl(t, kind);
-    if (!(a && typeof a.w === 'string') && !moved && !ctl) return null;
+    var disc = t.l !== 'done';
+    if (!(a && typeof a.w === 'string') && !moved && !ctl && !disc) return null;
     var box = el('div', 'act'), els = [];
     if (a && typeof a.w === 'string') box.appendChild(el('div', 'actw', a.w));
-    if (a && typeof a.c === 'string' && a.c) {
-      var row = el('div', 'actrow'), code = el('code', 'actc', a.c), note = el('span', 'copied');
+    var hasCmd = a && typeof a.c === 'string' && a.c;
+    if (hasCmd || disc) {
+      var row = el('div', 'actrow'), note = el('span', 'copied');
       note.setAttribute('role', 'status');
-      var b = el('button', 'copy', 'Copy'); b.type = 'button'; b.setAttribute('aria-label', 'Copy the command for ' + idOf(t) + ': ' + a.c);
-      b.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.c, code, note); });
-      b.addEventListener('keydown', stopKeys);
-      row.appendChild(code); row.appendChild(b); row.appendChild(note); box.appendChild(row); els.push(b);
+      if (hasCmd) {
+        var code = el('code', 'actc', a.c);
+        var b = el('button', 'copy', 'Copy'); b.type = 'button'; b.setAttribute('aria-label', 'Copy the command for ' + idOf(t) + ': ' + a.c);
+        b.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.c, code, note); });
+        b.addEventListener('keydown', stopKeys);
+        row.appendChild(code); row.appendChild(b); els.push(b);
+      }
+      // Discuss, do not act: a plain prompt (no command of ours) that asks Claude to read the track and talk it through first. It runs no lane and changes no file.
+      if (disc) {
+        var prompt = discussPrompt(t), pcode = el('code', 'sr', prompt);
+        var d = el('button', 'copy disc', 'Discuss'); d.type = 'button'; d.setAttribute('title', 'Copy a prompt that asks Claude to talk this track through first, without running a lane or changing a file');
+        d.setAttribute('aria-label', 'Copy a prompt to discuss ' + idOf(t) + ' with Claude, without running anything');
+        d.addEventListener('click', function (e) { e.stopPropagation(); copyText(prompt, pcode, note, 'Copied the discuss prompt'); });
+        d.addEventListener('keydown', stopKeys);
+        row.appendChild(pcode); row.appendChild(d); els.push(d);
+      }
+      row.appendChild(note); box.appendChild(row);
     }
     if (moved) { var mn = el('div', 'mvnote' + (moved.bad ? ' bad' : ''), moved.text); mn.setAttribute('role', 'status'); box.appendChild(mn); }
     if (ctl) { box.appendChild(ctl.node); els.push(ctl); }
@@ -1043,7 +1068,7 @@ td .act { border-top: 0; padding-top: 0; }
   // ---- Track detail: a drawer (a full-screen sheet on phones) with the track's documents.
   var $ = function (id) { return document.getElementById(id); };
   var DOC_TABS = [['index', 'Overview', 'index.md'], ['plan', 'Plan', 'plan.md'], ['spec', 'Spec', 'spec.md'], ['test', 'Tests', 'test.md'], ['conversation', 'Conversation', 'conversation.md']];
-  var docsCache = {}, focusEls = {}, cur = null, seq = 0, tabEls = [], bodyLinks = [], retryBtn = null;
+  var docsCache = {}, focusEls = {}, cur = null, seq = 0, tabEls = [], bodyLinks = [], linkBtns = [], retryBtn = null;
 
   function loadDocs(t) {
     var key = t.n;
@@ -1136,9 +1161,41 @@ td .act { border-top: 0; padding-top: 0; }
     var b = cur && !cur.project && !cur.next ? ownBlock(cur.t, true) : null;
     host.hidden = !b; if (b) host.appendChild(b);
   }
+  // Deep links in the drawer header: the tracks this one waits for (each opens that track) and its KPI (opens the KPIs tab of the Project drawer).
+  function drawLinks() {
+    var host = $('d-lnks'); host.textContent = ''; linkBtns = []; var any = false;
+    var t = cur && !cur.project && !cur.next ? cur.t : null;
+    if (t) {
+      var bb = Array.isArray(t.bb) ? t.bb.filter(function (n) { return Number.isInteger(n); }) : [];
+      var open = [], fin = [];
+      bb.forEach(function (n) { var o = trackByNumber(n); (o && o.l === 'done' ? fin : open).push(n); });
+      [[open, 'Blocked by'], [fin, 'Needs (done)']].forEach(function (g) {
+        if (!g[0].length) return;
+        host.appendChild(el('span', null, g[1] + ':')); any = true;
+        g[0].forEach(function (n) {
+          var o = trackByNumber(n);
+          if (!o) { host.appendChild(el('span', null, 'Track ' + n)); return; }
+          var b = el('button', 'lnk', idOf(o) + ' ' + (o.t || '(no title)')); b.type = 'button';
+          b.setAttribute('aria-label', 'Open ' + idOf(o) + ': ' + (o.t || '(no title)') + (g[1] === 'Blocked by' ? ', which blocks this track' : ''));
+          b.addEventListener('click', function () { openDetail(o, cur ? cur.kind : 'next'); });
+          host.appendChild(b); linkBtns.push(b);
+        });
+      });
+      if (typeof t.kp === 'string') {
+        var hasKpis = PD.some(function (x) { return x.k === 'kpis'; });
+        host.appendChild(el('span', null, 'KPI:')); any = true;
+        if (hasKpis) {
+          var kb = el('button', 'lnk kpi', t.kp || 'see the KPI list'); kb.type = 'button'; kb.setAttribute('aria-label', 'Open the KPI list' + (t.kp ? ' (this track serves ' + t.kp + ')' : ''));
+          kb.addEventListener('click', function () { openProject('kpis'); });
+          host.appendChild(kb); linkBtns.push(kb);
+        } else host.appendChild(el('span', null, t.kp || 'set (the KPI list is not on this board)'));
+      }
+    }
+    host.hidden = !any;
+  }
   function drawHead() {
     if (!cur) return;
-    drawOwn();
+    drawOwn(); drawLinks();
     $('d-lane').textContent = cur.t.l || 'no lane';
     var ps = $('d-pill'); ps.textContent = ''; ps.appendChild(pill(cur.t.s));
     drawHeadAction();
@@ -1176,7 +1233,7 @@ td .act { border-top: 0; padding-top: 0; }
     if (headAct && headAct.focusables) list = list.concat(headAct.focusables());
     tabEls.forEach(function (b) { if (b.attrs ? b.attrs['aria-selected'] === 'true' : b.getAttribute('aria-selected') === 'true') list.push(b); });
     if (retryBtn) list.push(retryBtn);
-    return list.concat(bodyLinks);
+    return list.concat(linkBtns, bodyLinks);
   }
   document.addEventListener('keydown', function (e) {
     firstTouch();
@@ -1267,12 +1324,13 @@ td .act { border-top: 0; padding-top: 0; }
       s.appendChild(retryBtn); b.appendChild(s);
     });
   }
-  function openProject() {
+  function openProject(tabKey) {
     if (!PD.length) return;
     seq++;
-    cur = { project: true, kind: 'project', tab: PD[0].k, seq: seq };
+    var first = typeof tabKey === 'string' && PD.some(function (x) { return x.k === tabKey; }) ? tabKey : PD[0].k;
+    cur = { project: true, kind: 'project', tab: first, seq: seq };
     $('d-id').textContent = 'PROJECT'; $('d-type').hidden = true; $('d-pri').hidden = true;
-    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = ''; drawOwn();
+    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = ''; drawOwn(); drawLinks();
     $('d-title').textContent = D.project || 'Project definition';
     $('d-note').textContent = 'A snapshot of the project definition files, read at the same time as this board (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. To refresh it, press Refresh board at the bottom of the page.';
     $('d-note').hidden = false;
@@ -1378,7 +1436,7 @@ td .act { border-top: 0; padding-top: 0; }
   $('next-btn').hidden = !NX;
   $('next-btn').addEventListener('click', openNext);
   $('proj-btn').hidden = !PD.length;
-  $('proj-btn').addEventListener('click', openProject);
+  $('proj-btn').addEventListener('click', function () { openProject(); });
 
   function activatable(node, t, kind) {
     node.setAttribute('role', 'button'); node.setAttribute('tabindex', '0');

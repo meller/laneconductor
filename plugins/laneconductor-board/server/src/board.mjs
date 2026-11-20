@@ -47,6 +47,11 @@ const yesNo = (v) => {
   return s === 'yes' ? true : s === 'no' ? false : null;
 };
 
+// The tracks a track waits for, as numbers, each once and never itself (`Depends On` first, then `Waiting On Tracks`); at most 12.
+const blockedBy = (r) => [...new Set([...(r.depends_on ?? []), ...(r.waiting_on ?? [])].map(Number).filter((n) => Number.isInteger(n) && n !== r.number))].slice(0, 12);
+// The KPI a track serves: the `**Serves**` marker, else '' when it has `KPI Check After`, else null (no KPI marker).
+const servesOf = (v, r) => (one(v['Serves'] ?? null, 60) ? one(v['Serves'], 60) : r.kpi_check_after !== undefined ? '' : null);
+
 function trackOf(e, archived) {
   // Archived folders are named `_duplicate-<number>-<slug>`; drop the prefix so the usual parsing applies.
   const name = archived ? e.folder.replace(ARCHIVE_RE, '') : e.folder;
@@ -76,6 +81,10 @@ function trackOf(e, archived) {
       ...(r.owner_action ? { owner_action: r.owner_action, ...(r.owner_action_due !== undefined ? { owner_action_due: rawDate(r.owner_action_due) } : {}) } : {}),
       ...(r.result ? { result: r.result } : {}),
       ...(r.lane_status === 'waiting' && r.kpi_check_after !== undefined ? { kpi_check_after: rawDate(r.kpi_check_after) } : {}),
+      // Deep links on the page: the tracks this one waits for (Depends On and Waiting On Tracks), and the KPI it serves. `kpi` is the `**Serves**` marker as written
+      // (60 characters at most), or '' when the track only has a `KPI Check After` (it has a KPI, the name is in its spec). Absent when there is neither.
+      ...(blockedBy(r).length ? { blocked_by: blockedBy(r) } : {}),
+      ...(servesOf(v, r) !== null ? { kpi: servesOf(v, r) } : {}),
       ...(archived ? { archived: true } : {}),
     },
   };
@@ -209,6 +218,8 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           oa, od, rs, kc (only for a track that has them; see owner-steps.mjs): oa the Owner Action text (200 chars at most), od its Owner Action Due as written (absent: no due date;
  *              the page checks it is a real YYYY-MM-DD and works out overdue when it opens, in UTC), rs the Result one-liner, kc KPI Check After as written (only while the track waits:
  *              the page says "ready to measure" once that day is today or earlier). An old board.json without them renders as before,
+ *           bb (only when the track waits for tracks) the numbers of Depends On and Waiting On Tracks; the page turns each into a link that opens that track,
+ *           kp (only when the track has a KPI marker) the `**Serves**` text, or '' when only a `KPI Check After` is set; the page turns it into a link to the KPIs tab of the Project drawer,
  *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
  *   attn:   n number, p prefix, t title, r reasons, x the next step (as on a track; only when there is one)
@@ -240,6 +251,8 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
       ...(t.owner_action ? { oa: t.owner_action, ...(t.owner_action_due !== undefined ? { od: t.owner_action_due } : {}) } : {}),
       ...(t.result ? { rs: t.result } : {}),
       ...(t.kpi_check_after !== undefined ? { kc: t.kpi_check_after } : {}),
+      ...(t.blocked_by ? { bb: t.blocked_by } : {}),
+      ...(t.kpi !== undefined ? { kp: t.kpi } : {}),
       ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),
