@@ -224,10 +224,17 @@ test('the board add-on\'s hooks.json: the documented shape, the two events, ever
   assert.equal(manifest.dependencies, undefined);
 });
 
-test('the hook script: no network, no child process, no write inside a project; the stop instruction names a command the add-on ships', () => {
+test('the hook script: no network, no write inside a project, and the only child process is a read-only git (rev-parse, status); the stop instruction names a command the add-on ships', () => {
   const src = fs.readFileSync(SCRIPT, 'utf8');
-  assert.ok(!/node:(http|https|net|dgram|child_process|dns|tls)|fetch\(|XMLHttpRequest|spawn|exec\(|execSync/.test(src));
-  assert.ok(src.length < 8000);
+  assert.ok(!/node:(http|https|net|dgram|dns|tls)|fetch\(|XMLHttpRequest|spawn|exec\(|execSync/.test(src));
+  const imports = [...src.matchAll(/from 'node:child_process'/g)].length;
+  assert.equal(imports, 1, 'one child_process import');
+  assert.ok(src.includes("import { execFileSync } from 'node:child_process';"), 'only execFileSync, never a shell');
+  assert.equal([...src.matchAll(/execFileSync\(/g)].length, 1, 'one place runs a program');
+  assert.ok(src.includes("execFileSync('git', ['-C', root, ...args]"), 'that program is git');
+  const verbs = [...src.matchAll(/\bgit\(root, \['([a-z-]+)'/g)].map((m) => m[1]);
+  assert.ok(verbs.length >= 2 && verbs.every((v) => ['rev-parse', 'status'].includes(v)), `only read-only git verbs: ${verbs}`);
+  assert.ok(src.length < 10000);
   const name = JSON.parse(fs.readFileSync(path.join(BOARD, '.claude-plugin/plugin.json'), 'utf8')).name;
   const command = /const REFRESH = '\/([a-z-]+):([a-z-]+)'/.exec(src);
   assert.deepEqual([command[1], command[2]], [name, 'refresh']);
@@ -261,4 +268,70 @@ test('the BASE plugin still has no hooks: no hooks folder, no hooks key in its m
     assert.ok(!/\.(mjs|js|sh)$/.test(f), `${f}: the base is Markdown and JSON only`);
   }
   assert.ok(!fs.existsSync(path.join(REPO, PARALLEL_REL, 'hooks')), 'the parallel add-on has none either');
+});
+
+// ---- H4: the Stop hook also notices a change of the tracks by any tool (Bash, a scratch worktree, another session, a push).
+const sh = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8' }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
+/** A git project on `main` whose origin/main points at its HEAD, like a clone after a fetch. */
+function gitProject(settings) {
+  const dir = project(settings);
+  sh(dir, 'init', '-q', '-b', 'main'); sh(dir, 'config', 'user.email', 't@example.com'); sh(dir, 'config', 'user.name', 't');
+  sh(dir, 'add', '-A'); sh(dir, 'commit', '-q', '-m', 'init'); sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  return dir;
+}
+const pushTrackChange = (dir, text = '# Track AM-1: One\n\n**Lane**: implement\n') => {
+  // what a push from a scratch worktree does to this clone: origin/main moves, the working tree here does not
+  sh(dir, 'checkout', '-q', '-b', 'scratch'); write(dir, 'conductor/tracks/AM-1-one/index.md', text);
+  sh(dir, 'commit', '-qam', 'track'); sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD'); sh(dir, 'checkout', '-q', 'main');
+};
+const REFRESH_ASK = /Run `\/laneconductor-board:refresh` now/;
+
+test('H4 the first Stop only remembers the tracks (silent, state in the plugin data directory); a later push of a track change asks for one refresh, then stays silent', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'first stop');
+  assert.ok(fs.readdirSync(path.join(data, 'state')).some((f) => f.startsWith('seen-')), 'the fingerprint is kept in the plugin data directory');
+  assert.ok(!fs.existsSync(path.join(dir, '.git', 'lc-seen')), 'nothing written into the project');
+  silent(stop(dir, data), 'nothing changed');
+  pushTrackChange(dir);
+  const r = stop(dir, data);
+  assert.equal(r.status, 0); assert.equal(r.stderr, '');
+  assert.equal(JSON.parse(r.stdout).decision, 'block');
+  assert.match(JSON.parse(r.stdout).reason, REFRESH_ASK);
+  silent(stop(dir, data), 'asked once; the same state asks nothing more');
+});
+
+test('H4 an uncommitted edit of a track made without Edit or Write (a shell command) is caught; a change outside the tracks is not', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline');
+  write(dir, 'README.md', '# changed readme\n'); write(dir, 'conductor/product.md', '# Product, edited\n');
+  silent(stop(dir, data), 'files outside conductor/tracks do not matter');
+  write(dir, 'conductor/tracks/AM-1-one/index.md', '# Track AM-1: One\n\n**Lane**: review\n');
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK);
+  write(dir, 'conductor/tracks/AM-2-two/index.md', '# Track AM-2: Two\n\n**Lane**: plan\n');
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK, 'a new track folder counts too');
+});
+
+test('H4 board.auto_update false, no stored board, a Stop that is already continuing, and a project that is not a git repository: all silent, nothing breaks', () => {
+  for (const settings of [auto({ auto_update: false }), { board: {} }, null]) {
+    const dir = gitProject(settings); const data = tmp('lc-hook-data-');
+    silent(stop(dir, data), 'baseline'); pushTrackChange(dir);
+    silent(stop(dir, data), `settings ${JSON.stringify(settings)}`);
+  }
+  const dir = gitProject(auto()); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline'); pushTrackChange(dir);
+  silent(stop(dir, data, { stop_hook_active: true }), 'no loop while a stop hook is already continuing');
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK, 'and the change is still reported on the next normal stop');
+  const plain = project(auto()); const data2 = tmp('lc-hook-data-');
+  silent(stop(plain, data2), 'not a git repository'); silent(stop(plain, data2), 'still not');
+});
+
+test('H4 the state branch from connector.state_branch is the one watched', () => {
+  const dir = gitProject({ board: { artifact_url: 'https://claude.ai/artifact/abc' }, connector: { state_branch: 'trunk' } });
+  sh(dir, 'branch', 'trunk'); sh(dir, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+  const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline');
+  pushTrackChange(dir); // moves origin/main only
+  silent(stop(dir, data), 'a change on main is not the state branch');
+  sh(dir, 'update-ref', 'refs/remotes/origin/trunk', 'refs/remotes/origin/main');
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK);
 });

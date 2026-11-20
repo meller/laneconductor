@@ -1,12 +1,12 @@
 # Track AM-10151: Board page follow-ups: desktop-app checks, phone and dark-theme check, and the Review-the-plan button
 
-**Lane**: backlog
+**Lane**: implement
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Parked in the backlog: left over from track 10115 (closed). Nothing here blocks anything.
+**Phase**: In implement (owner, 2026-11-20). Done today: the board add-on hook now notices track changes made by any tool (REQ-5, board 1.10.4, with tests); the drawer links and the Discuss button shipped in 1.10.3 (REQ-6, REQ-7). Open: the desktop-app checks (REQ-1), the 375 px and dark-theme look (REQ-2), the Review-the-plan button decision (REQ-3), the by-hand status/plan/run check (REQ-4).
 **Track Kind**: feature
 **Type**: dev
-**Priority**: low
+**Priority**: normal
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM

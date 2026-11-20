@@ -5,12 +5,17 @@
 //   stop  (Stop): ON BY DEFAULT (owner, 2026-11-19). When the marker is set and `board.artifact_url` is stored in the project's
 //         .laneconductor.json, clear the marker and ask Claude to run the board refresh once. Only `board.auto_update: false` turns it
 //         off; with no stored board there is nothing to refresh. In both cases it is silent. Never blocks for any other reason.
+//         Besides the marker it compares a fingerprint of the project's tracks (the tree of conductor/tracks on the state branch, plus the
+//         uncommitted changes under it) with the one seen at the last prompt, so a change made by Bash, in a scratch worktree, by another
+//         session or by a push is caught too. The first time it only records the fingerprint.
 // The marker lives in the plugin's data directory (CLAUDE_PLUGIN_DATA, Claude Code exports it to hook processes), keyed by a hash of the
-// project path; never inside the working tree or .git. No network, no child process, no file bodies and no secrets printed, exit 0 always.
+// project path; never inside the working tree or .git. No network, no file bodies and no secrets printed, exit 0 always. The only child process is
+// a read-only `git` (rev-parse, status) for the fingerprint, with a short timeout; any failure means "no fingerprint".
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const CONNECTOR_TOOL = /^mcp__.+__(create_track|update_track)$/;
 const TRACK_DOCS = new Set(['index.md', 'plan.md', 'spec.md', 'test.md']); // what the board shows (conversation.md only with board.include_conversation)
@@ -32,6 +37,30 @@ function roots(input) {
 const stateDir = () => path.join(str(process.env.CLAUDE_PLUGIN_DATA) ?? path.join(os.tmpdir(), 'laneconductor-board-hook'), 'state');
 const keyOf = (root) => { try { return hash(fs.realpathSync(root)); } catch { return hash(root); } };
 const markerPath = (root) => path.join(stateDir(), `stale-${keyOf(root)}.json`);
+const seenPath = (root) => path.join(stateDir(), `seen-${keyOf(root)}.json`);
+
+const git = (root, args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim();
+const SAFE_BRANCH = /^[A-Za-z0-9._][A-Za-z0-9._/-]{0,100}$/;
+
+/** A short fingerprint of the project's tracks as the board is built from them, or null (not a git repository, no such branch, any failure). */
+function fingerprint(root) {
+  try {
+    const configured = str(readJson(path.join(root, '.laneconductor.json'))?.connector?.state_branch);
+    const branches = configured && SAFE_BRANCH.test(configured) ? [configured] : ['main', 'master'];
+    let tree = null;
+    for (const b of branches) {
+      for (const ref of [`origin/${b}`, b]) {
+        try { tree = git(root, ['rev-parse', '--verify', '--quiet', `${ref}:conductor/tracks`]); } catch { tree = null; }
+        if (tree) break;
+      }
+      if (tree) break;
+    }
+    if (!tree) return null;
+    let dirty = '';
+    try { dirty = git(root, ['status', '--porcelain', '--untracked-files=all', '--', 'conductor/tracks']); } catch { dirty = ''; }
+    return hash(`${tree}\n${dirty}`);
+  } catch { return null; }
+}
 
 function prune(dir) {
   try {
@@ -84,17 +113,25 @@ function post(input) {
   prune(dir);
 }
 
+function writeSeen(root, fp) {
+  try { fs.mkdirSync(stateDir(), { recursive: true }); fs.writeFileSync(seenPath(root), `${JSON.stringify({ fp })}\n`); } catch { /* housekeeping only */ }
+}
+
 function stop(input) {
   for (const root of roots(input)) {
     const marker = markerPath(root);
-    if (!fs.existsSync(marker)) continue;
     const board = readJson(path.join(root, '.laneconductor.json'))?.board;
-    if (!board || typeof board !== 'object') return; // no readable settings: nothing to do, nothing to say
+    if (!board || typeof board !== 'object') continue; // no readable settings: nothing to do, nothing to say
     const url = str(board.artifact_url);
     const off = board.auto_update === false || board.auto_update === 'false'; // only an explicit false turns the default off
-    if (!url || off) return; // no stored board to refresh, or the person turned it off: nothing to do, nothing to say
+    if (!url || off) continue; // no stored board to refresh, or the person turned it off: nothing to do, nothing to say
+    const marked = fs.existsSync(marker);
+    const fp = fingerprint(root), seen = readJson(seenPath(root))?.fp;
+    const moved = Boolean(fp) && typeof seen === 'string' && seen !== fp; // the tracks changed since the last prompt, by any tool
+    if (!marked && !moved) { if (fp && typeof seen !== 'string') writeSeen(root, fp); continue; } // first sight: only remember it
     if (input.stop_hook_active === true) return; // already continuing because of a stop hook: never loop (the marker stays for the next turn)
     fs.rmSync(marker, { force: true });
+    if (fp) writeSeen(root, fp);
     process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now (it publishes only the changed files), then stop. Nothing else is needed.` })}\n`);
     return;
   }

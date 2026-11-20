@@ -1,5 +1,5 @@
 {
-  "description": "LaneConductor Board: notes when a track changed and, when a board is stored in .laneconductor.json, asks Claude to refresh it at the end of the turn (set board.auto_update to false to turn this off).",
+  "description": "LaneConductor Board: notes when a track changed, by any tool, and, when a board is stored in .laneconductor.json, asks Claude to refresh it at the end of the turn (set board.auto_update to false to turn this off).",
   "hooks": {
     "PostToolUse": [
       {
