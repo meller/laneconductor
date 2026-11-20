@@ -629,12 +629,12 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <code>board.json</code> and one document file per track, and publishes them as a <strong>private</strong>
                         artifact. The artifact's URL is kept in <code>.laneconductor.json</code>
                         (<code>board.artifact_url</code>).</li>
-                    <li><strong>It refreshes itself.</strong> With board add-on 1.10.1 or newer, when Claude finishes a turn after a track
-                        changed (it edited a track file, or used the connector), it is asked to run
-                        <code>/laneconductor-board:refresh</code>. That publishes only the files that changed: a manifest of hashes
-                        decides which. This is on by default once a board exists; set <code>board.auto_update: false</code> in
-                        <code>.laneconductor.json</code> to turn it off. <code>/laneconductor:board refresh</code> republishes the whole
-                        board by hand.</li>
+                    <li><strong>It refreshes itself.</strong> With board add-on 1.10.10 and base 1.9.14 or newer, when Claude finishes a turn after a track
+                        changed (by any tool: an edit, the connector, a push), and when a lane starts running (plan, implement, review or
+                        quality gate), it is asked to run <code>/laneconductor:board refresh</code>. That publishes only the files that
+                        changed: a manifest of hashes decides which, and it reports nothing unless it failed. This is on by default once
+                        a board exists; set <code>board.auto_update: false</code> in <code>.laneconductor.json</code> to turn it off.
+                        Every command is typed under <code>/laneconductor:</code>; the add-on has no commands of its own.</li>
                     <li><strong>An open board updates its own view.</strong> While its tab is visible the page reads a tiny index
                         (<code>version.json</code>, the board's generated time) every 15 seconds. When a newer board was published it
                         reloads itself, unless you have a track open or a search typed; then it shows a "newer board" button instead.</li>
