@@ -2,6 +2,8 @@
 // LaneConductor Board hooks (track AM-10115 Phase 0, H2 and H3). One script, two events:
 //   post  (PostToolUse on the connector's create_track / update_track and on Edit / Write): when a track's files changed, record a
 //         "board is stale" marker. Silent otherwise.
+//   seen  (run by the refresh command after it published): record the tracks' current state as the one the board shows, and clear the marker, so the
+//         next Stop does not ask for a refresh that was just made. No stdin needed.
 //   stop  (Stop): ON BY DEFAULT (owner, 2026-11-19). When the marker is set and `board.artifact_url` is stored in the project's
 //         .laneconductor.json, clear the marker and ask Claude to run the board refresh once. Only `board.auto_update: false` turns it
 //         off; with no stored board there is nothing to refresh. In both cases it is silent. Never blocks for any other reason.
@@ -35,9 +37,21 @@ function roots(input) {
 }
 
 const stateDir = () => path.join(str(process.env.CLAUDE_PLUGIN_DATA) ?? path.join(os.tmpdir(), 'laneconductor-board-hook'), 'state');
+// A run from a shell may not have CLAUDE_PLUGIN_DATA, so it writes to the temp fallback; the hook reads both places and the newest `seen` wins.
+const stateDirs = () => [...new Set([stateDir(), path.join(os.tmpdir(), 'laneconductor-board-hook', 'state')])];
 const keyOf = (root) => { try { return hash(fs.realpathSync(root)); } catch { return hash(root); } };
-const markerPath = (root) => path.join(stateDir(), `stale-${keyOf(root)}.json`);
-const seenPath = (root) => path.join(stateDir(), `seen-${keyOf(root)}.json`);
+const markerPath = (root, dir = stateDir()) => path.join(dir, `stale-${keyOf(root)}.json`);
+const seenPath = (root, dir = stateDir()) => path.join(dir, `seen-${keyOf(root)}.json`);
+const isMarked = (root) => stateDirs().some((d) => fs.existsSync(markerPath(root, d)));
+const clearMarkers = (root) => { for (const d of stateDirs()) fs.rmSync(markerPath(root, d), { force: true }); };
+/** The fingerprint last recorded for the root: the newest of the files in the places above, or undefined. */
+function readSeen(root) {
+  let best = null;
+  for (const d of stateDirs()) {
+    try { const p = seenPath(root, d), t = fs.statSync(p).mtimeMs, fp = readJson(p)?.fp; if (typeof fp === 'string' && (!best || t >= best.t)) best = { t, fp }; } catch { /* none there */ }
+  }
+  return best?.fp;
+}
 
 const git = (root, args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim();
 const SAFE_BRANCH = /^[A-Za-z0-9._][A-Za-z0-9._/-]{0,100}$/;
@@ -117,20 +131,28 @@ function writeSeen(root, fp) {
   try { fs.mkdirSync(stateDir(), { recursive: true }); fs.writeFileSync(seenPath(root), `${JSON.stringify({ fp })}\n`); } catch { /* housekeeping only */ }
 }
 
+/** After a refresh was published: the board now shows the tracks as they are. Silent; a project that is not a git repository only has its marker cleared. */
+function seen() {
+  for (const root of roots({ cwd: process.cwd() })) {
+    const fp = fingerprint(root);
+    if (fp) writeSeen(root, fp);
+    clearMarkers(root);
+  }
+}
+
 function stop(input) {
   for (const root of roots(input)) {
-    const marker = markerPath(root);
     const board = readJson(path.join(root, '.laneconductor.json'))?.board;
     if (!board || typeof board !== 'object') continue; // no readable settings: nothing to do, nothing to say
     const url = str(board.artifact_url);
     const off = board.auto_update === false || board.auto_update === 'false'; // only an explicit false turns the default off
     if (!url || off) continue; // no stored board to refresh, or the person turned it off: nothing to do, nothing to say
-    const marked = fs.existsSync(marker);
-    const fp = fingerprint(root), seen = readJson(seenPath(root))?.fp;
+    const marked = isMarked(root);
+    const fp = fingerprint(root), seen = readSeen(root);
     const moved = Boolean(fp) && typeof seen === 'string' && seen !== fp; // the tracks changed since the last prompt, by any tool
     if (!marked && !moved) { if (fp && typeof seen !== 'string') writeSeen(root, fp); continue; } // first sight: only remember it
     if (input.stop_hook_active === true) return; // already continuing because of a stop hook: never loop (the marker stays for the next turn)
-    fs.rmSync(marker, { force: true });
+    clearMarkers(root);
     if (fp) writeSeen(root, fp);
     process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now (it publishes only the changed files), then stop. Nothing else is needed.` })}\n`);
     return;
@@ -138,11 +160,14 @@ function stop(input) {
 }
 
 try {
-  let input = {};
-  try { input = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { input = {}; }
-  if (input && typeof input === 'object') {
-    if (process.argv[2] === 'post') post(input);
-    else if (process.argv[2] === 'stop') stop(input);
+  if (process.argv[2] === 'seen') seen();
+  else {
+    let input = {};
+    try { input = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { input = {}; }
+    if (input && typeof input === 'object') {
+      if (process.argv[2] === 'post') post(input);
+      else if (process.argv[2] === 'stop') stop(input);
+    }
   }
 } catch { /* a hook never breaks the session */ }
 process.exitCode = 0;

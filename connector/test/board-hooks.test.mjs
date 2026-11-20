@@ -335,3 +335,51 @@ test('H4 the state branch from connector.state_branch is the one watched', () =>
   sh(dir, 'update-ref', 'refs/remotes/origin/trunk', 'refs/remotes/origin/main');
   assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK);
 });
+
+// ---- H5: `seen`, run by the refresh command after it published: the next Stop does not ask for the refresh that was just made.
+const seenRun = (proj, data, env = {}) => spawnSync(process.execPath, [SCRIPT, 'seen'], { cwd: proj, encoding: 'utf8', input: '', env: { PATH: process.env.PATH, ...(data ? { CLAUDE_PLUGIN_DATA: data } : {}), CLAUDE_PROJECT_DIR: proj, ...env } });
+const quiet = (r, what) => { assert.equal(r.status, 0, `${what}: ${r.stderr}`); assert.equal(r.stdout, '', `${what}: prints nothing`); assert.equal(r.stderr, '', `${what}: no stderr`); };
+
+test('H5 after a change was pushed, `seen` records it: the next Stop is silent, and a later change asks again', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline');
+  pushTrackChange(dir);
+  quiet(seenRun(dir, data), 'seen');
+  silent(stop(dir, data), 'the refresh was made: nothing to ask');
+  write(dir, 'conductor/tracks/AM-3-three/index.md', '# Track AM-3: Three\n\n**Lane**: plan\n');
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, REFRESH_ASK, 'a change after the refresh still asks');
+});
+
+test('H5 `seen` clears the marker an Edit left, so the refresh that follows it is not asked for again', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline');
+  silent(post(dir, UPDATE, { track: '1', base: {}, markers: { Progress: '40%' } }, data), 'update_track');
+  assert.equal(markers(data).length, 1);
+  quiet(seenRun(dir, data), 'seen');
+  assert.equal(markers(data).length, 0, 'the marker is gone');
+  silent(stop(dir, data), 'nothing to ask');
+});
+
+test('H5 `seen` run from a shell without CLAUDE_PLUGIN_DATA still counts: the hook reads the temp fallback too, and the newest record wins', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-'); const tmpdir = tmp('lc-hook-tmp-');
+  const env = { TMPDIR: tmpdir };
+  const stopWith = () => run('stop', { hook_event_name: 'Stop', session_id: 's1', cwd: dir, stop_hook_active: false }, { data, project: dir, env });
+  silent(stopWith(), 'baseline');
+  pushTrackChange(dir);
+  quiet(seenRun(dir, null, env), 'seen without the plugin data directory');
+  silent(stopWith(), 'the fallback record is newer than the one in the plugin data directory');
+  write(dir, 'conductor/tracks/AM-4-four/index.md', '# Track AM-4: Four\n\n**Lane**: plan\n');
+  assert.match(JSON.parse(stopWith().stdout).reason, REFRESH_ASK, 'and a later change asks again');
+});
+
+test('H5 `seen` in a project that is not a git repository, or with no tracks folder, prints nothing and breaks nothing', () => {
+  const plain = project(auto()); const data = tmp('lc-hook-data-');
+  quiet(seenRun(plain, data), 'not a git repository');
+  const empty = tmp('lc-hook-empty-'); quiet(seenRun(empty, data), 'no tracks folder');
+});
+
+test('H5 the refresh command ends with the `seen` step, after a successful publish', () => {
+  const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
+  assert.match(text, /8\. After a successful publish, from the project root: `node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/lc-board-hook\.mjs" seen`/);
+  assert.ok(text.indexOf('7. Report the link') < text.indexOf('8. After a successful publish'));
+});

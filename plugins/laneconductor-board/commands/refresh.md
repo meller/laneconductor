@@ -11,4 +11,6 @@ Refresh the board with a partial publish. Only Claude can publish an artifact (a
 6. A conflict or any failure: run step 3 again with `none` for both paths and publish that full `publish` map once; if that fails too, report the step and the error and publish nothing. Tell me if the artifact says I have no edit access; do not make a second board.
 7. Report the link, `mode`, how many files were sent of how many, and when it was generated (`generated_at` in `board.json`). stderr lists the files the privacy scan withheld: name each by track number and file, never the matched text.
 
+8. After a successful publish, from the project root: `node "${CLAUDE_PLUGIN_ROOT}/hooks/lc-board-hook.mjs" seen`. It prints nothing; it records that the board now shows the tracks as they are, so the end-of-turn check does not ask for this refresh again.
+
 Privacy: every document goes through the secret, email and phone scan before it is written; a file with a match is withheld and sent with a placeholder. The board stays private; never share it. The board is a snapshot, never live; it changes only when this runs.

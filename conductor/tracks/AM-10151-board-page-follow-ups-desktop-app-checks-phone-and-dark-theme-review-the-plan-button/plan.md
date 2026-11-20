@@ -7,3 +7,4 @@
 - [ ] Task 5 (HUMAN): `/laneconductor:status`, `:plan` and `:run` on a scratch repository (REQ-4)
 - [x] Task 6: The Stop hook fingerprints the tracks so a change by any tool asks for a refresh (REQ-5; board 1.10.4; tests in `board-hooks.test.mjs`)
 - [x] Task 7: Blocked-by links, the KPI link and the Discuss button in the drawer (REQ-6, REQ-7; board 1.10.3)
+- [x] Task 8: The hook's `seen` step and the refresh command's last step (REQ-8; board 1.10.8; tests H5 in `board-hooks.test.mjs`)

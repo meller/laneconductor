@@ -13,6 +13,8 @@ Moved from track 10115 on 2026-11-19 (its plan tasks Phase 2 task 8, Phase 3 tas
 - REQ-6 In a track's drawer, each track it depends on or waits on is a button that opens that track ("Blocked by", and "Needs (done)" for finished ones). Built in board 1.10.3.
 - REQ-7 A track's KPI (`**Serves**`, or a `KPI Check After`) is a button that opens the KPIs tab of the Project drawer, and a Discuss button next to Copy copies a prompt that asks Claude to read the track and talk it through without running a lane or changing a file. Built in board 1.10.3.
 
+- REQ-8 A refresh that was just made is not asked for again (owner, 2026-11-20: the hook asked for a refresh I had already published). The hook script has a `seen` step that records the tracks' current state as the one the board shows and clears the marker; the refresh command runs it last, after a successful publish. A run from a shell without `CLAUDE_PLUGIN_DATA` writes to the temp fallback, and the hook reads both places, newest record wins. Built as board 1.10.8. The base command `/laneconductor:board refresh` does not run it (the base never names the add-on's files), so the hook may ask once more after that command.
+
 ## Out of scope
 
 The board add-on's refresh and hooks (done in 10115); the extra hooks of 10115 Phase 1 (not built, reopen as a new track if wanted).

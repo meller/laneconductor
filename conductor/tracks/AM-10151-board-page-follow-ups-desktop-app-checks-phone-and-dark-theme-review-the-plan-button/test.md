@@ -7,3 +7,4 @@
 - [ ] TC-5 (REQ-4): the three commands behave and nothing starts unasked
 - [x] TC-6 (REQ-5): the first Stop only remembers; a pushed track change, an uncommitted shell edit and a new track folder each ask for one refresh and then stay silent; changes outside the tracks, `auto_update: false`, no stored board, a Stop already continuing and a non-git project stay silent
 - [x] TC-7 (REQ-6, REQ-7): the drawer's Blocked by and KPI buttons open the right view and the Discuss prompt is plain text that runs nothing (page tests and a browser check)
+- [x] TC-8 (REQ-8): after a push, `seen` makes the next Stop silent and a later change asks again; `seen` clears an Edit marker; a run without CLAUDE_PLUGIN_DATA still counts; a non-git project and a folder with no tracks break nothing; the refresh command ends with the step
