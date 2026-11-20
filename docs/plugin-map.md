@@ -49,7 +49,7 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 
 ## Skill packs
 
-5 more plugins from the same generator, built from the root `skills/` folder (the pack list is `scripts/skill-packs.json`). Each holds Markdown and template files only (no script, hook, MCP server, agent or `isolation` key), has its own version, depends on no other plugin, and each skill is in exactly one pack. They are advice, never orders; the base plugin does not list them.
+6 more plugins from the same generator, built from the root `skills/` folder (the pack list is `scripts/skill-packs.json`). Each holds Markdown and template files only (no script, hook, MCP server, agent or `isolation` key), has its own version, depends on no other plugin, and each skill is in exactly one pack. They are advice, never orders; the base plugin does not list them.
 
 | Plugin | Version | Skills |
 | :--- | :--- | :--- |
@@ -58,3 +58,4 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | `laneconductor-node-postgres` | 0.1.0 | `postgres-local-neon-prod-secret-manager`, `prisma-in-cloud-functions`, `isolated-test-database`, `makefile-local-run` |
 | `laneconductor-gemini` | 0.1.1 | `llm-through-tokentalos`, `vertex-gemini-adc`, `vertex-imagen-retry-gcs-fallback` |
 | `laneconductor-skill-from-code` | 0.2.0 | `plugin-from-skills`, `skill-from-code` |
+| `laneconductor-analytics-monitoring` | 0.1.0 | `ga4-gtag-with-consent` |

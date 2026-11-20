@@ -93,6 +93,25 @@
         "plugin-from-skills",
         "skill-from-code"
       ]
+    },
+    {
+      "name": "laneconductor-analytics-monitoring",
+      "displayName": "LaneConductor Skills: Analytics, Monitoring and Logging",
+      "version": "0.1.0",
+      "description": "Skills for knowing how a product does, starting with analytics: Google Analytics 4 behind a consent choice, advertising features off, with Search Console ownership and a tested sitemap.xml and robots.txt.",
+      "keywords": [
+        "laneconductor",
+        "skills",
+        "analytics",
+        "ga4",
+        "search-console",
+        "seo",
+        "monitoring",
+        "logging"
+      ],
+      "skills": [
+        "ga4-gtag-with-consent"
+      ]
     }
   ]
 }

@@ -216,7 +216,7 @@ Each plugin is installed from its own source with the platform's own install com
 
 ## Skill packs
 
-Besides the process, the marketplace `meller/laneconductor` carries five small skill packs: one author's own conventions and the incidents behind them, grouped by technology, so you install only the stack you use. They are Markdown only (skills and template files: no script, hook or MCP server), advice and never orders, and each works on its own, without the base plugin. The same skills live in this repository under `skills/<name>/SKILL.md`; the format and how to attach them to lanes are in [docs/skills.md](docs/skills.md).
+Besides the process, the marketplace `meller/laneconductor` carries six small skill packs: one author's own conventions and the incidents behind them, grouped by technology, so you install only the stack you use. They are Markdown only (skills and template files: no script, hook or MCP server), advice and never orders, and each works on its own, without the base plugin. The same skills live in this repository under `skills/<name>/SKILL.md`; the format and how to attach them to lanes are in [docs/skills.md](docs/skills.md).
 
 | Pack | What it is for | Install |
 | :--- | :--- | :--- |
@@ -225,6 +225,7 @@ Besides the process, the marketplace `meller/laneconductor` carries five small s
 | `laneconductor-node-postgres` | Local Postgres and Neon in production with the secret in Secret Manager; Prisma in Cloud Functions; an isolated test database; a Makefile for local runs | `claude plugin install laneconductor-node-postgres@laneconductor` |
 | `laneconductor-gemini` | Every LLM call through TokenTalos; Gemini on Vertex AI with Application Default Credentials; image generation with retry and a GCS upload | `claude plugin install laneconductor-gemini@laneconductor` |
 | `laneconductor-skill-from-code` | Authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as a plugin ready for Anthropic's directory | `claude plugin install laneconductor-skill-from-code@laneconductor` |
+| `laneconductor-analytics-monitoring` | Google Analytics 4 behind a consent choice, advertising features off, with Search Console ownership and a tested sitemap and robots.txt (monitoring and logging skills follow) | `claude plugin install laneconductor-analytics-monitoring@laneconductor` |
 
 Add the marketplace first with `claude plugin marketplace add meller/laneconductor`. Each pack's page lists its skills; `docs/plugin-map.md` lists them all.
 

@@ -101,8 +101,8 @@ test('TC-1: marketplace lists the base, then the two add-ons; each entry names i
   assert.deepEqual(market.plugins.slice(0, 3).map((p) => p.name), ['laneconductor', 'laneconductor-parallel', 'laneconductor-board'], 'base first');
   assert.deepEqual(market.plugins.slice(0, 3).map((p) => p.source), ['./plugins/laneconductor', './plugins/laneconductor-parallel', './plugins/laneconductor-board']);
   for (const p of market.plugins) assert.ok(!p.source.includes('..'));
-  // The five skill packs (track AM-10129) follow the three; skill-packs.test.mjs covers them.
-  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-board', 'laneconductor-firebase', 'laneconductor-gemini', 'laneconductor-node-postgres', 'laneconductor-nodejs-frontend', 'laneconductor-parallel', 'laneconductor-skill-from-code']);
+  // The skill packs (track AM-10129) follow the three; skill-packs.test.mjs covers them.
+  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-analytics-monitoring', 'laneconductor-board', 'laneconductor-firebase', 'laneconductor-gemini', 'laneconductor-node-postgres', 'laneconductor-nodejs-frontend', 'laneconductor-parallel', 'laneconductor-skill-from-code']);
   assert.deepEqual(PROFILES, ['base', 'parallel', 'board']);
   for (const [profile, dir] of Object.entries(DIRS)) {
     const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));

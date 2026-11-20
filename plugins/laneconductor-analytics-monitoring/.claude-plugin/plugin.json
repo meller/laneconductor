@@ -1,0 +1,24 @@
+{
+  "name": "laneconductor-analytics-monitoring",
+  "displayName": "LaneConductor Skills: Analytics, Monitoring and Logging",
+  "version": "0.1.0",
+  "description": "Skills for knowing how a product does, starting with analytics: Google Analytics 4 behind a consent choice, advertising features off, with Search Console ownership and a tested sitemap.xml and robots.txt.",
+  "author": {
+    "name": "Asaf Meller",
+    "url": "https://github.com/meller"
+  },
+  "homepage": "https://laneconductor.com",
+  "repository": "https://github.com/meller/laneconductor",
+  "license": "Elastic-2.0",
+  "keywords": [
+    "laneconductor",
+    "skills",
+    "analytics",
+    "ga4",
+    "search-console",
+    "seo",
+    "monitoring",
+    "logging"
+  ],
+  "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
+}
