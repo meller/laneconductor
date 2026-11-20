@@ -1,9 +1,9 @@
 # Track AM-10153: Docs truth pass; one constant install one-liner, no zip
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 30%
-**Phase**: Rescoped 2026-11-20 by the owner: no zip, no release, no Action, no Download button; the install route is the constant marketplace one-liner. What is left: the claim-by-claim read of the README, wiki and landing page (known wrong: the base README says hooks are not available), the README's "Other ways to get it" section for the next base version, and the plugin README source question.
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20 by the owner. No zip, release, Action or Download button: the install route is the constant marketplace one-liner, and the landing page reads the plugin versions live from docs/plugin-versions.json, so a release needs no site update. Done: the README zip section removed and its hooks sentence fixed, scripts/make-zip.mjs removed. Not done, dropped by the owner: the claim-by-claim read of the README, wiki and landing page, and the plugin README source question.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
