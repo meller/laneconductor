@@ -5,10 +5,10 @@
 
 # Track 1054: Twitter/X Thread
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Parked in the backlog 2026-11-20: a launch-channel post; campaigns are planned under track 10149 (kit, run window, readout).
 **Summary**: Twitter thread targeting the developer + AI tools community
 
 ## Problem

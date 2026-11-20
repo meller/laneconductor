@@ -1,10 +1,10 @@
 # Track TU-10065: Orphan-reconcile can never resolve a claimed dispatch when no run marker was ever persisted
 
-**Lane**: plan
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com

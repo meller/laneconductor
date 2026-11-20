@@ -1,9 +1,9 @@
 # Track AM-10069: Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr

@@ -5,15 +5,15 @@
 
 # Devto Blog Post
 
-**Lane**: plan
-**Lane Status**: plan
+**Lane**: backlog
+**Lane Status**: queue
 
 # Track 1055: Dev.to / Hashnode Blog Post
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Parked in the backlog 2026-11-20: a launch-channel post; campaigns are planned under track 10149 (kit, run window, readout).
 **Summary**: Technical blog post driving long-tail organic traffic and credibility
 
 ## Problem

@@ -1,9 +1,9 @@
 # Track AM-10149: Make LaneConductor known: measure the funnel, then run campaigns (KPI: GitHub stars per week plus directory installs)
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Ready to implement 2026-11-20: Phase 1 (snapshots) and 2.4 (sitemap, robots) need no one. Owner steps: 2.1 (pick the analytics tool), 2.5 (Search Console), 3.3 (post). Phase 4 waits for the directory listing (10148).
 **Track Kind**: feature
 **Type**: marketing
 **Priority**: high

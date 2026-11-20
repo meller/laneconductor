@@ -1,9 +1,9 @@
 # Track AM-10150: Next base release: advisor catalog for the skill packs, the board.auto_update settings row, a skill-from-code pointer, and the after-release skill checks
 
-**Lane**: plan
-**Lane Status**: waiting
+**Lane**: backlog
+**Lane Status**: queue
 **Progress**: 0%
-**Phase**: Waiting for the directory decision on track 10148: everything here changes the base plugin `laneconductor`, which Anthropic is reviewing (1.9.11), so none of it ships before then.
+**Phase**: Parked in the backlog 2026-11-20: waiting on the directory decision for the base plugin (track 10148, Anthropic review, no date). Start Phase 2 only after the decision; Phase 3 owner steps can be done earlier.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low

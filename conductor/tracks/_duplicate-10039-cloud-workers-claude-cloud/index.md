@@ -1,10 +1,10 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
-**Lane**: implement
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Waiting for reply**: no
-**Progress**: 35%
-**Phase**: Phase 2 COMPLETE (executor seam, zero regressions verified) — Phases 3/3b/4+ remain
+**Progress**: 100%
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM

@@ -1,10 +1,10 @@
 # Track AM-10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 
-**Lane**: implement
+**Lane**: done
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Track Kind**: bug
 **Author**: AM

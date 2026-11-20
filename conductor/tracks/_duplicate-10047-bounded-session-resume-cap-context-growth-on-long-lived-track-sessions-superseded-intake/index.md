@@ -1,9 +1,9 @@
 # Track TU-10047: Bounded Session Resume — Cap Context Growth on Long-Lived Track Sessions
 
-**Lane**: plan
+**Lane**: done
 **Lane Status**: success
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Auto Run**: no
 **Author**: TU

@@ -1,9 +1,9 @@
 # Track TU-10049: Wizard: GitHub + Jira + GCP Credential Onboarding
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 90%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20: killed: a leftover copy made by the old worker; the real track is done or parked under its own folder. Nothing to do here.
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
