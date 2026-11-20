@@ -7,7 +7,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
 0. **Claim the track first.** Write `**Lane**: plan` and `**Lane Status**: running` to the track's
    `index.md`. Set `**Lane**` explicitly, not just `**Lane Status**`: when plan is run directly
    (a KPI-miss replan, a manual re-run) the track may not sit in the plan lane, and the board
-   would show it running in the wrong column. The claim also stops a second session starting the same track.
+   would show it in the wrong column.
 0b. **Classify bug or feature** - only if `index.md` has neither a `**Workspace**` nor a
    `**Track Kind**` marker (an explicit `**Workspace**` always wins; skip this step). Decide from the
    title, description, `conversation.md` (create it if missing) and a quick look at the code area. Write
@@ -15,8 +15,8 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    `**Workspace**` is a deliberate human override (`main` or `branch`), while `**Track Kind**` only
    feeds the default (bug -> `main`, feature -> `branch`). If plan wrote `**Workspace**`, an
    inferred guess would look like a human choice and defeat the auto-queue check that keeps an
-   unconfirmed bug classification from running unattended on main. Record it so a wrong guess is
-   visible and overridable: add one dated line to `history.md`:
+   unconfirmed bug classification from running unattended on main. Record it so a wrong guess can be
+   overridden: add one dated line to `history.md`:
    `- <YYYY-MM-DD HH:MMZ> ℹ️ Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.`
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
    `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions,
@@ -26,8 +26,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    "Search first: the default is update, not create" in [ops/tracks.md](../ops/tracks.md): list the tracks by the key
    words (every lane, the backlog and done too) and, if one fits, ask "Update track N (title, lane) with
    this? [default: yes]" and extend it instead. Scaffolding over an existing track number
-   creates a duplicate folder beside the real one. This has happened when a
-   legacy-only scan missed `AM-<number>-...`.
+   creates a duplicate folder; this happened when a scan missed `AM-<number>-...`.
    - Create `conductor/tracks/INITIALS-<n>-slug/`. Initials are the first letter of each word of
      `git config user.name`, up to 3, `XX` if unset. Never use the bare `NNN-slug` form for a new
      track.
@@ -38,7 +37,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
 3. **Refine (folder exists).**
    - Read `spec.md`, `plan.md`, `test.md`. On `FRESH_SESSION: false` you can skip files you
      already read this session (a replan right after a brainstorm), but re-read them if anything
-     may have changed on disk: the on-disk version wins over your memory. Always re-read
+     may have changed: the on-disk version wins. Always re-read
      `conversation.md`.
    - If `conversation.md` holds a brainstorm thread (lines starting `> **system**: Brainstorm`),
      treat the Q&A as requirements and fold the answers into all three files.
@@ -46,10 +45,9 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    - **test.md must be real.** If it is missing, empty or still the `(Test cases to be added)`
      stub, write concrete test cases and commands for every phase in `plan.md`. The implement
      lane is test-driven and works from this file; a stub leaves it nothing to start with.
-   - **Acceptance criteria describe what a user can observe, never the scaffolding.** A criterion
-     such as "the service logs the expected 'not yet implemented' message" is satisfied by a stub,
-     so a track can pass its own gate while the feature does not exist (this happened). Write
-     "a service actually starts on the target machine" instead.
+   - **Acceptance criteria describe what a user can observe, never the scaffolding.** "The service
+     logs the expected 'not yet implemented' message" is satisfied by a stub, so a track can pass
+     its own gate with no feature. Write "a service actually starts on the target machine" instead.
    - **Deferring scope is fine; calling the track complete is not.** A capability left out of
      this pass (FFU) must not appear as a satisfiable acceptance criterion, and `plan.md` needs an
      explicit unchecked phase for it, so the track cannot reach `done` at 100%.
@@ -87,12 +85,13 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    > modified - please review whether conductor/[doc].md should be updated.
    ```
    to `conversation.md` and note it in `spec.md`'s Requirements as an open item. It does not
-   block planning; a human decides whether the doc or the track changes.
+   block planning.
+5c. **KPI.** If `conductor/kpis.md` lists KPIs, ask which this track serves; write `**Serves**: <ids>` to `index.md`. Warn in one line when it names none, or only KPIs whose `Focus` is not `active` (it waits in the backlog). When the owner sets a KPI active, offer to move its backlog tracks (`list_tracks` with `serves`) to plan.
 6. **Transition.** First re-read `index.md`'s `**Lane**`. If it is no longer `plan` (a human
    dragged the card elsewhere while you worked), leave `**Lane**` and `**Lane Status**` exactly as
    they are and add the history line
    `ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
-   instead of the completion line: a manual move always wins over this run's stale intent.
+   instead of the completion line.
    Otherwise apply the workflow's success move for the plan lane: with the connector, call
    `update_track` with `outcome: "success"` (the target is `valid.next.success` in `get_track`);
    without it, read `lanes.plan.on_success` in `conductor/workflow.json` with the grammar in
@@ -104,7 +103,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    fired, `⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 
-Your job ends here: write the closing message of a lane and stop. The track waits in its new lane for the next step.
+Your job ends here: write the closing message of a lane and stop. 
 
 ## Where things go
 

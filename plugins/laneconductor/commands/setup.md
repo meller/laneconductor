@@ -105,9 +105,9 @@ Ask first: "Does this project have existing code? (yes/no)".
 **Existing code.** Read `package.json`, `README.md`, the source directories, CI and lint config, and infer: `product.md`
 (README, app name, entry points, routes), `tech-stack.md` (dependencies, framework patterns), `workflow.md` (the commit log, CI
 files, test setup), `code_styleguides/` (`.eslintrc`, `.prettierrc`, `tsconfig.json` when present), and the design language and
-`product-guidelines.md` stubs as above. Write `user-stories.md` only if concrete journeys surface in the README or scan. Then ask
-one KPI question: "What does success look like? What are your 2-3 north-star metrics and rough targets?" and use the answer for
-`kpis.md` (stub rows from the README if skipped). Show what you inferred and ask only to confirm it.
+`product-guidelines.md` stubs as above. Write `user-stories.md` only if journeys surface in the README or scan. Then ask
+one KPI question: "What does success look like? What are your 2-3 north-star metrics and rough targets?" and use it for
+`kpis.md` (`ID`, `Focus`: `active` or `future`; stub rows from the README if skipped). Show what you inferred; ask only to confirm.
 
 **New project.** Ask a short questionnaire: what it does and for whom; language, framework and data; TDD, commit strategy and
 branching; brand or style standards; the same KPI question (for example "500 signups by Q2"); and optionally key user journeys.
@@ -180,9 +180,9 @@ component library theme, or design-token files if present; otherwise leave place
 
 ## North-Star Metrics
 
-| Metric | Target | Time Horizon | Status | Notes |
-|--------|--------|--------------|--------|-------|
-| <metric> | <target> | <e.g. Q2 2026> | tracking | <context> |
+| ID | Metric | Target | Time Horizon | Focus | Notes |
+|----|--------|--------|--------------|-------|-------|
+| KPI-1 | <metric> | <target> | <e.g. Q2 2026> | active | <context> |
 
 ## Contributing Tracks
 

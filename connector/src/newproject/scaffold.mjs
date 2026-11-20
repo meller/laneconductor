@@ -131,8 +131,8 @@ function userStoriesMd(a) {
 }
 
 function kpisMd(a) {
-  const rows = a.kpis.length ? a.kpis.map((k) => `| ${k.metric} | ${k.target || TBD} | ${k.horizon || TBD} | tracking | |`) : ['| (none set yet) | | | | |'];
-  return ['# Project KPIs', '', '## North-Star Metrics', '', '| Metric | Target | Time Horizon | Status | Notes |', '|--------|--------|--------------|--------|-------|', ...rows, '',
+  const rows = a.kpis.length ? a.kpis.map((k, i) => `| KPI-${i + 1} | ${k.metric} | ${k.target || TBD} | ${k.horizon || TBD} | active | |`) : ['| | (none set yet) | | | | |'];
+  return ['# Project KPIs', '', '## North-Star Metrics', '', '| ID | Metric | Target | Time Horizon | Focus | Notes |', '|----|--------|--------|--------------|-------|-------|', ...rows, '',
     '## Contributing Tracks', '', 'Tracks with `**Maps To**` referencing a metric above will appear here automatically.', ''].join('\n');
 }
 

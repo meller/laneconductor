@@ -42,7 +42,7 @@ A non-dev track has no branch, so a pass closes it as `done:success`: nothing to
    - Scan modified files for hardcoded secrets and check `.gitignore` covers the Zero-Secrets
      patterns.
    - If a command's tool is missing (for example `playwright`), install it or report a failure.
-   - Non-dev tracks that passed KPI have no code to check; skip the code checks.
+   - Non-dev tracks that passed KPI have no code to check; skip them.
 
    **2a. Run the product, not just the code.** Unit tests show the code does what its author
    believed; they cannot show a feature is missing. If the track touched UI or a user-facing flow:
@@ -73,7 +73,7 @@ A non-dev track has no branch, so a pass closes it as `done:success`: nothing to
    you may. Before the fix: write a failing test that reproduces the bug, then fix, then re-run
    to see it pass. Commit test and fix together as `fix(quality-gate): [description]`, and post a
    comment in `conversation.md` saying what failed and what you changed.
-4. **Post the result** as one dated line in `history.md`, emoji first:
+4. **Post the result** (a missing `**Serves**` is a note, never a failure) as one dated line in `history.md`, emoji first:
    `- <YYYY-MM-DD HH:MMZ> ✅ QUALITY GATE PASSED`, or `- <YYYY-MM-DD HH:MMZ> ❌ QUALITY GATE FAILED` (use `⚠️` when
    it needs human judgment rather than a plain retry). Put the full write-up in one comment in `conversation.md`
    (authored `claude`, `>`-prefixed continuation lines), not a second one; no status goes into `plan.md` or `spec.md`.

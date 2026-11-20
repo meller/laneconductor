@@ -95,11 +95,12 @@ prompt `plan` elsewhere).
 Apply to the readable candidates of S05 to S19 and S22 and S23, first difference wins:
 
 1. **Human reply.** An owner action (S22) comes first: oldest due first (an overdue one is the oldest), a missing or malformed due date last. Then a track that waits for an answer (S05). Both come before everything else.
-2. **Failed or stuck.** A failure (S06) or a claim that looks abandoned (S07).
+2. **Failed or stuck.** A failure (S06) or an abandoned-looking claim (S07).
 3. **Ready to resume.** A parked track whose dependencies shipped (S09), or whose run window ended (S23).
+3b. **KPI focus.** Active-KPI tracks (`Serves`, `Focus` in `kpis.md`) first, then those naming none, then those serving only non-active KPIs.
 4. **Priority.** The optional marker `Priority` (`high`, `normal`, `low`; absent means `normal`): high before normal before low.
-5. **Lane order, latest lane first.** `done:queue` (merge), then quality-gate, review, implement, plan. Nearly shipped work comes before work not begun.
-6. **Number.** Lowest track number first (the oldest request first).
+5. **Lane order, latest lane first.** `done:queue` (merge), then quality-gate, review, implement, plan.
+6. **Number.** Lowest track number first.
 
 With more than two tracks in S22, add one line after the card: "You have N open owner actions: finish one before starting another." It is advice only: it changes no order.
 

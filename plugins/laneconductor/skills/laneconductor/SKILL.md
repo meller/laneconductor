@@ -188,6 +188,7 @@ Findings, phase and test-case lists, risks and caveats go into the track's files
 | `**PR URL**` | Written by the merge lane in pr mode. |
 | `**Verdict**: pass\|fail` | Written by review and quality-gate; cleared at claim. |
 | `**Part Of**: N` | Optional: the number of the epic this track belongs to. The epic's status table is derived from the children's own markers (`list_tracks`, `get_track`, the board); nothing about a child is ever written into the epic. |
+| `**Serves**: KPI-1, KPI-3` | Optional: the KPIs (ids or metrics in `conductor/kpis.md`) this track serves. A KPI's `Focus` there is `active`, `future`, `done` or `dropped`; a track serving only non-active KPIs waits in the backlog. Advice, never a lock. |
 | `**Priority**: high\|normal\|low` | Optional; absent means `normal`. Read by `next` to rank candidates. |
 | `**Depends On**: NNN, NNN` | Tracks that must be `done:success` before this one is claimed; the connector lists the unmet ones as `blocked_by` and warns when a track claims anyway. |
 | `**Waiting On Tracks**: NNN, NNN` | See parking above. |

@@ -103,9 +103,9 @@ const PLACEHOLDER_LINES = [
   /^None stated\.$/,
   /^TODO\b/,
   /^Flow: \(to be written\)$/,
-  /^\|\s*\(none set yet\)\s*\|[\s|]*$/,
+  /^\|[\s|]*\(none set yet\)[\s|]*$/,
   /^\|[\s:|-]*\|$/, // a table separator row
-  /^\| Metric \| Target \| Time Horizon \| Status \| Notes \|$/,
+  /^\| (?:ID \| )?Metric \| Target \| Time Horizon \| (?:Status|Focus) \| Notes \|$/,
   /^Tracks with `\*\*Maps To\*\*` referencing a metric above/,
   /^\(No verification commands exist yet/,
   /^>/,

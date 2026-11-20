@@ -210,9 +210,9 @@ component library theme, or design-token files if present; otherwise leave place
 
 ## North-Star Metrics
 
-| Metric | Target | Time Horizon | Status | Notes |
-|--------|--------|--------------|--------|-------|
-| <metric> | <target> | <e.g. Q2 2026> | tracking | <context> |
+| ID | Metric | Target | Time Horizon | Focus | Notes |
+|----|--------|--------|--------------|-------|-------|
+| KPI-1 | <metric> | <target> | <e.g. Q2 2026> | active | <context> |
 
 ## Contributing Tracks
 

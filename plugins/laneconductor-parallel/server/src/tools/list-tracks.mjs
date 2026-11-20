@@ -12,11 +12,11 @@ import { projectField, publishable, readEntries, readOnly, sizeOf, workflowLanes
 const input = z.object({
   project: projectField,
   lane: z.string().optional().describe('Only tracks in this lane, e.g. plan, implement.'),
-  lane_status: z.string().optional().describe('Only tracks with this lane status: queue, running, success, failure, waiting.'),
-  query: z.string().optional().describe('Case-insensitive text to find in the title, id or summary.'),
-  serves: z.string().optional().describe('Only tracks whose Serves marker names this KPI (an id such as KPI-2, or the metric name), any case.'),
-  include_done: z.boolean().optional().describe('Also list done:success tracks.'),
-  limit: z.number().int().min(1).max(200).optional().describe('Maximum tracks returned (default 50, max 200).'),
+  lane_status: z.string().optional().describe('Only this lane status: queue, running, success, failure, waiting.'),
+  query: z.string().optional().describe('Text to find in the title, id or summary (any case).'),
+  serves: z.string().optional().describe('Only tracks that serve this KPI (id or metric).'),
+  include_done: z.boolean().optional().describe('Include done:success.'),
+  limit: z.number().int().min(1).max(200).optional().describe('Most tracks returned (default 50, max 200).'),
 });
 
 const EPIC_CHILD_CAP = 15;
