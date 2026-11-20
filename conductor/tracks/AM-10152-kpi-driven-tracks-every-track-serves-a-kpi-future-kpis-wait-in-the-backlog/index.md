@@ -1,9 +1,9 @@
 # Track AM-10152: KPI-driven tracks: every track serves a KPI, tracks for future KPIs wait in the backlog
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 90%
-**Phase**: Built and released 2026-11-20 as base 1.9.13 and board 1.10.7: the Serves list, Focus in kpis.md, the plan-lane step and promotion offer, the gate note, next ranking (command and board panel), the future-KPI badge, search and per-KPI count, the list_tracks serves filter. 910 tests. Not yet tried end to end in a real project (TC-4 setup proposals, TC-7 promotion): run /laneconductor:plan on a track in MakroDash with a kpis.md that has Focus columns.
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-20 by the owner. Released as base 1.9.13 and board 1.10.7 (KPI focus: a Serves list, Focus in kpis.md, the plan-lane step and promotion offer, the gate note, next ranking, the future-KPI badge, search and per-KPI count, the list_tracks serves filter). Not tried in a real project: setup proposing KPIs from a project's documents, and the offer to move a KPI's backlog tracks when it turns active. A separate KPI grouping on the board was not built.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low

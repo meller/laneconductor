@@ -2,3 +2,4 @@
 - 2026-11-20 Phase 1 started with the owner: the four open questions are being decided.
 - 2026-11-20 Phase 1 done: decisions recorded in the spec (several KPIs per track, no KPI dependencies, value by hand, plan lane warns and gate only notes); Serves needs no connector change.
 - 2026-11-20 ✅ Built and released as base 1.9.13 with board 1.10.7 (and parallel 1.9.13): conductor/kpis.md gets ID and Focus columns; Serves is a list; the plan lane asks and warns; the gate only notes; next and the board panel prefer active-KPI tracks; the board badges future-KPI tracks and counts tracks per KPI; list_tracks filters by serves. Open: TC-4 and TC-7 in a real project.
+- 2026-11-20 Closed by the owner (done:success). TC-4 and TC-7 were not run in a real project; accepted at close.
