@@ -28,6 +28,7 @@ project, site, bucket, secret or repository; identifiers are placeholders such a
 | `cache-buster` | Hosting headers, build stamp, stale-tab banner, post-deploy recovery |
 | `pwa-vite-workbox` | Installable PWA with vite-plugin-pwa and the incidents behind each setting |
 | `skill-from-code` | A skill generator: turns a pattern or verified incident of yours, shown by working code, into a new skill in this library |
+| `plugin-from-skills` | Packages your skills into Claude plugins and a marketplace with a small generator, the local checks, and the steps, answers and pitfalls of submitting to Anthropic's plugin directory |
 
 ## Install and update
 

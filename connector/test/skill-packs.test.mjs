@@ -17,7 +17,7 @@ const SPEC_TABLE = {
   'laneconductor-firebase': ['shared-gcp-firebase-site', 'cache-buster', 'firebase-google-sign-in'],
   'laneconductor-node-postgres': ['postgres-local-neon-prod-secret-manager', 'prisma-in-cloud-functions', 'isolated-test-database', 'makefile-local-run'],
   'laneconductor-gemini': ['llm-through-tokentalos', 'vertex-gemini-adc', 'vertex-imagen-retry-gcs-fallback'],
-  'laneconductor-skill-from-code': ['skill-from-code'],
+  'laneconductor-skill-from-code': ['plugin-from-skills', 'skill-from-code'],
 };
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const listFiles = (root, rel = '') => fs.readdirSync(path.join(root, rel), { withFileTypes: true }).flatMap((e) => {

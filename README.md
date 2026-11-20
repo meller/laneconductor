@@ -230,7 +230,7 @@ Besides the process, the marketplace `meller/laneconductor` carries five small s
 | `laneconductor-firebase` | One shared GCP project with a Hosting site and Functions codebase per product; cache busting after deploys; Google-only sign-in | `claude plugin install laneconductor-firebase@laneconductor` |
 | `laneconductor-node-postgres` | Local Postgres and Neon in production with the secret in Secret Manager; Prisma in Cloud Functions; an isolated test database; a Makefile for local runs | `claude plugin install laneconductor-node-postgres@laneconductor` |
 | `laneconductor-gemini` | Every LLM call through TokenTalos; Gemini on Vertex AI with Application Default Credentials; image generation with retry and a GCS upload | `claude plugin install laneconductor-gemini@laneconductor` |
-| `laneconductor-skill-from-code` | Turn a pattern or a verified incident, shown by working code, into a new skill | `claude plugin install laneconductor-skill-from-code@laneconductor` |
+| `laneconductor-skill-from-code` | Authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as a plugin ready for Anthropic's directory | `claude plugin install laneconductor-skill-from-code@laneconductor` |
 
 Add the marketplace first with `claude plugin marketplace add meller/laneconductor`. Each pack's page lists its skills; `docs/plugin-map.md` lists them all.
 

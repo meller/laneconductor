@@ -69,8 +69,8 @@
     {
       "name": "laneconductor-skill-from-code",
       "source": "./plugins/laneconductor-skill-from-code",
-      "description": "A skill that turns a pattern or a verified incident, shown by working code, into a new skill.",
-      "version": "0.1.0",
+      "description": "Skills for authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as Claude plugins and submit them to the plugin directory.",
+      "version": "0.2.0",
       "author": {
         "name": "Asaf Meller"
       }

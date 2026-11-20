@@ -1,11 +1,12 @@
-# LaneConductor Skills: Skill From Code
+# LaneConductor Skills: Authoring
 
-A skill that turns a pattern or a verified incident, shown by working code, into a new skill.
+Skills for authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as Claude plugins and submit them to the plugin directory.
 
-A skill pack for Claude Code, version 0.1.0, from the LaneConductor marketplace. It holds Markdown and template files only: no script, hook, MCP server or agent, and it sends nothing anywhere. It works on its own; LaneConductor is not required.
+A skill pack for Claude Code, version 0.2.0, from the LaneConductor marketplace. It holds Markdown and template files only: no script, hook, MCP server or agent, and it sends nothing anywhere. It works on its own; LaneConductor is not required.
 
 ## Skills
 
+- `plugin-from-skills`: Package your skills into Claude plugins, publish them from your own marketplace, and optionally submit a Markdown-only plugin to Anthropic's plugin directory: a skills folder, a pack list, a small generator, the local checks, the portal steps and answers, and what to do about policy holds.
 - `skill-from-code`: Use when a verified solution to a hard problem should become one of these skills, when the user says save this as a skill, capture this, remember this convention or add this to my homebrew skills, or when a skill in the library is wrong, stale or unused and should be rewritten or retired.
 
 ## Install

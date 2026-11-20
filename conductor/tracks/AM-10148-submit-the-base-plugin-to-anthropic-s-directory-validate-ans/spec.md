@@ -73,3 +73,30 @@ Second run, the same day, after plugins 1.9.10 (the `.vercel` line removed from 
 ## Out of scope
 
 - Submitting, answering or posting for the owner; the add-ons' own distribution; changing the plugin's behaviour beyond what a reviewer asks.
+
+## The plugin work in one place (this is the main plugin track; written 2026-11-20)
+
+Everything about LaneConductor's plugins, how they are built, validated, submitted and kept, starts here. Lane and status are as of 2026-11-20; open a track for the current state.
+
+| Track | What it holds | Lane |
+| --- | --- | --- |
+| **10148** (this track) | This track: the directory submission of the base plugin, the portal steps and answers, the review loop | review / waiting |
+| [10145](../AM-10145-epic-plugin-era-hardening-and-what-s-next-one-place-for-the/index.md) | The epic for plugin-era hardening and what's next | quality-gate / waiting |
+| [10106](../AM-10106-laneconductor-connector-git-backed-mcp-server-local-stdio-first-then-remote-via-github-api/index.md) | The connector: the git-backed MCP server behind the parallel add-on | done / success |
+| [10127](../AM-10127-laneconductor-lite-a-markdown-only-plugin-for-the-anthropic/index.md) | The first Markdown-only plugin (Lite), the shape the directory accepts | done / success |
+| [10128](../AM-10128-split-the-plugin-in-three-base-directory-parallel-worktrees/index.md) | The split into the base, the parallel add-on and the board add-on, and the one generator | review / queue |
+| [10133](../AM-10133-plugin-only-setup-no-lc-cli-no-old-scheme-setup-offers-the-r/index.md) | Plugin-only setup: no old command line, setup offers the recommended plugins | quality-gate / waiting |
+| [10116](../AM-10116-command-catalog-as-mcp-prompts-and-bug-feature-forms/index.md) | The command catalog as MCP prompts, and the bug and feature forms | quality-gate / success |
+| [10117](../AM-10117-new-project-flow-guided-interview-recipe-recommendations-sca/index.md) | The new-project flow | quality-gate / success |
+| [10144](../AM-10144-what-s-next-a-state-aware-command-that-names-the-next-step-a/index.md) | The `next` command: name the one next step | quality-gate / waiting |
+| [10146](../AM-10146-track-file-roles-plan-spec-test-a-tracked-history-md-for-the/index.md) | Track file roles: plan, spec, test and a tracked history | review / queue |
+| [10147](../AM-10147-owner-steps-a-track-that-stops-at-a-real-world-action-runs-a/index.md) | Owner steps: a track that stops at a real-world action and closes with a result | review / queue |
+| [10124](../AM-10124-skill-advisor-recommend-the-right-skill-at-the-right-lane-in/index.md) | The skill advisor: recommend the right skill at the right lane | review / queue |
+| [10115](../AM-10115-plugin-v2-lane-end-prompts-commands-plan-review-agent-card-actions/index.md) | The board add-on: card actions, partial publish, auto-refresh, a self-updating view | done / success |
+| [10129](../AM-10129-public-generic-version-of-the-homebrew-skills-no-private-nam/index.md) | The skills library and the five skill packs | done / success |
+| [10150](../AM-10150-next-base-release-advisor-catalog-for-the-skill-packs-settings-row-and-skill-from-code-pointer/index.md) | The next base release: catalog entries for the packs and other base changes held back during the review | plan / waiting |
+| [10151](../AM-10151-board-page-follow-ups-desktop-app-checks-phone-and-dark-theme-review-the-plan-button/index.md) | Board page follow-ups (backlog) | backlog / queue |
+| [10120](../AM-10120-orchestrator-plugin-run-queued-tracks-unattended-the-heartbe/index.md) | An orchestrator plugin to run queued tracks unattended (backlog) | backlog / queue |
+| [10134](../AM-10134-remote-tier-a-separate-laneconductor-remote-plugin-for-the-o/index.md) | A Remote plugin for the old remote, workers and Jira code (backlog) | backlog / queue |
+
+How to do the same for another project: the skill `plugin-from-skills` (in the pack `laneconductor-skill-from-code`, source `skills/plugin-from-skills/`) carries the layout, a tested generator template, the checks, the portal steps and the pitfalls from this track. Its outcome section is updated when the review is decided (Phase 6, task 6.2).

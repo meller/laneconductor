@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+// Builds Markdown-only Claude plugins from skills/ and scripts/skill-packs.json, plus .claude-plugin/marketplace.json.
+//   node scripts/build-plugin.mjs            write plugins/<pack>/ and the marketplace file
+//   node scripts/build-plugin.mjs --check    compare with the disk; exit 1 and list the differences (for CI and before every push)
+// Every folder under skills/ goes in exactly one pack. No dates and sorted order, so --check is a pure comparison.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/skill-packs.json'), 'utf8'));
+const json = (v) => `${JSON.stringify(v, null, 2)}\n`;
+const fail = (m) => { console.error(`build-plugin: ${m}`); process.exit(1); };
+const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+// 1. The skills and the pack list must agree.
+const skillsDir = path.join(ROOT, 'skills');
+const skills = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name).sort();
+const owner = new Map();
+for (const p of cfg.packs) for (const s of p.skills) {
+  if (!skills.includes(s)) fail(`pack ${p.name} names ${s}, which is not a folder under skills/`);
+  if (owner.has(s)) fail(`skill ${s} is in two packs (${owner.get(s)} and ${p.name})`);
+  owner.set(s, p.name);
+}
+for (const s of skills) if (!owner.has(s)) fail(`skill ${s} is in no pack`);
+
+// 2. What every plugin folder must contain.
+const out = new Map(); // relative path -> Buffer
+function addTree(src, destRel) {
+  for (const e of fs.readdirSync(src, { withFileTypes: true }).sort(byName)) {
+    if (e.isDirectory()) addTree(path.join(src, e.name), `${destRel}/${e.name}`);
+    else out.set(`${destRel}/${e.name}`, fs.readFileSync(path.join(src, e.name)));
+  }
+}
+function skillDescription(s) {
+  const m = fs.readFileSync(path.join(skillsDir, s, 'SKILL.md'), 'utf8').match(/^description:\s*(.*)$/m);
+  if (!m) fail(`skills/${s}/SKILL.md has no description line`);
+  try { return JSON.parse(m[1].trim()); } catch { return m[1].trim().replace(/^['"]|['"]$/g, ''); }
+}
+const { author, homepage, repository, license, privacyPolicyUrl } = cfg.plugin;
+const readme = (p) => `# ${p.displayName}
+
+${p.description}
+
+A skill pack for Claude Code, version ${p.version}. It holds Markdown and template files only: no script, hook, MCP server or agent, and it sends nothing anywhere.
+
+## Skills
+
+${p.skills.map((s) => `- \`${s}\`: ${skillDescription(s)}`).join('\n')}
+
+## Install
+
+\`\`\`
+claude plugin marketplace add ${cfg.marketplace.source}
+claude plugin install ${p.name}@${cfg.marketplace.name}
+\`\`\`
+
+## Update
+
+\`\`\`
+claude plugin marketplace update ${cfg.marketplace.name}
+claude plugin update ${p.name}@${cfg.marketplace.name}
+\`\`\`
+
+## License
+
+${license}; see LICENSE.
+
+Privacy policy:
+${privacyPolicyUrl}
+
+Questions and bugs:
+${repository}/issues
+`;
+for (const p of cfg.packs) {
+  const base = `plugins/${p.name}`;
+  out.set(`${base}/.claude-plugin/plugin.json`, Buffer.from(json({ name: p.name, displayName: p.displayName, version: p.version, description: p.description, author, homepage, repository, license, keywords: p.keywords, privacyPolicyUrl })));
+  for (const s of p.skills) addTree(path.join(skillsDir, s), `${base}/skills/${s}`);
+  out.set(`${base}/README.md`, Buffer.from(readme(p)));
+  out.set(`${base}/LICENSE`, fs.readFileSync(path.join(ROOT, 'LICENSE')));
+  const icon = path.join(ROOT, 'scripts/icon.png'); // optional: a square PNG
+  if (fs.existsSync(icon)) out.set(`${base}/.claude-plugin/icon.png`, fs.readFileSync(icon));
+}
+out.set('.claude-plugin/marketplace.json', Buffer.from(json({
+  name: cfg.marketplace.name, owner: cfg.marketplace.owner, description: cfg.marketplace.description,
+  plugins: cfg.packs.map((p) => ({ name: p.name, source: `./plugins/${p.name}`, description: p.description, version: p.version, author })),
+})));
+
+// 3. Write, or compare with the disk.
+function filesUnder(rel) {
+  const dir = path.join(ROOT, rel);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).sort(byName).flatMap((e) => (e.isDirectory() ? filesUnder(`${rel}/${e.name}`) : [`${rel}/${e.name}`]));
+}
+if (process.argv.includes('--check')) {
+  const diffs = [];
+  for (const [rel, buf] of out) {
+    const f = path.join(ROOT, rel);
+    if (!fs.existsSync(f)) diffs.push(`missing: ${rel}`);
+    else if (!fs.readFileSync(f).equals(buf)) diffs.push(`differs: ${rel}`);
+  }
+  for (const rel of filesUnder('plugins')) if (!out.has(rel)) diffs.push(`stale: ${rel}`);
+  if (diffs.length) { console.error(`build-plugin: the plugins are out of date; run node scripts/build-plugin.mjs\n  ${diffs.join('\n  ')}`); process.exit(1); }
+  console.log(`build-plugin: ${cfg.packs.length} plugin(s) and the marketplace file are up to date`);
+} else {
+  fs.rmSync(path.join(ROOT, 'plugins'), { recursive: true, force: true });
+  for (const [rel, buf] of out) { const f = path.join(ROOT, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, buf); }
+  console.log(`build-plugin: wrote ${out.size} files for ${cfg.packs.length} plugin(s)`);
+}

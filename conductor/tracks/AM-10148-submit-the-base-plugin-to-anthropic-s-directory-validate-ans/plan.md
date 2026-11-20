@@ -28,3 +28,8 @@ The design is in spec.md. Split out of track 10128, Phase 7. The owner submits.
 - [ ] Task 2: Only now update the README and the website to mention the directory install (the website is deployed only when the owner says deploy)
 
 **Impact**: The base plugin is discoverable in Anthropic's directory, with each reviewer comment answered and the version that fixed it on record.
+
+## Phase 6: A reusable skill for other projects (owner request, 2026-11-20)
+
+- [x] Task 6.1: The skill `plugin-from-skills` written from this track's spec and track 10128: layout, a pack list and a generator template (tested in a scratch project: generate, `--check` passing and failing, a skill in no pack refused, `claude plugin validate --strict` on the plugin and the marketplace, hidden template files copied), the local checks, the clean-install test, the portal's six steps, Data handling guidance, and the pitfalls (the credential-word hold, the README link ending in a period, the publisher-name hold, files too large or too many, the stale validation after a push). Checker 0 errors and the privacy gate clean with the private deny list. Shipped in the pack `laneconductor-skill-from-code` 0.2.0
+- [ ] Task 6.2: When the reviewer decides, add the outcome and any reviewer comment to the skill's Pitfalls and Unproven sections, set a new `verified` date and bump the pack

@@ -1,8 +1,8 @@
 {
   "name": "laneconductor-skill-from-code",
-  "displayName": "LaneConductor Skills: Skill From Code",
-  "version": "0.1.0",
-  "description": "A skill that turns a pattern or a verified incident, shown by working code, into a new skill.",
+  "displayName": "LaneConductor Skills: Authoring",
+  "version": "0.2.0",
+  "description": "Skills for authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as Claude plugins and submit them to the plugin directory.",
   "author": {
     "name": "Asaf Meller",
     "url": "https://github.com/meller"
@@ -11,9 +11,12 @@
   "repository": "https://github.com/meller/laneconductor",
   "license": "Elastic-2.0",
   "keywords": [
+    "authoring",
     "laneconductor",
-    "skills",
-    "skill-authoring"
+    "marketplace",
+    "plugin",
+    "skill-authoring",
+    "skills"
   ],
   "privacyPolicyUrl": "https://github.com/meller/laneconductor/blob/main/docs/privacy.md"
 }
