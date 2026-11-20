@@ -51,7 +51,7 @@ Read `board.artifact_url` in `.laneconductor.json`, the optional personal settin
 
 ## 3b. No URL: create
 
-1. Ask the human: "Create a private board for this project?" Wait for a yes. Create nothing without it.
+1. Do not ask: running the board command means the human wants a board, and a private one changes nothing outside the Claude artifact and the settings file. (Only if the board script is missing, stop as step 1 says and name the install commands.)
 2. Artifact tool, action `publish`, `file_path` = `page`, `root` = `root`, `files` = the map from step 1,
    `icon: "board"`, `description`: one sentence, e.g. "Tracks by lane for <project>, a snapshot read from the track files."
    Load the artifact-design skill only if you must change the page (normally you do not).
@@ -59,6 +59,7 @@ Read `board.artifact_url` in `.laneconductor.json`, the optional personal settin
    JSON and every other key as it was (create the file if it does not exist). The URL is private, so
    first make sure `.laneconductor.json` is listed in `.gitignore`; if it is not, say that you will add
    the line and ask first, because it changes a project file.
+4. After step 4 (show), say what the board holds: it is private, a snapshot, it includes the index, plan, spec and test documents of every track that is not done (name a few), what the privacy scan withheld (by track number and file), and that `board.include_docs: false` in the settings file turns the documents off.
 
 ## 4. Show
 

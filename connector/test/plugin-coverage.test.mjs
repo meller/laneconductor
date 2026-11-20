@@ -237,7 +237,9 @@ test('commands that use the connector name its tools only for when they are pres
   assert.match(board, /more than an hour old, say so and suggest refreshing it/);
   assert.match(board, /In Claude Code, type the refresh as `\/laneconductor:board refresh`/);
   assert.match(board, /republish them to the stored URL/);
-  assert.match(board, /ask me "Create a private board for this project\?"; create nothing without my yes/);
+  assert.match(board, /no board yet and running this command means I want one: do not ask/);
+  assert.doesNotMatch(board, /create nothing without my yes, and then follow/);
+  assert.match(board, /If the board add-on is not installed, say that it has to be installed first/);
   assert.match(board, /Only Claude can publish an artifact/);
   assert.match(board, /If the argument is anything else, ask me which one I mean/);
   // help lists every command exactly once, grouped, and says which commands need an add-on.

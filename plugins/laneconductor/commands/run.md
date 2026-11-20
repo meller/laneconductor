@@ -309,10 +309,8 @@ normally has already started you in `.worktrees/NNN`; that is where the
 commits go.
 
 0. **Claim the track first.** Write `**Lane**: implement` and `**Lane Status**: running` to the
-   track's `index.md`. Set `**Lane**` explicitly: a human may run this right after planning, and
-   this project's `workflow.json` keeps `plan.on_success: plan:success`, so the track does not
-   land in the implement lane by itself. Without it the board shows the track running in the
-   wrong column.
+   track's `index.md`. Set `**Lane**` explicitly: a track just planned may still sit in `plan:success`,
+   and the board would show it running in the wrong column.
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
    `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/`. Never scaffold a second folder for an existing number.
 2. **Workspace (dev tracks; a non-dev track needs no worktree).** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
@@ -325,25 +323,11 @@ commits go.
    - `plan.md` (phases), `spec.md` (details and `**Type**`), `test.md` (drives the order of work).
    - `conductor/deployment-stack.md`, `product-guidelines.md`, `design-language.md`,
      `tech-stack.md`, each if present.
-   - `conversation.md`: human comments override the plan.
-   - `last_run.log` if present: why the last run failed.
+   - `conversation.md` (human comments override the plan) and `last_run.log` (why the last run failed).
    - **test.md self-healing:** if `test.md` is missing, empty or still the
      `(Test cases to be added)` stub, write concrete test cases and commands for each phase
-     before any implementation code. Template:
-     ```markdown
-     # Tests: Track NNN - [Title]
-
-     ## Test Commands
-     (exact commands)
-
-     ## Test Cases
-     ### Phase 1: [Name]
-     - [ ] TC-1: [Description] - expected: [outcome]
-
-     ## Acceptance Criteria
-     - [ ] All unit tests pass
-     - [ ] No regressions in related features
-     ```
+     before any implementation code: `# Tests: Track NNN - [Title]`, then `## Test Commands` (exact commands),
+     `## Test Cases` (`### Phase 1: [Name]`, `- [ ] TC-1: [Description] - expected: [outcome]`) and `## Acceptance Criteria`.
    - TDD is recommended, `test.md` is written for it: per phase, write the test, watch it fail, then the minimal code.
 4. **Non-dev tracks (`**Type**` is not `dev`): supervised implement.** Do not write code.
    - Look for the skills this Type works best with (marketing: `content-strategy`, `launch`, `copywriting`, `social`, `analytics`,
@@ -367,7 +351,7 @@ commits go.
      With no KPI block there is no window: ask the owner where the track goes next.
 4b. **Fundamentals conflict (dev tracks).** If what you must build conflicts with, or implies a
    change to, `product-guidelines.md`, `design-language.md`, `tech-stack.md` or `workflow.md`,
-   do not write code that contradicts them and do not rewrite them silently. Append to
+   do not write code that contradicts them or rewrite them silently. Append to
    `conversation.md`: `> **system**: ⚠️ FUNDAMENTALS CONFLICT - this track's [requirement] appears to
    require changing conductor/[doc].md ([specific conflict]). Continuing as specified; doc not
    modified - please review whether conductor/[doc].md should be updated.` (one comment, prefix
@@ -376,11 +360,10 @@ commits go.
    - Implement the tasks.
    - **Run the verification before you tick anything.** Do not mark a task `[x]` or write
      "Phase N complete" until you have executed whatever verifies it and read the real output.
-     This holds even when `test.md` has no case for the phase: if there is a CLI flag, endpoint,
-     UI flow or dispatch to exercise, exercise it. A written-but-unrun test file or a plausible
-     diff is not verification.
-   - **Never end a turn on a command you just backgrounded.** The harness kills background
-     children when the session exits, so the work is silently lost mid-work. Run long commands in the foreground and wait, or note in `conversation.md` what is still running.
+     This holds even when `test.md` has no case for the phase: exercise any CLI flag, endpoint,
+     UI flow or dispatch there is. A written-but-unrun test or a plausible diff is not verification.
+   - **Never end a turn on a command you just backgrounded:** the harness kills background
+     children when the session exits. Run long commands in the foreground, or note in `conversation.md` what is still running.
    - Update `plan.md` (tick the task) and the `**Progress**` marker in `index.md`.
    - Commit: `feat(track-NNN): Phase X - description`.
 6. **Complete (dev tracks).** Apply the same verification bar to the track as a whole before
@@ -401,9 +384,7 @@ commits go.
      `✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
    - Write the closing message of a lane and stop.
-Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
-`outcome`, or with the grammar in `ops/lanes-and-statuses.md`, never by feel. On exit, `**Lane Status**`
-should end as `success` or `queue` according to the outcome.
+Boundaries: `workflow.json` is the only authority for target lanes, never feel. On exit, `**Lane Status**` ends as `success` or `queue` by the outcome.
 
 #### Offer a missing skill
 
@@ -411,9 +392,10 @@ Before the work, look at what fits this lane and offer what is missing; usually 
 
 **Offer rule**: as in the first lane guide above.
 
-Candidates for the `implement` lane (stack tags: ui, firebase, cloudflare, dashboard):
+Candidates for the `implement` lane (stack tags: ui, firebase, postgres, gemini, cloudflare, dashboard):
 
 - `laneconductor-parallel`: parallel work: sub-agents per track in worktrees, conflict-checked track writes. Installs an MCP server (a Node.js program) and a scaffold script. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`), or its agent `laneconductor-parallel:track-runner` is listed. Mention only when several sessions, people or sub-agents write the same tracks, or overwrites are a worry. `claude plugin marketplace add meller/laneconductor`, `claude plugin install laneconductor-parallel@laneconductor`
+- `laneconductor-nodejs-frontend` (stack ui), `laneconductor-firebase` (stack firebase), `laneconductor-node-postgres` (stack postgres), `laneconductor-gemini` (stack gemini): our stack skill packs, advice for one stack each. Markdown only. `claude plugin marketplace add meller/laneconductor`, `claude plugin install <pack>@laneconductor`
 - `frontend-design` (prerequisite; stack ui): skills frontend-design. Markdown only. `claude plugin install frontend-design@claude-plugins-official`
 - `marketing-skills` (prerequisite; Type marketing/sales): skills copywriting, social (was social-content), sales-enablement, cold-email. Markdown only. `claude plugin marketplace add coreyhaines31/marketingskills`, `claude plugin install marketing-skills@marketingskills`
 - `superpowers`: skills test-driven-development, systematic-debugging, subagent-driven-development, using-git-worktrees. Installs a session-start hook script, plus Markdown skills. `claude plugin install superpowers@claude-plugins-official`

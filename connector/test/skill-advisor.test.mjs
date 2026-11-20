@@ -21,7 +21,8 @@ const src = (rel) => fs.readFileSync(path.join(REPO, '.claude/skills/laneconduct
 const LANE_FILES = { brainstorm: 'lanes/brainstorm.md', plan: 'lanes/plan.md', implement: 'lanes/implement.md', review: 'lanes/review.md', 'quality-gate': 'lanes/quality-gate.md', merge: 'lanes/merge.md', deploy: 'deploy/deploy.md' };
 const blockOf = (text, lane) => text.slice(text.indexOf(`Candidates for the \`${lane}\` lane`));
 const has = (text, ...names) => names.forEach((n) => assert.ok(text.includes(n), `names ${n}`));
-const lineOf = (text, name) => text.split('\n').find((l) => l.startsWith(`- \`${name}\``) && l.includes('`claude plugin '));
+// A lane guide lists the stack skill packs as one line that names each (`name` (stack ...)), so a pack is found on that line too.
+const lineOf = (text, name) => text.split('\n').find((l) => l.includes('`claude plugin ') && (l.startsWith(`- \`${name}\``) || (l.startsWith('- `laneconductor-') && l.includes(`\`${name}\` (stack `))));
 const cmds = (e) => e.install.map((c) => `\`${c}\``).join(', ');
 
 test('the command: suggest-skills is in the catalog, in the first group next to next, with the plain description and the example phrase; the base ships it with its whole procedure', () => {

@@ -16,6 +16,7 @@ board URL ([board.md](board.md), step 3b, which asks first), when a person asks 
 | `board.artifact_url` | the URL of the board artifact | none (no board published yet) | the board commands ([board.md](board.md)) |
 | `board.include_docs` | `false` turns every document off, project definition files included | on | the board script |
 | `board.include_conversation` | `true` adds `conversation.md` to the board documents | off | the board script |
+| `board.auto_update` | `false` turns off the board add-on's end-of-turn prompt to refresh a stored board | on when a board is stored | the board add-on's hooks |
 | `project.name` | a string | the folder name | the board script |
 | `next.level` | `auto`, `explain`, `short` | `auto` | the `next` command only ([next.md](next.md)) |
 | `skills.declined` | a list of skill-catalog entry names | none | the skill offers ([suggest-skills.md](suggest-skills.md)) |

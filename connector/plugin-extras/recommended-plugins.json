@@ -1,11 +1,13 @@
 {
   "comment": "The ONE source of every recommendation LaneConductor makes (track AM-10128; track AM-10124's skill advisor, skill packs and third-party skills will add entries here, not text). scripts/plugin-texts.mjs generates from it: the Add-ons paragraph of the base SKILL.md, ADD-ONS.md, the fallback text of the board commands, the worktree pointer in run/implement/review, ops/board.md's 'missing' section and the README blocks. Fields: name (the plugin id); kind (addon | skillpack | thirdparty); display; source { marketplace: the marketplace name, add: what `claude plugin marketplace add` takes, plugin: the plugin id in it }; installs_code (true when the plugin ships a script or an MCP server: the generated note then says so plainly); installs (what it installs, one phrase, used when installs_code is true); why (one line: what it adds); adds (bullets); setup_fit (one line: the project facts that make it worth offering at setup; the setup step says 'It fits when ...' from it); detect (how Claude can tell it is installed); triggers (the only moments to mention it; a person asking, never a nag). connector/test/recommendations.test.mjs checks that every plugin named in the generated text is an entry here and that the install commands match .claude-plugin/marketplace.json. Never run an install: the commands are shown, the person runs them. `bundles` (AM-10128, owner decision 2026-11-18) names the plugins of the two one-line installs, in order; scripts/plugin-texts.mjs derives each line from these names and the marketplace in the entries, so no command is typed twice: full_install is for use OUTSIDE Claude (the website, the READMEs: the base and both add-ons), addons_install is for use INSIDE a Claude session where the base is already installed (both add-ons). A test checks that addons_install names exactly the kind addon entries.",
-  "checked": "2026-11-18",
+  "checked": "2026-11-20",
   "stack_tags": {
     "ui": "a front-end stack (React, Vue, Svelte, Next.js, a Vite config, .html, .css or .tsx files), or the track's plan names screens or pages",
     "dashboard": "the track or its plan is about a dashboard, charts or a data page",
     "firebase": "`firebase.json` or `.firebaserc`, or Firebase named in conductor/tech-stack.md",
-    "cloudflare": "`wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare named in conductor/tech-stack.md"
+    "cloudflare": "`wrangler.toml`, `wrangler.json` or `wrangler.jsonc`, or Cloudflare named in conductor/tech-stack.md",
+    "postgres": "a Postgres database: `pg`, `postgres`, `prisma` or `@prisma/client` in package.json, a `docker-compose` file with a postgres image, or Postgres named in conductor/tech-stack.md",
+    "gemini": "Gemini or Vertex AI: `@google/genai`, `@google/generative-ai` or `@google-cloud/vertexai` in package.json, or Gemini or Vertex AI named in conductor/tech-stack.md"
   },
   "bundles": {
     "full_install": [
@@ -115,6 +117,243 @@
         "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:board refresh`)"
       ],
       "verified": "2026-11-18: ours; the marketplace file of meller/laneconductor lists it (check-catalog --online)"
+    },
+    {
+      "name": "laneconductor-nodejs-frontend",
+      "kind": "skillpack",
+      "display": "LaneConductor Skills: Node.js Frontend",
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-nodejs-frontend"
+      },
+      "licence": "Elastic-2.0",
+      "installs_code": false,
+      "why": "Node.js front-end skills: an installable Vite PWA with Workbox, and browser speech that is actually audible",
+      "lanes": [
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "ui"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-nodejs-frontend@laneconductor"
+      ],
+      "skills": [
+        {
+          "name": "pwa-vite-workbox",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "browser-tts-unlock-voice-binding",
+          "lanes": [
+            "implement"
+          ]
+        }
+      ],
+      "detect": "one of its skills (`pwa-vite-workbox`) is in the session's skills list (it may show as `laneconductor-nodejs-frontend:pwa-vite-workbox`), or `claude plugin list` shows `laneconductor-nodejs-frontend@laneconductor`",
+      "verified": "2026-11-20: ours (meller/laneconductor, version 0.1.0); every skill is in skills/ and in the marketplace entry; Markdown and template files only, no hooks, scripts or servers; advice, never orders; always-on cost about 120 to 620 tokens per pack (measured 2026-11-19)"
+    },
+    {
+      "name": "laneconductor-firebase",
+      "kind": "skillpack",
+      "display": "LaneConductor Skills: Firebase",
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-firebase"
+      },
+      "licence": "Elastic-2.0",
+      "installs_code": false,
+      "why": "Firebase skills: a Hosting site and Functions codebase per product in one shared GCP project, cache busting after deploys, Google-only sign-in",
+      "lanes": [
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "firebase"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-firebase@laneconductor"
+      ],
+      "skills": [
+        {
+          "name": "shared-gcp-firebase-site",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "cache-buster",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "firebase-google-sign-in",
+          "lanes": [
+            "implement"
+          ]
+        }
+      ],
+      "detect": "one of its skills (`shared-gcp-firebase-site`) is in the session's skills list (it may show as `laneconductor-firebase:shared-gcp-firebase-site`), or `claude plugin list` shows `laneconductor-firebase@laneconductor`",
+      "verified": "2026-11-20: ours (meller/laneconductor, version 0.1.0); every skill is in skills/ and in the marketplace entry; Markdown and template files only, no hooks, scripts or servers; advice, never orders; always-on cost about 120 to 620 tokens per pack (measured 2026-11-19)"
+    },
+    {
+      "name": "laneconductor-node-postgres",
+      "kind": "skillpack",
+      "display": "LaneConductor Skills: Node.js and Postgres",
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-node-postgres"
+      },
+      "licence": "Elastic-2.0",
+      "installs_code": false,
+      "why": "Postgres skills for Node.js: local Postgres, Neon in production with the connection string in Secret Manager, Prisma in Cloud Functions, an isolated test database",
+      "lanes": [
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "postgres"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-node-postgres@laneconductor"
+      ],
+      "skills": [
+        {
+          "name": "postgres-local-neon-prod-secret-manager",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "prisma-in-cloud-functions",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "isolated-test-database",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "makefile-local-run",
+          "lanes": [
+            "implement"
+          ]
+        }
+      ],
+      "detect": "one of its skills (`postgres-local-neon-prod-secret-manager`) is in the session's skills list (it may show as `laneconductor-node-postgres:postgres-local-neon-prod-secret-manager`), or `claude plugin list` shows `laneconductor-node-postgres@laneconductor`",
+      "verified": "2026-11-20: ours (meller/laneconductor, version 0.1.0); every skill is in skills/ and in the marketplace entry; Markdown and template files only, no hooks, scripts or servers; advice, never orders; always-on cost about 120 to 620 tokens per pack (measured 2026-11-19)"
+    },
+    {
+      "name": "laneconductor-gemini",
+      "kind": "skillpack",
+      "display": "LaneConductor Skills: Gemini",
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-gemini"
+      },
+      "licence": "Elastic-2.0",
+      "installs_code": false,
+      "why": "Gemini skills for Node.js: every LLM call through TokenTalos, Gemini on Vertex AI with Application Default Credentials, image generation with retry",
+      "lanes": [
+        "implement"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [
+        "gemini"
+      ],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-gemini@laneconductor"
+      ],
+      "skills": [
+        {
+          "name": "llm-through-tokentalos",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "vertex-gemini-adc",
+          "lanes": [
+            "implement"
+          ]
+        },
+        {
+          "name": "vertex-imagen-retry-gcs-fallback",
+          "lanes": [
+            "implement"
+          ]
+        }
+      ],
+      "detect": "one of its skills (`llm-through-tokentalos`) is in the session's skills list (it may show as `laneconductor-gemini:llm-through-tokentalos`), or `claude plugin list` shows `laneconductor-gemini@laneconductor`",
+      "verified": "2026-11-20: ours (meller/laneconductor, version 0.1.1); every skill is in skills/ and in the marketplace entry; Markdown and template files only, no hooks, scripts or servers; advice, never orders; always-on cost about 120 to 620 tokens per pack (measured 2026-11-19)"
+    },
+    {
+      "name": "laneconductor-skill-from-code",
+      "kind": "skillpack",
+      "display": "LaneConductor Skills: Authoring",
+      "source": {
+        "marketplace": "laneconductor",
+        "add": "meller/laneconductor",
+        "plugin": "laneconductor-skill-from-code"
+      },
+      "licence": "Elastic-2.0",
+      "installs_code": false,
+      "why": "authoring skills: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as Claude plugins",
+      "lanes": [
+        "setup"
+      ],
+      "types": [
+        "dev"
+      ],
+      "stack": [],
+      "level": "helps",
+      "install": [
+        "claude plugin marketplace add meller/laneconductor",
+        "claude plugin install laneconductor-skill-from-code@laneconductor"
+      ],
+      "skills": [
+        {
+          "name": "plugin-from-skills",
+          "lanes": [
+            "setup"
+          ]
+        },
+        {
+          "name": "skill-from-code",
+          "lanes": [
+            "setup"
+          ]
+        }
+      ],
+      "detect": "one of its skills (`skill-from-code`) is in the session's skills list (it may show as `laneconductor-skill-from-code:skill-from-code`), or `claude plugin list` shows `laneconductor-skill-from-code@laneconductor`",
+      "verified": "2026-11-20: ours (meller/laneconductor, version 0.2.0); both skills are in skills/ and in the marketplace entry; Markdown and template files only, no hooks, scripts or servers"
     },
     {
       "name": "superpowers",

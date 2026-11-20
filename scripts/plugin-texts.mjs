@@ -194,6 +194,18 @@ export function entryLine(e, { lanes = null, full = false, brief = false } = {})
 const stackTagLines = (tags) => tags.map((t) => `- \`${t}\`: ${STACK_TAGS[t]}.`).join('\n');
 const tagsNote = (entries) => { const t = [...new Set(entries.flatMap((e) => e.stack))]; return t.length ? ` (stack tags: ${t.join(', ')})` : ''; };
 
+/** The stack skill packs of one lane share a source and a shape, so a lane guide lists them as one line (the full catalog in suggest-skills lists each). */
+export function candidateLines(entries, lane) {
+  const packs = entries.filter((e) => e.kind === 'skillpack' && e.stack.length);
+  if (packs.length < 2) return entries.map((e) => entryLine(e, { lanes: [lane] }));
+  const first = packs[0], out = [];
+  for (const e of entries) {
+    if (!packs.includes(e)) out.push(entryLine(e, { lanes: [lane] }));
+    else if (e === first) out.push(`- ${packs.map((x) => `\`${x.name}\` (stack ${x.stack.join('/')})`).join(', ')}: our stack skill packs, advice for one stack each. Markdown only. \`claude plugin marketplace add ${first.source.add}\`, \`claude plugin install <pack>@${first.source.marketplace}\``);
+  }
+  return out;
+}
+
 /** The block at the end of a lane guide: the short rule and one line per entry of that lane (generated, so it follows the catalog). */
 export function laneOfferBlock(lane) {
   const entries = entriesForLanes([lane]);
@@ -201,7 +213,7 @@ export function laneOfferBlock(lane) {
 
 Candidates for the \`${lane}\` lane${tagsNote(entries)}:
 
-${entries.map((e) => entryLine(e, { lanes: [lane] })).join('\n')}`;
+${candidateLines(entries, lane).join('\n')}`;
 }
 
 /** The offer for a new non-dev track (marketing, sales, support): at creation, at plan and at implement. */
@@ -220,7 +232,7 @@ export function skillsCatalogBlock() {
   const fb = FALLBACK;
   const fallback = `### If nothing in the catalog fits
 
-Say so in one line. Then you may name one generic finder, \`${fb.name}\` (\`${fb.source}\`, licence ${fb.licence}): ${fb.note}. Show its command alone in its own bash block, never run it, and say it is third-party:
+Say so in one line. If the problem is then solved by working code, you may offer once, in one line, the \`laneconductor-skill-from-code\` pack from the catalog above to turn it into a skill (its commands in their own blocks, as everywhere). Then you may name one generic finder, \`${fb.name}\` (\`${fb.source}\`, licence ${fb.licence}): ${fb.note}. Show its command alone in its own bash block, never run it, and say it is third-party:
 
 ${fb.install.map((c) => `\`\`\`bash\n${c}\n\`\`\``).join('\n\n')}`;
   return `### Stack tags
@@ -239,7 +251,9 @@ ${fallback}`;
 /** The tip table for `next`: per lane, which entries could be missing. No commands: the tip points at /laneconductor:suggest-skills. */
 export function skillTipsBlock() {
   const lanes = ['brainstorm', 'plan', 'implement', 'review', 'quality-gate', 'merge', 'deploy'];
-  return `Skills that fit each step's lane:\n\n${lanes.map((l) => `- ${l}: ${entriesForLanes([l]).map((e) => `\`${e.name}\``).join(', ')}`).join('\n')}`;
+  // The stack packs share a prefix, so a tip names them once (`laneconductor-*`); suggest-skills and the lane guides carry each name.
+  const names = (l) => { const es = entriesForLanes([l]), packs = es.filter((e) => e.kind === 'skillpack' && e.stack.length); return es.flatMap((e) => (!packs.includes(e) || packs.length < 2 ? [`\`${e.name}\``] : e === packs[0] ? ['`laneconductor-*` (stack packs)'] : [])); };
+  return `Skills that fit each step's lane:\n\n${lanes.map((l) => `- ${l}: ${names(l).join(', ')}`).join('\n')}`;
 }
 
 /**

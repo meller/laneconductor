@@ -18,7 +18,7 @@ const TMP = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-settings-
 after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 let n = 0;
 const BOARD = path.join(REPO, 'connector/bin/lc-board.mjs');
-const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'project.name', 'next.level', 'skills.declined'];
+const KEYS = ['connector.state_branch', 'connector.push', 'board.artifact_url', 'board.include_docs', 'board.include_conversation', 'board.auto_update', 'project.name', 'next.level', 'skills.declined'];
 const SETTINGS_SRC = path.join(REPO, '.claude/skills/laneconductor/ops/settings.md');
 
 function repo(settings, { branch = 'main' } = {}) {
@@ -32,7 +32,7 @@ function repo(settings, { branch = 'main' } = {}) {
   return dir;
 }
 
-test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the eight keys, says optional and personal, and names the .gitignore line', () => {
+test('TC-1 ops/settings.md is in the source skill and in the built base, lists exactly the nine keys, says optional and personal, and names the .gitignore line', () => {
   const built = buildPlugin(REPO, 'base');
   const f = (built.files ?? built).get('skills/laneconductor/ops/settings.md');
   assert.ok(f, 'the base ships ops/settings.md');
@@ -56,7 +56,9 @@ test('TC-2 parity: every key the code reads is listed in ops/settings.md, and ev
   assert.ok(read.size >= 4, `found ${[...read]}`);
   for (const k of read) assert.ok(listed.has(k), `the code reads ${k}, which ops/settings.md does not list`);
   const procedure = ['board.md', 'next.md'].map((f) => fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/ops', f), 'utf8')).join('\n');
-  for (const k of listed) assert.ok(read.has(k) || procedure.includes(k), `${k} is listed but read nowhere`);
+  // `board.auto_update` is read by the board add-on's end-of-turn hook, which is not part of the base.
+  const hook = fs.readFileSync(path.join(REPO, 'connector/plugin-extras-board/hooks/lc-board-hook.mjs'), 'utf8');
+  for (const k of listed) assert.ok(read.has(k) || procedure.includes(k) || hook.includes(k.split('.')[1]), `${k} is listed but read nowhere`);
 });
 
 test('TC-3 the scaffold file map and writeScaffold create no .laneconductor.json and add no line for it to .gitignore', () => {
@@ -118,7 +120,7 @@ test('TC-13 the board script prints board: (not lc board:) on stderr, and --chec
 test('TC-14 board (no argument) still reads board.artifact_url and handles the missing file or key', () => {
   const show = COMMANDS.find((c) => c.name === 'board');
   assert.match(show.procedure, /board\.artifact_url/);
-  assert.match(show.procedure, /If no board URL is stored, say so and ask me "Create a private board for this project\?"; create nothing without my yes/);
+  assert.match(show.procedure, /If no board URL is stored, there is no board yet and running this command means I want one: do not ask/);
   const board = fs.readFileSync(path.join(REPO, RELS.base, 'skills/laneconductor/ops/board.md'), 'utf8');
   assert.match(board, /may be missing or have no `board` key; then there is no stored URL/);
   assert.match(board, /listed in `\.gitignore`/);

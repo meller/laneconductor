@@ -48,7 +48,9 @@ test('the board command text: opens by default, refreshes with the argument, sug
   assert.match(t, /Open the existing board\. Read only: never regenerate or republish it\./);
   assert.match(t, /more than an hour old, say so and suggest refreshing it/);
   assert.match(t, /type the refresh as `\/laneconductor:board refresh`/);
-  assert.match(t, /ask me "Create a private board for this project\?"; create nothing without my yes/);
+  assert.match(t, /no board yet and running this command means I want one: do not ask/);
+  assert.doesNotMatch(t, /create nothing without my yes, and then follow/);
+  assert.match(t, /If the board add-on is not installed, say that it has to be installed first/);
   assert.match(t, /Only Claude can publish an artifact/);
   assert.match(t, /If the argument is anything else, ask me which one I mean/);
   // It works with or without the add-on: the script is found by Glob and the install commands are shown when it is missing.

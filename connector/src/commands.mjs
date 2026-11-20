@@ -44,13 +44,13 @@ const OPEN_BOARD = (
   'Open the existing board. Read only: never regenerate or republish it.\n\n'
   + '1. Find the stored board URL (`board.artifact_url` in the optional settings file `.laneconductor.json`, see the skill file `ops/settings.md`; step 2 of `ops/board.md`).\n'
   + '2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done. If it is more than an hour old, say so and suggest refreshing it (this command with the argument `refresh`; the page also has a Refresh board button that copies it).\n'
-  + '3. If no board URL is stored, say so and ask me "Create a private board for this project?"; create nothing without my yes, and then follow the refresh procedure below, which builds and publishes it (step 3b of `ops/board.md`).'
+  + '3. If no board URL is stored, there is no board yet and running this command means I want one: do not ask. Follow the refresh procedure below, which builds and publishes it (step 3b of `ops/board.md`), store the link and open it. If the board add-on is not installed, say that it has to be installed first and show the install commands, as below.'
 );
 const REFRESH_BOARD = (
   'Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.\n\n'
   + '1. Generate the page and data (step 1) with the board script, found as step 1 of `ops/board.md` says. If it does not exist, say so and stop; do not build the page by hand.\n'
-  + '2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, ask me "Create a private board for this project?" and create nothing without my yes (step 3b).\n'
-  + '3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name.'
+  + '2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, create the board now without asking (step 3b), store the URL and open it.\n'
+  + '3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name. For a board created now, also say what it holds: private, a snapshot, the documents of every track that is not done, and that `board.include_docs: false` turns the documents off.'
 );
 
 export const COMMANDS = [
