@@ -598,6 +598,8 @@ td .act { border-top: 0; padding-top: 0; }
   // Priority (board.json `pr`, written only for high and low; anything else, or absent, is normal). Lanes and the backlog list high first.
   function prioOf(t) { return t && (t.pr === 'high' || t.pr === 'low') ? t.pr : 'normal'; }
   var PRIO_RANK = { high: 0, normal: 1, low: 2 };
+  // Track AM-10152: a track that serves only KPIs that are not active (board.json `kf` is `f`) is badged; one that serves an active KPI, or none, is not.
+  function kpiTag(t) { if (!t || t.kf !== 'f') return null; var e = el('span', 'pritag low', 'future KPI'); e.setAttribute('title', 'Serves only a KPI that is not active (see the KPIs tab of the Project drawer)'); return e; }
   function prioTag(t) { var k = prioOf(t); if (k === 'normal') return null; var e = el('span', 'pritag ' + k, k); e.setAttribute('title', 'Priority: ' + k); return e; }
   // ---- Owner steps (track AM-10147). board.json `oa` (the Owner Action text), `od` (its due date as written; absent: none), `rs` (Result), `kc` (KPI Check After, only
   // while the track waits). The dates are UTC calendar days and are judged HERE, when the page opens, with the same strict rule as src/owner-steps.mjs, so an old
@@ -860,7 +862,7 @@ td .act { border-top: 0; padding-top: 0; }
     if (state.type !== 'all' && typeOf(t) !== state.type) return false;
     if (!state.q) return true;
     var q = state.q.toLowerCase();
-    return String(t.n).indexOf(q) >= 0 || (t.t || '').toLowerCase().indexOf(q) >= 0 || idOf(t).toLowerCase().indexOf(q) >= 0;
+    return String(t.n).indexOf(q) >= 0 || (t.t || '').toLowerCase().indexOf(q) >= 0 || idOf(t).toLowerCase().indexOf(q) >= 0 || (typeof t.kp === 'string' && t.kp.toLowerCase().indexOf(q) >= 0);
   }
   function ago(iso) {
     var m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -1185,9 +1187,14 @@ td .act { border-top: 0; padding-top: 0; }
         var hasKpis = PD.some(function (x) { return x.k === 'kpis'; });
         host.appendChild(el('span', null, 'KPI:')); any = true;
         if (hasKpis) {
-          var kb = el('button', 'lnk kpi', t.kp || 'see the KPI list'); kb.type = 'button'; kb.setAttribute('aria-label', 'Open the KPI list' + (t.kp ? ' (this track serves ' + t.kp + ')' : ''));
+          // Each KPI the track serves, with how many tracks on this board serve it (the per-KPI count).
+          var names = String(t.kp || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+          var count = function (n) { return live.filter(function (o) { return typeof o.kp === 'string' && o.kp.split(',').some(function (x) { return x.trim().toLowerCase() === n.toLowerCase(); }); }).length; };
+          var label = names.length ? names.map(function (n) { return n + ' (' + count(n) + ')'; }).join(', ') : 'see the KPI list';
+          var kb = el('button', 'lnk kpi', label); kb.type = 'button'; kb.setAttribute('aria-label', 'Open the KPI list' + (t.kp ? ' (this track serves ' + t.kp + '; the number is how many tracks serve each)' : ''));
           kb.addEventListener('click', function () { openProject('kpis'); });
           host.appendChild(kb); linkBtns.push(kb);
+          if (t.kf === 'f') host.appendChild(kpiTag(t));
         } else host.appendChild(el('span', null, t.kp || 'set (the KPI list is not on this board)'));
       }
     }
@@ -1448,7 +1455,7 @@ td .act { border-top: 0; padding-top: 0; }
 
   function card(t) {
     var c = el('div', 'card' + (t.a ? ' flag' : ''));
-    var top = el('div', 'top'), tags = [typeTag(t), prioTag(t)].filter(Boolean);
+    var top = el('div', 'top'), tags = [typeTag(t), prioTag(t), kpiTag(t)].filter(Boolean);
     if (tags.length) { var idg = el('span', 'idg'); idg.appendChild(el('span', 'id', idOf(t))); tags.forEach(function (g) { idg.appendChild(g); }); top.appendChild(idg); } else top.appendChild(el('span', 'id', idOf(t)));
     top.appendChild(pill(t.s)); c.appendChild(top);
     c.appendChild(el('div', 'title', t.t));
@@ -1476,7 +1483,7 @@ td .act { border-top: 0; padding-top: 0; }
   function attnMatch(a) {
     if (state.status !== 'all' && statusByKey[idOf(a)] !== state.status) return false;
     if (state.type !== 'all' && typeOf(byKey[idOf(a)]) !== state.type) return false;
-    return !state.q || String(a.n).indexOf(state.q) >= 0 || (a.t || '').toLowerCase().indexOf(state.q.toLowerCase()) >= 0;
+    return !state.q || String(a.n).indexOf(state.q) >= 0 || (a.t || '').toLowerCase().indexOf(state.q.toLowerCase()) >= 0 || (typeof (byKey[idOf(a)] || {}).kp === 'string' && byKey[idOf(a)].kp.toLowerCase().indexOf(state.q.toLowerCase()) >= 0);
   }
   function drawAttn() {
     var all = ATTN; var causes = {};

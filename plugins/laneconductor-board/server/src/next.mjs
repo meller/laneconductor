@@ -8,6 +8,7 @@
 //   nextCard(result, facts) pure: the card the board shows (headline, command, what, why, the others, the primer)
 //
 // Read only by construction: it claims no track, writes no marker, creates no file and pushes nothing.
+import { kpiFocus, parseKpis } from './kpis.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LocalGitStore } from './store-local.mjs';
@@ -110,6 +111,8 @@ export async function gatherFacts(repo, { now = Date.now(), store } = {}) {
   if (!facts.hasConductor) return facts;
   const inside = await st.listDir('conductor');
   facts.hasTracksDir = inside.some((e) => e.name === 'tracks' && e.type === 'dir');
+  // Track AM-10152: the KPIs and their focus, so a track that serves an active KPI is preferred (never a rank among KPIs).
+  facts.kpis = parseKpis((await st.readFiles(['conductor/kpis.md'])).get('conductor/kpis.md')?.content);
   const wfFile = (await st.readFiles(['conductor/workflow.json'])).get('conductor/workflow.json');
   facts.hasWorkflow = wfFile !== null;
   try { facts.workflow = JSON.parse(wfFile?.content ?? ''); } catch { facts.workflow = null; }
@@ -270,7 +273,9 @@ export function classifyFacts(facts, { installed = [], arg } = {}) {
 
   const group = (s) => (s === 'S22' ? 0 : s === 'S05' ? 1 : s === 'S06' || s === 'S07' ? 2 : s === 'S09' || s === 'S23' ? 3 : 4);
   // The owner actions come in the order of their due day (an overdue one is simply the oldest; a missing or malformed day is last); the rest of the key is the same.
-  const key = ({ c, state }) => [group(state), ...(state === 'S22' ? [dueDays(c.t.row.owner_action_due)] : []), PRIORITY[lower(c.t.row.priority ?? 'normal')] ?? 1, LANE_ORDER[c.guide] ?? 9, c.n];
+  const key = ({ c, state }) => [group(state), ...(state === 'S22' ? [dueDays(c.t.row.owner_action_due)] : []), kpiRank(c.t.row), PRIORITY[lower(c.t.row.priority ?? 'normal')] ?? 1, LANE_ORDER[c.guide] ?? 9, c.n];
+  // Active-KPI tracks first; a track with no KPI, or one that cannot be judged, keeps its place; a track serving only non-active KPIs comes after them.
+  const kpiRank = (row) => { const f = kpiFocus(row.serves, facts.kpis); return f === 'active' ? 0 : f === 'future' ? 2 : 1; };
   const cmpKeys = (a, b) => { for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
   const cmdOf = ({ c, state }) => commandFor(state, c.n, { lane: c.lane, guide: c.guide });
   const sorted = candidates.filter((x) => x.state !== 'S08').sort((a, b) => cmpKeys(key(a), key(b)));

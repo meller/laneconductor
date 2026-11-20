@@ -6,6 +6,7 @@
 // not read, spec.md only to ask whether it has a `## KPI` heading (the caller attaches it as `spec`, see bin/lc-board.mjs, for `outcome_missing`; its text is
 // never copied), and the Problem/Summary text is not copied. Pure (no store, no clock): the caller passes the stamp. Overdue and ready-to-measure are NOT
 // computed here: they depend on today's date, so the page works them out when it is opened (src/owner-steps.mjs holds the rules the page repeats).
+import { kpiFocus, servesList } from './kpis.mjs';
 import { parseMarkers } from './markers.mjs';
 import { epicsOf } from './epics.mjs';
 import { staleRunning } from './claims.mjs';
@@ -50,9 +51,10 @@ const yesNo = (v) => {
 // The tracks a track waits for, as numbers, each once and never itself (`Depends On` first, then `Waiting On Tracks`); at most 12.
 const blockedBy = (r) => [...new Set([...(r.depends_on ?? []), ...(r.waiting_on ?? [])].map(Number).filter((n) => Number.isInteger(n) && n !== r.number))].slice(0, 12);
 // The KPI a track serves: the `**Serves**` marker, else '' when it has `KPI Check After`, else null (no KPI marker).
-const servesOf = (v, r) => (one(v['Serves'] ?? null, 60) ? one(v['Serves'], 60) : r.kpi_check_after !== undefined ? '' : null);
+// Track AM-10152: `**Serves**` is a list; it shows joined (100 characters at most), or '' with only a `KPI Check After`, else null.
+const servesOf = (v, r) => { const l = servesList(v['Serves']); return l.length ? l.join(', ').slice(0, 100) : r.kpi_check_after !== undefined ? '' : null; };
 
-function trackOf(e, archived) {
+function trackOf(e, archived, kpis = null) {
   // Archived folders are named `_duplicate-<number>-<slug>`; drop the prefix so the usual parsing applies.
   const name = archived ? e.folder.replace(ARCHIVE_RE, '') : e.folder;
   const r = rowOf(name, e.index);
@@ -85,6 +87,8 @@ function trackOf(e, archived) {
       // (60 characters at most), or '' when the track only has a `KPI Check After` (it has a KPI, the name is in its spec). Absent when there is neither.
       ...(blockedBy(r).length ? { blocked_by: blockedBy(r) } : {}),
       ...(servesOf(v, r) !== null ? { kpi: servesOf(v, r) } : {}),
+      // `kpi_focus`: active or future, judged against conductor/kpis.md (absent when the track names no KPI, or none that is listed).
+      ...(kpis?.length && kpiFocus(servesList(v['Serves']), kpis) !== 'unmapped' ? { kpi_focus: kpiFocus(servesList(v['Serves']), kpis) } : {}),
       ...(archived ? { archived: true } : {}),
     },
   };
@@ -94,7 +98,7 @@ function trackOf(e, archived) {
  * @param {{ folder: string, index: { content: string, sha?: string } | null }[]} entries
  * @param {{ lanes?: string[], generatedAt: string, project?: string, workflow?: object | null }} opts workflow: the parsed conductor/workflow.json, used only to say which lane a finished lane leads to (card actions)
  */
-export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, project = null, workflow = null } = {}) {
+export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, project = null, workflow = null, kpis = null } = {}) {
   const laneList = [...new Set(['backlog', ...(lanes?.length ? lanes : DEFAULT_LANES)])];
   const active = [];
   const archived = [];
@@ -104,8 +108,8 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     if (trackNumberOfFolder(isArch ? e.folder.replace(ARCHIVE_RE, '') : e.folder) === null) continue; // not a track folder
     (isArch ? archived : active).push(e);
   }
-  const act = active.map((e) => trackOf(e, false));
-  const arc = archived.map((e) => trackOf(e, true));
+  const act = active.map((e) => trackOf(e, false, kpis));
+  const arc = archived.map((e) => trackOf(e, true, kpis));
 
   // Lint only the live folders: archived copies share their track's number and would read as clashes.
   const lint = lintTracks(active, act.map((a) => a.row), laneList);
@@ -219,6 +223,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *              the page checks it is a real YYYY-MM-DD and works out overdue when it opens, in UTC), rs the Result one-liner, kc KPI Check After as written (only while the track waits:
  *              the page says "ready to measure" once that day is today or earlier). An old board.json without them renders as before,
  *           bb (only when the track waits for tracks) the numbers of Depends On and Waiting On Tracks; the page turns each into a link that opens that track,
+ *           kf (only when kp names a KPI listed in kpis.md) `a` when it serves an active KPI, `f` when every KPI it serves is not active (the page badges it),
  *           kp (only when the track has a KPI marker) the `**Serves**` text, or '' when only a `KPI Check After` is set; the page turns it into a link to the KPIs tab of the Project drawer,
  *           x (only when there is a next step) the next step: c the exact command (or null when nothing is to be run), w one short reason,
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
@@ -253,6 +258,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
       ...(t.kpi_check_after !== undefined ? { kc: t.kpi_check_after } : {}),
       ...(t.blocked_by ? { bb: t.blocked_by } : {}),
       ...(t.kpi !== undefined ? { kp: t.kpi } : {}),
+      ...(t.kpi_focus ? { kf: t.kpi_focus === 'future' ? 'f' : 'a' } : {}),
       ...(t.action ? { x: t.action } : {}),
       ...(t.lane === 'done' && githubFolderUrl ? { gh: githubFolderUrl(t.folder) } : {}),
     })),

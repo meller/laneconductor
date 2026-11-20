@@ -2,6 +2,7 @@
 // files to conductor/tracks-summary.md. Pure (no store, no clock): the caller passes the entries and
 // the stamp. Rows depend only on committed content, so any machine can regenerate and compare.
 import { blobSha } from './blob.mjs';
+import { servesList } from './kpis.mjs';
 import { parseMarkers, validateIndex } from './markers.mjs';
 import { OUTCOME_MISSING, dateMalformedTexts, isOutcomeMissing } from './owner-steps.mjs';
 import { PLAN_LOG_PROBLEM, planLogFindings } from './plan-log.mjs';
@@ -51,6 +52,8 @@ export function rowOf(folder, idx) {
     ...('Owner Action Due' in v ? { owner_action_due: v['Owner Action Due'] } : {}),
     ...(clip200(v['Result']) ? { result: clip200(v['Result']) } : {}),
     ...('KPI Check After' in v ? { kpi_check_after: v['KPI Check After'] } : {}),
+    // Track AM-10152: the KPIs this track serves (ids or metric names), present only when named.
+    ...(servesList(v['Serves']).length ? { serves: servesList(v['Serves']) } : {}),
   };
 }
 

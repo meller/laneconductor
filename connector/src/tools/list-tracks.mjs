@@ -14,6 +14,7 @@ const input = z.object({
   lane: z.string().optional().describe('Only tracks in this lane, e.g. plan, implement.'),
   lane_status: z.string().optional().describe('Only tracks with this lane status: queue, running, success, failure, waiting.'),
   query: z.string().optional().describe('Case-insensitive text to find in the title, id or summary.'),
+  serves: z.string().optional().describe('Only tracks whose Serves marker names this KPI (an id such as KPI-2, or the metric name), any case.'),
   include_done: z.boolean().optional().describe('Also list done:success tracks.'),
   limit: z.number().int().min(1).max(200).optional().describe('Maximum tracks returned (default 50, max 200).'),
 });
@@ -78,12 +79,14 @@ export const listTracks = {
     const nowMs = new Date(ctx.now()).getTime();
     const present = (list) => list.map(({ source, waiting_on, waiting_reason, kpi_check_after, ...r }) => ({ ...r, ...ownerFlags({ ...r, kpi_check_after }, nowMs), ...(deps.get(r.number) ?? {}), ...(epics.has(r.number) ? { children_line: epics.get(r.number).line, children: epics.get(r.number).children, ...(epics.get(r.number).more ? { children_more: epics.get(r.number).more } : {}) } : {}) }));
     const q = args.query?.toLowerCase();
+    const sv = args.serves?.trim().toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))
       .filter((r) => (args.lane_status ? r.lane_status === args.lane_status : true))
       // Track AM-10135: only shipped work is quiet. done:queue is gated but not merged, done:failure a failed merge, done:waiting a PR open.
       .filter((r) => (args.include_done || args.lane === 'done' ? true : !(r.lane === 'done' && r.lane_status === 'success')))
       .filter((r) => (q ? `${r.title} ${r.id} ${r.summary}`.toLowerCase().includes(q) : true))
+      .filter((r) => (sv ? (r.serves ?? []).some((x) => x.toLowerCase() === sv) : true))
       .sort((a, b) => b.number - a.number);
     let shown = matches.slice(0, limit);
     let truncated = matches.length > shown.length;
@@ -107,7 +110,7 @@ export const listTracks = {
         if (merged && r.lane_status === 'queue') warnings.push(`${r.id} is done:queue but its branch track-${r.number} is already merged: set it to done:success.`);
       }
     }
-    const filtered = Boolean(args.lane || args.lane_status || args.query);
+    const filtered = Boolean(args.lane || args.lane_status || args.query || args.serves);
     return {
       data: {
         // `blocked_by` (dependency numbers not yet done:success) and `ready_to_resume` appear only on tracks that have dependencies.

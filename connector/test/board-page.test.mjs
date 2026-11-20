@@ -1613,3 +1613,33 @@ test('a running card is the first card of its lane, above success cards and abov
   const order = all(ids.lanes, (x) => cls('card')(x) && x.attrs['aria-label']?.startsWith('AM-4')).map((c) => Number(/^AM-(\d+):/.exec(c.attrs['aria-label'])[1]));
   assert.deepEqual(order, [404, 403, 402, 405, 401], 'running first (even at low priority), then high priority, then success, then newest first');
 });
+
+// ---- Track AM-10152: KPI focus on the board
+import { parseKpis } from '../src/kpis.mjs';
+const KPIS = parseKpis('| ID | Metric | Focus |\n|----|--------|-------|\n| KPI-1 | Stars | active |\n| KPI-2 | Installs | future |\n');
+function kpiData(rows) {
+  const entries = rows.map(([n, extra]) => ({ folder: `AM-${n}-t${n}`, index: { content: INDEX(n, `Title ${n}`, { lane: 'implement', status: 'queue', extra }) } }));
+  return boardPageData(buildBoard(entries, { lanes: ACT_LANES, generatedAt: NOW, project: 'K', workflow: ACT_WF, kpis: KPIS }), { lanes: ACT_LANES });
+}
+test('board.json: kf is a for a track that serves an active KPI, f when every KPI it serves is not active; absent for no Serves or one that is not listed; no kpis.md: absent', () => {
+  const d = kpiData([[501, '**Serves**: KPI-1\n'], [502, '**Serves**: KPI-2\n'], [503, '**Serves**: KPI-2, KPI-1\n'], [504, ''], [505, '**Serves**: KPI-9\n']]);
+  const t = (n) => d.tracks.find((x) => x.n === n);
+  assert.equal(t(501).kf, 'a'); assert.equal(t(502).kf, 'f'); assert.equal(t(503).kf, 'a', 'one active KPI among several');
+  assert.ok(!('kf' in t(504)) && !('kf' in t(505)));
+  assert.equal(t(503).kp, 'KPI-2, KPI-1');
+  const none = boardPageData(buildBoard([{ folder: 'AM-1-t1', index: { content: INDEX(1, 'T', { extra: '**Serves**: KPI-2\n' }) } }], { lanes: ACT_LANES, generatedAt: NOW, project: 'K', workflow: ACT_WF }), { lanes: ACT_LANES });
+  assert.ok(!('kf' in none.tracks[0]));
+});
+
+test('page: a track serving only a future KPI carries the future KPI badge on its card and in the drawer; searching a KPI id finds the tracks that serve it; the KPI button counts the tracks', async () => {
+  const d = kpiData([[501, '**Serves**: KPI-1\n'], [502, '**Serves**: KPI-2\n'], [503, '**Serves**: KPI-1\n']]);
+  d.project_docs = [{ k: 'kpis', t: 'KPIs', f: 'ctx/kpis.json' }];
+  const ids = await runPage(serve(d));
+  assert.equal(all(cardN(ids, 502), cls('pritag')).filter((x) => x._text === 'future KPI').length, 1);
+  assert.equal(all(cardN(ids, 501), cls('pritag')).filter((x) => x._text === 'future KPI').length, 0, 'an active KPI is not badged');
+  cardN(ids, 502).handlers.click(); await flush();
+  assert.ok(ids['d-lnks'].textContent.includes('KPI-2 (1)') && ids['d-lnks'].textContent.includes('future KPI'));
+  ids['d-close'].onclick(); await flush();
+  cardN(ids, 501).handlers.click(); await flush();
+  assert.ok(ids['d-lnks'].textContent.includes('KPI-1 (2)'), 'two tracks serve KPI-1');
+});

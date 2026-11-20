@@ -34,6 +34,7 @@ import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUr
 import { scanText } from '../src/scan.mjs';
 import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
+import { parseKpis } from '../src/kpis.mjs';
 import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
@@ -65,7 +66,8 @@ const entries = await Promise.all(dirs.map(async (d) => {
   return { folder: d.name, index: content === null ? null : { content, sha: blobSha(content) }, ...(spec === null ? {} : { spec: { content: spec, sha: blobSha(spec) } }) };
 }));
 
-const board = buildBoard(entries, { lanes: lanes.length ? lanes : DEFAULT_LANES, generatedAt: now, project, workflow: wf });
+const kpis = parseKpis(await readText(path.join(repo, 'conductor/kpis.md')));
+const board = buildBoard(entries, { lanes: lanes.length ? lanes : DEFAULT_LANES, generatedAt: now, project, workflow: wf, kpis });
 
 const checkFile = opt('--check');
 const siteDir = opt('--site');
