@@ -430,3 +430,20 @@ test('page: the panel CSS uses theme variables only, wraps at phone width and ke
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\balert\(|\bconfirm\(|\bprompt\(/.test(html));
   assert.ok(!/\blegacy\b/i.test(html.slice(html.indexOf('// ---- What\'s next'), html.indexOf("$('proj-btn').hidden"))), 'the word legacy is not used in the panel');
 });
+
+// ---- Track AM-10152: a track serving an active KPI comes first, then one naming none, then one serving only non-active KPIs; no KPI file: the old order.
+const KPI_FILE = '| ID | Metric | Focus |\n|----|--------|-------|\n| KPI-1 | Stars | active |\n| KPI-2 | Installs | future |\n';
+const kpiTracks = [
+  { n: 10001, lane: 'plan', status: 'queue', extra: { Serves: 'KPI-2' } },
+  { n: 10002, lane: 'plan', status: 'queue' },
+  { n: 10003, lane: 'plan', status: 'queue', extra: { Serves: 'KPI-2, KPI-1' } },
+  { n: 10004, lane: 'plan', status: 'queue', extra: { Serves: 'KPI-9' } },
+];
+test('next ranking: an active-KPI track first, then tracks naming no KPI (or none listed), then tracks serving only non-active KPIs; without kpis.md the order is the old one', () => {
+  const withKpis = site(fixture({ tracks: kpiTracks, files: { 'conductor/kpis.md': KPI_FILE } })).board.next;
+  assert.equal(withKpis.n, 10003, 'serves an active KPI among others');
+  assert.deepEqual(withKpis.others.map((o) => o.n), [10002, 10004, 10001], 'no KPI and unlisted KPI keep their order; the future-only one is last');
+  const without = site(fixture({ tracks: kpiTracks })).board.next;
+  assert.equal(without.n, 10001, 'no kpis.md: lowest number first, as before');
+  assert.deepEqual(without.others.map((o) => o.n), [10002, 10003, 10004]);
+});

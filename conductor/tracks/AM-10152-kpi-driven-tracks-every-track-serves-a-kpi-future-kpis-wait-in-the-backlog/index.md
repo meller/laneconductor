@@ -1,9 +1,9 @@
 # Track AM-10152: KPI-driven tracks: every track serves a KPI, tracks for future KPIs wait in the backlog
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 20%
-**Phase**: Phase 3 building (2026-11-20): the Serves marker and kpis.md statuses, plan-lane warning and gate note, next, setup proposals, the connector filter and the board view, as the next base version.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 90%
+**Phase**: Built and released 2026-11-20 as base 1.9.13 and board 1.10.7: the Serves list, Focus in kpis.md, the plan-lane step and promotion offer, the gate note, next ranking (command and board panel), the future-KPI badge, search and per-KPI count, the list_tracks serves filter. 910 tests. Not yet tried end to end in a real project (TC-4 setup proposals, TC-7 promotion): run /laneconductor:plan on a track in MakroDash with a kpis.md that has Focus columns.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low
