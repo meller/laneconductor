@@ -2,7 +2,7 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 0%
+**Progress**: 30%
 **Phase**: Rescoped 2026-11-20 by the owner: no zip, no release, no Action, no Download button; the install route is the constant marketplace one-liner. What is left: the claim-by-claim read of the README, wiki and landing page (known wrong: the base README says hooks are not available), the README's "Other ways to get it" section for the next base version, and the plugin README source question.
 **Track Kind**: feature
 **Type**: dev

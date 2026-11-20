@@ -6,7 +6,7 @@
 
 ## Phase 2: Fix it
 - [ ] Task 3: Fix the wrong claims on the landing page and the wiki (no base file); check `git diff` of `landing/` first (REQ-4)
-- [ ] Task 4: Prepare the README changes (the hooks sentence, the "Other ways to get it" section) and keep them for the next base version, with the other pending base text (REQ-1, REQ-2); do not release a base version for them alone
+- [x] Task 4: The README changes (the hooks sentence, the "Other ways to get it" section removed): done 2026-11-20 on the root README; no base version needed (REQ-1, REQ-2)
 - [ ] Task 5: Run the full tests and push
 
 ## Phase 3: Deploy
