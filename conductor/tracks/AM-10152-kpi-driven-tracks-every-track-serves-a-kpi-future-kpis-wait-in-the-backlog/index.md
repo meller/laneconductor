@@ -1,9 +1,9 @@
 # Track AM-10152: KPI-driven tracks: every track serves a KPI, tracks for future KPIs wait in the backlog
 
 **Lane**: implement
-**Lane Status**: queue
-**Progress**: 15%
-**Phase**: Phase 1 done (2026-11-20): the four questions are decided (several KPIs per track; no dependencies between KPIs; the measured value by hand in kpis.md; the plan lane warns and the gate only notes). Ready for Phase 3, the build, as the next base version after 1.9.12.
+**Lane Status**: running
+**Progress**: 20%
+**Phase**: Phase 3 building (2026-11-20): the Serves marker and kpis.md statuses, plan-lane warning and gate note, next, setup proposals, the connector filter and the board view, as the next base version.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: low
