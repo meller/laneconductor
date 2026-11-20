@@ -2,6 +2,8 @@
 // LaneConductor Board hooks (track AM-10115 Phase 0, H2 and H3). One script, two events:
 //   post  (PostToolUse on the connector's create_track / update_track and on Edit / Write): when a track's files changed, record a
 //         "board is stale" marker. Silent otherwise.
+//         A lane that STARTS (a track set to running in plan, implement, review or quality-gate, once per claim) also asks Claude to refresh right then,
+//         quietly, so the board shows it running; plan and review run inline, so without this the first Stop comes after they finished. Never from a sub-agent.
 //   seen  (run by the refresh command after it published): record the tracks' current state as the one the board shows, and clear the marker, so the
 //         next Stop does not ask for a refresh that was just made. No stdin needed.
 //   stop  (Stop): ON BY DEFAULT (owner, 2026-11-19). When the marker is set and `board.artifact_url` is stored in the project's
@@ -23,6 +25,8 @@ const CONNECTOR_TOOL = /^mcp__.+__(create_track|update_track)$/;
 const TRACK_DOCS = new Set(['index.md', 'plan.md', 'spec.md', 'test.md']); // what the board shows (conversation.md only with board.include_conversation)
 const KEEP_MS = 14 * 24 * 3600 * 1000;
 const REFRESH = '/laneconductor-board:refresh';
+// Lanes whose start is worth an immediate refresh; the standard names and the older ones a project may still use.
+const CLAIM_LANES = { plan: 'plan', planning: 'plan', implement: 'implement', 'in-progress': 'implement', review: 'review', 'quality-gate': 'quality-gate', qualitygate: 'quality-gate' };
 
 const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -118,6 +122,45 @@ function changedRoot(input) {
   return null;
 }
 
+const marker = (text, name) => (text.match(new RegExp(`^\\*\\*${name}\\*\\*:[ \\t]*(.+?)[ \\t]*$`, 'mi')) ?? [])[1]?.toLowerCase();
+const claimsPath = (root) => path.join(stateDir(), `claims-${keyOf(root)}.json`);
+
+/** The lane:status a track just got, as { id, state }, for an Edit or Write of its index.md or a connector update_track that sets both markers; else null. */
+function stateOf(input, root) {
+  const tool = str(input.tool_name) ?? '';
+  if (CONNECTOR_TOOL.test(tool) && tool.endsWith('update_track')) {
+    const a = input.tool_input ?? {}, m = a.markers && typeof a.markers === 'object' ? a.markers : {};
+    const lane = typeof m['Lane'] === 'string' ? m['Lane'].trim().toLowerCase() : null, status = typeof m['Lane Status'] === 'string' ? m['Lane Status'].trim().toLowerCase() : null;
+    return lane && status && a.track !== undefined ? { id: `n:${String(a.track).replace(/^[A-Za-z]+-/, '')}`, state: `${lane}:${status}` } : null;
+  }
+  if (tool !== 'Edit' && tool !== 'Write') return null;
+  const abs = editedFile(input, root);
+  const m = abs ? path.relative(root, abs).split(path.sep).join('/').match(/^conductor\/tracks\/([^/]+)\/index\.md$/) : null;
+  if (!m || m[1].startsWith('_')) return null;
+  let text = ''; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
+  const lane = marker(text, 'Lane'), status = marker(text, 'Lane Status');
+  return lane && status ? { id: `f:${m[1].replace(/^[A-Za-z]+-/, '').match(/^\d+/)?.[0] ?? m[1]}`, state: `${lane}:${status}` } : null;
+}
+
+/** True once per claim: this call made a track `running` in a lane that is worth an immediate refresh, and it was not already so. Records every state it sees. */
+function claimStarted(input, root) {
+  const cur = stateOf(input, root);
+  if (!cur) return false;
+  let claims = readJson(claimsPath(root)); if (!claims || typeof claims !== 'object') claims = {};
+  const prev = claims[cur.id]; claims[cur.id] = cur.state;
+  const keep = Object.entries(claims).slice(-200); // a bounded memory
+  try { fs.mkdirSync(stateDir(), { recursive: true }); fs.writeFileSync(claimsPath(root), `${JSON.stringify(Object.fromEntries(keep))}\n`); } catch { /* housekeeping only */ }
+  const [lane, status] = cur.state.split(':');
+  return status === 'running' && Boolean(CLAIM_LANES[lane]) && prev !== cur.state;
+}
+
+/** A stored board with auto-update on (the default): the settings under which the hook speaks at all. */
+function wantsRefresh(root) {
+  const board = readJson(path.join(root, '.laneconductor.json'))?.board;
+  if (!board || typeof board !== 'object') return false;
+  return Boolean(str(board.artifact_url)) && !(board.auto_update === false || board.auto_update === 'false');
+}
+
 function post(input) {
   const root = changedRoot(input);
   if (!root) return;
@@ -125,6 +168,10 @@ function post(input) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(markerPath(root), `${JSON.stringify({ at: new Date().toISOString() })}\n`);
   prune(dir);
+  // A sub-agent cannot publish an artifact, so it is never asked; the main session's own end-of-turn check covers it.
+  if (str(input.agent_id) === null && claimStarted(input, root) && wantsRefresh(root)) {
+    process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `A lane has just started on a track. Run \`${REFRESH}\` once now, quietly: say nothing about it unless it fails, then carry on with the lane exactly where you were.` })}\n`);
+  }
 }
 
 function writeSeen(root, fp) {
@@ -154,7 +201,7 @@ function stop(input) {
     if (input.stop_hook_active === true) return; // already continuing because of a stop hook: never loop (the marker stays for the next turn)
     clearMarkers(root);
     if (fp) writeSeen(root, fp);
-    process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now (it publishes only the changed files), then stop. Nothing else is needed.` })}\n`);
+    process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `The project board is out of date because a track changed. Run \`${REFRESH}\` now, quietly (it publishes only the changed files; say nothing about it unless it fails), then stop. Nothing else is needed.` })}\n`);
     return;
   }
 }

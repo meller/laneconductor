@@ -234,7 +234,7 @@ test('the hook script: no network, no write inside a project, and the only child
   assert.ok(src.includes("execFileSync('git', ['-C', root, ...args]"), 'that program is git');
   const verbs = [...src.matchAll(/\bgit\(root, \['([a-z-]+)'/g)].map((m) => m[1]);
   assert.ok(verbs.length >= 2 && verbs.every((v) => ['rev-parse', 'status'].includes(v)), `only read-only git verbs: ${verbs}`);
-  assert.ok(src.length < 10000);
+  assert.ok(src.length < 16000);
   const name = JSON.parse(fs.readFileSync(path.join(BOARD, '.claude-plugin/plugin.json'), 'utf8')).name;
   const command = /const REFRESH = '\/([a-z-]+):([a-z-]+)'/.exec(src);
   assert.deepEqual([command[1], command[2]], [name, 'refresh']);
@@ -381,5 +381,58 @@ test('H5 `seen` in a project that is not a git repository, or with no tracks fol
 test('H5 the refresh command ends with the `seen` step, after a successful publish', () => {
   const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
   assert.match(text, /8\. After a successful publish, from the project root: `node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/lc-board-hook\.mjs" seen`/);
+  assert.ok(text.indexOf('7. Report the link') < text.indexOf('8. After a successful publish'));
+});
+
+// ---- H6: a lane that starts asks for one quiet refresh right then; the end-of-turn refresh is quiet too.
+const claimIndex = (lane, status) => `# Track AM-7: Seven\n\n**Lane**: ${lane}\n**Lane Status**: ${status}\n**Progress**: 0%\n`;
+const IDX = 'conductor/tracks/AM-7-seven/index.md';
+/** An Edit of a track's index.md: the file on disk already holds the result, as it does when PostToolUse runs. */
+function editIndex(proj, data, lane, status, more = {}) {
+  write(proj, IDX, claimIndex(lane, status));
+  return post(proj, 'Edit', { file_path: path.join(proj, IDX), old_string: 'x', new_string: 'y' }, data, more);
+}
+const asksNow = (r) => { assert.equal(r.status, 0, r.stderr); const o = JSON.parse(r.stdout); assert.equal(o.decision, 'block'); return o.reason; };
+
+test('H6 setting a track to running in plan, implement, review or quality-gate asks for one quiet refresh at once, once per claim; the marker is still set', () => {
+  for (const lane of ['plan', 'implement', 'review', 'quality-gate']) {
+    const proj = project(auto()); const data = tmp('lc-hook-data-');
+    const reason = asksNow(editIndex(proj, data, lane, 'running'));
+    assert.match(reason, /Run `\/laneconductor-board:refresh` once now, quietly/, lane);
+    assert.match(reason, /say nothing about it unless it fails/, lane);
+    assert.match(reason, /carry on with the lane exactly where you were/, lane);
+    assert.equal(markers(data).length, 1, `${lane}: the end-of-turn marker is set as before`);
+    silent(editIndex(proj, data, lane, 'running'), `${lane}: the same claim again (a progress edit) asks nothing`);
+    silent(editIndex(proj, data, lane, 'success'), `${lane}: finishing asks nothing`);
+    assert.match(asksNow(editIndex(proj, data, lane, 'running')), /quietly/, `${lane}: a new run of the lane asks again`);
+  }
+});
+
+test('H6 other lanes and statuses, an older lane name, and the connector\'s update_track', () => {
+  const proj = project(auto()); const data = tmp('lc-hook-data-');
+  for (const [lane, status] of [['merge', 'running'], ['done', 'running'], ['plan', 'queue'], ['implement', 'success'], ['backlog', 'queue']]) silent(editIndex(proj, data, lane, status), `${lane}:${status}`);
+  assert.match(asksNow(editIndex(proj, data, 'in-progress', 'running')), /quietly/, 'in-progress is the implement lane');
+  assert.match(asksNow(post(proj, UPDATE, { track: '9', base: {}, markers: { Lane: 'plan', 'Lane Status': 'running' } }, data)), /quietly/, 'update_track that sets both markers');
+  silent(post(proj, UPDATE, { track: '9', base: {}, markers: { Lane: 'plan', 'Lane Status': 'running' } }, data), 'the same claim through update_track, again');
+  silent(post(proj, UPDATE, { track: '10', base: {}, markers: { Progress: '40%' } }, data), 'a status-only change is not a claim');
+});
+
+test('H6 a sub-agent, board.auto_update false and no stored board are never asked; a claim is still remembered so it does not ask later', () => {
+  const sub = project(auto()); const d1 = tmp('lc-hook-data-');
+  silent(editIndex(sub, d1, 'implement', 'running', { agent_id: 'agent-1', agent_type: 'track-runner' }), 'a sub-agent');
+  const off = project(auto({ auto_update: false })); const d2 = tmp('lc-hook-data-');
+  silent(editIndex(off, d2, 'plan', 'running'), 'auto_update false');
+  const none = project({ board: {} }); const d3 = tmp('lc-hook-data-');
+  silent(editIndex(none, d3, 'plan', 'running'), 'no stored board');
+  const noset = project(null); const d4 = tmp('lc-hook-data-');
+  silent(editIndex(noset, d4, 'plan', 'running'), 'no settings file');
+});
+
+test('H6 the end-of-turn instruction is quiet too, and the refresh command reports nothing when asked quietly unless a step failed', () => {
+  const dir = gitProject(); const data = tmp('lc-hook-data-');
+  silent(stop(dir, data), 'baseline'); pushTrackChange(dir);
+  assert.match(JSON.parse(stop(dir, data).stdout).reason, /Run `\/laneconductor-board:refresh` now, quietly \(it publishes only the changed files; say nothing about it unless it fails\), then stop/);
+  const text = fs.readFileSync(path.join(BOARD, 'commands/refresh.md'), 'utf8');
+  assert.match(text, /\*\*If you were asked to do this quietly\*\*[^]*report nothing at all, not the link, not the counts, not the withheld files, unless a step failed: then one line with the step and the error/);
   assert.ok(text.indexOf('7. Report the link') < text.indexOf('8. After a successful publish'));
 });

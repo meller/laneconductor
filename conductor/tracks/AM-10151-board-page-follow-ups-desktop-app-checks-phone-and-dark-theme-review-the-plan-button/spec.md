@@ -15,6 +15,8 @@ Moved from track 10115 on 2026-11-19 (its plan tasks Phase 2 task 8, Phase 3 tas
 
 - REQ-8 A refresh that was just made is not asked for again (owner, 2026-11-20: the hook asked for a refresh I had already published). The hook script has a `seen` step that records the tracks' current state as the one the board shows and clears the marker; the refresh command runs it last, after a successful publish. A run from a shell without `CLAUDE_PLUGIN_DATA` writes to the temp fallback, and the hook reads both places, newest record wins. Built as board 1.10.8. The base command `/laneconductor:board refresh` does not run it (the base never names the add-on's files), so the hook may ask once more after that command.
 
+- REQ-9 The board shows a lane as running when it starts (owner, 2026-11-20: a plan run in Otralingo did not show running; the first Stop came after the plan was done). The hook's tool-call check notices a track set to running in plan, implement, review or quality-gate (an Edit or Write of its index.md, or an update_track setting both markers), once per claim, and asks Claude to run the refresh right then and carry on. Never from a sub-agent (it cannot publish), and not when `board.auto_update` is false or no board is stored. The refresh asked for by the hook, at a lane start or at the end of a turn, is quiet: it reports nothing, not the link, the counts or the withheld files, unless a step failed (owner: the report distracts from what the person was doing). Built as board 1.10.9.
+
 ## Out of scope
 
 The board add-on's refresh and hooks (done in 10115); the extra hooks of 10115 Phase 1 (not built, reopen as a new track if wanted).
