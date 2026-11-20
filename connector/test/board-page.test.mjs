@@ -1603,3 +1603,13 @@ test('Discuss: copies a prompt that asks to read and talk first, runs no lane, a
     assert.equal(all(cardN(ids, 202), cls('copy')).map((b) => b._text).join(), 'Discuss', 'a running track has no command, but can be discussed');
   } finally { unstub(); }
 });
+
+test('a running card is the first card of its lane, above success cards and above higher priorities; the rest keeps its order', async () => {
+  const d = actionData([
+    [401, 'implement', 'queue'], [402, 'implement', 'success'], [403, 'implement', 'queue', '**Priority**: high\n'],
+    [404, 'implement', 'running', '**Priority**: low\n'], [405, 'implement', 'queue'],
+  ]);
+  const ids = await runPage(serve(d));
+  const order = all(ids.lanes, (x) => cls('card')(x) && x.attrs['aria-label']?.startsWith('AM-4')).map((c) => Number(/^AM-(\d+):/.exec(c.attrs['aria-label'])[1]));
+  assert.deepEqual(order, [404, 403, 402, 405, 401], 'running first (even at low priority), then high priority, then success, then newest first');
+});

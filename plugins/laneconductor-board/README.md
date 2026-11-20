@@ -4,7 +4,7 @@ LaneConductor Board is an optional add-on for LaneConductor, which keeps a proje
 track under `conductor/tracks/`). It builds the board: one private page that shows every track by lane, with a needs-attention
 list, which Claude publishes as a private artifact.
 
-Version 1.10.4. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
+Version 1.10.5. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
 dependency on the base plugin or on the connector: it is one script and one page, and it works alone.
 
 | Plugin | Provides |

@@ -904,8 +904,8 @@ td .act { border-top: 0; padding-top: 0; }
   function regroup() {
     byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
     live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
-    // Newest first, as before; then a stable pass that puts success first (done in this lane, ready for the next step), then a stable pass by priority (high, normal, low); Done stays newest first.
-    Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); if (l !== 'done') { byLane[l].sort(function (a, b) { return (a.s === 'success' ? 0 : 1) - (b.s === 'success' ? 0 : 1); }); byLane[l].sort(function (a, b) { return PRIO_RANK[prioOf(a)] - PRIO_RANK[prioOf(b)]; }); } });
+    // Newest first, as before; then a stable pass that puts success first (done in this lane, ready for the next step), then a stable pass by priority (high, normal, low), then running first of all (what is being worked on now is the top of its lane); Done stays newest first.
+    Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); if (l !== 'done') { byLane[l].sort(function (a, b) { return (a.s === 'success' ? 0 : 1) - (b.s === 'success' ? 0 : 1); }); byLane[l].sort(function (a, b) { return PRIO_RANK[prioOf(a)] - PRIO_RANK[prioOf(b)]; }); byLane[l].sort(function (a, b) { return (a.s === 'running' ? 0 : 1) - (b.s === 'running' ? 0 : 1); }); } });
   }
   regroup();
   var planned = LANES.length ? byLane[LANES[0]].length : 0; // the first column is where tracks are planned
