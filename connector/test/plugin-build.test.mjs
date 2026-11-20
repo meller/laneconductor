@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   buildAll, buildPlugin, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, skillEdits, SKILL_EXCLUDE_DIRS, BASE_HABITS, REPO,
-  PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND, pluginVersion,
+  PLUGIN_REL, PARALLEL_REL, BOARD_REL, PLUGIN_RELS, MARKETPLACE_REL, PLUGIN_MAP_REL, VERSIONS_REL, PROFILES, NAMES, RELS, installCommands, MARKETPLACE_ADD_COMMAND, pluginVersion,
 } from '../../scripts/build-plugin.mjs';
 import { makeZip, readZip } from '../../scripts/make-zip.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
@@ -66,6 +66,7 @@ test('TC-1: --check exits 1 and names the file when any of the three plugins, th
     fs.mkdirSync(path.join(tmp, 'docs'), { recursive: true });
     fs.copyFileSync(path.join(REPO, MARKETPLACE_REL), path.join(tmp, MARKETPLACE_REL));
     fs.copyFileSync(path.join(REPO, PLUGIN_MAP_REL), path.join(tmp, PLUGIN_MAP_REL));
+    fs.copyFileSync(path.join(REPO, VERSIONS_REL), path.join(tmp, VERSIONS_REL));
     assert.deepEqual(diffAgainstDisk(tmp), [], 'the scratch copy starts clean');
     fs.appendFileSync(path.join(tmp, PLUGIN_REL, 'skills/laneconductor/SKILL.md'), '\nedited by hand\n');
     fs.writeFileSync(path.join(tmp, PLUGIN_REL, 'stray.txt'), 'x');
@@ -78,11 +79,12 @@ test('TC-1: --check exits 1 and names the file when any of the three plugins, th
     fs.writeFileSync(path.join(tmp, 'plugins/old-add-on/x.md'), 'x');
     fs.appendFileSync(path.join(tmp, MARKETPLACE_REL), '\n');
     fs.appendFileSync(path.join(tmp, PLUGIN_MAP_REL), '\nedited by hand\n');
+    fs.appendFileSync(path.join(tmp, VERSIONS_REL), '\n');
     const problems = diffAgainstDisk(tmp);
     for (const want of [
       `differs: ${PLUGIN_REL}/skills/laneconductor/SKILL.md`, `extra file: ${PLUGIN_REL}/stray.txt`, `differs: ${PARALLEL_REL}/README.md`,
       `differs: ${PARALLEL_REL}/server/src/tracks.mjs`, `missing: ${BOARD_REL}/server/src/scan.mjs`, `extra file: ${BOARD_REL}/stray.txt`,
-      'extra file: plugins/old-add-on/x.md', `differs: ${MARKETPLACE_REL}`, `differs: ${PLUGIN_MAP_REL}`,
+      'extra file: plugins/old-add-on/x.md', `differs: ${MARKETPLACE_REL}`, `differs: ${PLUGIN_MAP_REL}`, `differs: ${VERSIONS_REL}`,
     ]) assert.ok(problems.includes(want), `${want} not reported:\n${problems.join('\n')}`);
     fs.rmSync(path.join(tmp, PLUGIN_MAP_REL));
     assert.ok(diffAgainstDisk(tmp).includes(`missing: ${PLUGIN_MAP_REL}`));
