@@ -11,6 +11,8 @@
 - [ ] TC-4 (REQ-5): running twice gives the same `explain.md` apart from the generated-at line; the file names its sources
 - [ ] TC-5 (REQ-6): the board for a track with an `explain.md` has the "Agent run" tab; a withheld file (a secret match) shows the standard placeholder
 - [ ] TC-6 (REQ-7): `git diff` of the base plugin across the track is empty
+- [ ] TC-9 (REQ-2, D3): a transcript that spans two tracks in one session is cut at the lane boundaries; messages outside every window are counted under none
+- [ ] TC-10 (D1, REQ-6): the project Statistics tab lists every track that has an `explain.md`, done tracks included
 - [ ] TC-7 (REQ-8): the real run on 10154 prints a table whose lane totals are within a few percent of the transcript's own totals
 - [ ] TC-8 (REQ-9): every number in the post is traceable to the real output, and the status line moved from draft to reviewed
 

@@ -21,14 +21,24 @@ An agent cannot read a clock or its own token meter, so asking it to write timin
 - REQ-8 Use it: run it on finished tracks (10154 first), record what it shows in this spec, and name the biggest inefficiencies. One hypothesis to test: each lane command carries about 27 KB of reference text, so every lane run pays for it before any work starts.
 - REQ-9 The post "Pick Your Agent's Brain" (draft under track 10112) uses real output of this script, and every number in it is checked.
 
-## Decisions to settle in the plan lane
-- Where the explain of a done track lives on the board: board documents are only published for tracks that are not done, and the finished tracks are the interesting ones. Options: an exception for explain.md, or a project-level "Statistics" tab with totals across tracks (the view that shows what is inefficient overall).
-- Dollars: the transcripts carry a cost figure; show it or only tokens.
-- Attribution when one session works several tracks (this repository's sessions do): by time window and the track named in the work; document where it is approximate.
+## Probe findings (2026-11-21, plan lane, read-only, on this repository's own session transcript in the desktop app)
+- Each assistant message carries a usage record: input, output, cache creation and cache read tokens, plus a thinking-token count. Messages carry a timestamp, the working directory and the git branch.
+- Sub-agent runs are separate transcripts in `<session>/subagents/agent-<id>.jsonl`, flagged as side chains, with the parent's session id and their own usage records. So their tokens can be added to the parent's window.
+- One session file can span months (this one runs from 2026-09-07 to 2026-11-21, across resumes and compactions) and many tracks, so a lane run must be cut out by its time window, never by session.
+- A session that works in a worktree shows the worktree path as its working directory and the track branch (for example `.worktrees/10099`); sessions started inside a worktree get their own project folder.
+- A tool's duration is rarely recorded: only 62 tool results carried a duration field against about 13,700 assistant messages, so durations must be computed from the timestamps of the call and of its result. That includes any wait for a permission answer, so it is approximate.
+- Not yet checked: the same layout in a plain CLI session (the probe was the desktop app); Task 1 of the plan repeats the probe there.
+
+## Decisions (2026-11-21, plan lane; the owner can overrule any of them)
+- D1 Done tracks: per-track documents on the board stay for tracks that are not done (unchanged). The finished tracks appear in a project-level "Statistics" tab (a project file generated from every track's `explain.md`) with one row per track and the lane and phase totals, which is also the view that shows what is inefficient overall.
+- D2 Dollars: tokens only in the first version. The transcripts carry a session-level cost figure (not checked, and prices change), which cannot be split per phase reliably.
+- D3 Attribution: by the time window of the lane run plus the working directory or branch, and each table says it is approximate where one session worked several tracks at once.
+- D4 Waiting on a person: a gap of more than 5 minutes between an assistant message and the next user message counts as waiting. The 5 minutes is a starting value in one constant, to be tuned on real tracks.
+- D5 Where the script lives: the board add-on (`connector/bin/lc-explain.mjs`, generated into the board plugin), so no base text changes (REQ-7).
 
 ## Out of scope
 Changing the lane texts, any hook that records timings while the agent works, the database-era run ledger (AM-10100), cost limits or alerts.
 
 ## Open questions
-- Do sub-agent transcripts sit next to the parent session or in a separate folder in every client (CLI and desktop)? Probe first.
-- How are sessions found for a project in the desktop app versus the CLI?
+- Does a plain CLI session use the same folder layout for sub-agents and the same fields (the probe above was the desktop app)?
+- How should a message be attributed when two tracks were worked in the same minutes (a parallel dispatch)? D3 says approximate; check how often it happens before building more.

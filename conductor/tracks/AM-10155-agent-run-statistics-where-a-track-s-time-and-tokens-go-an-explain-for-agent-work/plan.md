@@ -1,8 +1,8 @@
 # Plan: AM-10155
 
 ## Phase 1: Probe the data
-- [ ] Task 1: Read one real session transcript read-only and list which fields carry tokens, timestamps, tool durations, sub-agent runs and the working directory; write down what is missing (REQ-1, REQ-3)
-- [ ] Task 2: Settle the open questions in the spec (sub-agent location, finding a project's sessions in the CLI and the desktop app)
+- [ ] Task 1: Repeat the probe of the spec's "Probe findings" on a plain CLI session and on a worktree session, and write down what differs (REQ-1, REQ-3)
+- [ ] Task 2: Settle the two open questions in the spec and fold the answers into the decisions D1 to D5
 
 ## Phase 2: The script
 - [ ] Task 3 (test first): Boundaries from the track files and git: lane runs and phases with their start and end (REQ-2)

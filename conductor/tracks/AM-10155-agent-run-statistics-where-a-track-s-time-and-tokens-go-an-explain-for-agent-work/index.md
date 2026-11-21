@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: Drafted 2026-11-21 from the owner's brainstorm (spec, plan and tests are a first cut); needs /laneconductor:plan to settle the open questions.
+**Phase**: Planned 2026-11-21: 5 phases, 13 tasks, 10 test cases; the probe of this session's transcript settled where sub-agent runs live and that sessions span many tracks. Left for the owner: nothing blocks; D1 to D5 stand unless overruled.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
