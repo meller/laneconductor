@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 90%
-**Phase**: Built 2026-11-21: skills cloud-monitoring-as-code and structured-logs-for-alerts, pack laneconductor-analytics-monitoring 0.2.0 (301b9c85), 927 tests, strict validation, fresh-profile install lists three skills. Left: the site text deploy (owner says deploy).
+**Progress**: 100%
+**Phase**: Built and deployed 2026-11-21: pack 0.2.0 with three skills (301b9c85); site text live and equal to main. Waits for review and the quality gate.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
