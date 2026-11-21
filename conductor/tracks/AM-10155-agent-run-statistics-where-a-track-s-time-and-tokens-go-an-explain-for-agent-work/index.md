@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 0%
-**Phase**: Planned 2026-11-21: 5 phases, 13 tasks, 10 test cases; the probe of this session's transcript settled where sub-agent runs live and that sessions span many tracks. Left for the owner: nothing blocks; D1 to D5 stand unless overruled.
+**Phase**: Implement started 2026-11-21: one track-runner sub-agent works phases 1 to 4 (probe, script, board tab, first use) in its own worktree; the post (phase 5) waits for real output.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
