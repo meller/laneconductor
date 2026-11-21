@@ -65,7 +65,8 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   const masked = (buf) => buf.toString('utf8').replace(/<title>[^<]*<\/title>/, '<title>X</title>');
   assert.equal(masked(pageA), masked(fs.readFileSync(PAGE)), 'the page is the shipped static file, byte for byte, but for its <title> (named after the project)');
   const html = pageA.toString('utf8');
-  assert.ok(!html.includes(TITLE_SENTINEL) && !html.includes('Page Fixture') && !html.includes(NOW), 'no data in the page');
+  assert.match(html, /<title>Page Fixture Board<\/title>/, 'the only thing the page says about the project is its name in the <title>');
+  assert.ok(!html.includes(TITLE_SENTINEL) && !masked(pageA).includes('Page Fixture') && !html.includes(NOW), 'no data in the page');
   assert.ok(!html.includes('__DATA__') && !html.includes('id="data"'), 'no data placeholder or embedded data block');
   assert.ok(/fetch\(\s*'board\.json'/.test(html), 'the page fetches board.json by a relative URL');
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\balert\(|\bconfirm\(|\bprompt\(/.test(html), 'DOM is built with createElement and textContent only');
