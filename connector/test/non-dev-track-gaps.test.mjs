@@ -95,30 +95,30 @@ test('14.1: the bundled connector guide says the same in one line', () => {
 
 const NON_DEV = /If `\*\*Type\*\*` is not `dev` \(marketing, sales, support, other\) the track has no code: recommend no sub-agent and no worktree, ask no question about one, and do the lane in this session/;
 
-test('14.2: implement, review and run say first that a non-dev track gets no sub-agent, no worktree and no question, then recommend for code tracks only', () => {
+test('14.2: implement, review and run say first that a non-dev track gets no sub-agent, no worktree and no question, then dispatch for code tracks only', () => {
   for (const n of ['implement', 'review', 'run']) {
     const b = flat(body(command(n)));
     const gate = b.search(NON_DEV);
-    const recommend = b.indexOf('RECOMMEND, do not start');
-    assert.ok(gate > 0 && recommend > gate, `${n}: the non-dev clause comes before the recommendation`);
-    assert.match(b.slice(gate, recommend), /A code track: if the sub-agent `laneconductor-parallel:track-runner` is listed/, `${n}: the recommendation is for a code track`);
-    assert.equal(count(b, /RECOMMEND, do not start/g), 1, `${n}: one recommendation`);
+    const recommend = b.indexOf('DISPATCH it now');
+    assert.ok(gate > 0 && recommend > gate, `${n}: the non-dev clause comes before the dispatch`);
+    assert.match(b.slice(gate, recommend), /A code track: if the sub-agent `laneconductor-parallel:track-runner` is listed/, `${n}: the dispatch is for a code track`);
+    assert.equal(count(b, /DISPATCH it now/g), 1, `${n}: one dispatch instruction`);
   }
 });
 
-test('14.2: the code-track recommendation itself is unchanged: the dispatch prompt, start nothing until yes, do the lane yourself on a no', () => {
+test('14.2: the code-track dispatch: the prompt is unchanged, typing the command is the yes, do the lane yourself on a request to do it here', () => {
   const b = flat(body(command('implement')));
-  assert.match(b, /Show the exact dispatch, with this prompt: "Work track N through its implement lane: read the lane guide, follow plan\.md, commit in your worktree, report commits and test results; do not merge or push\." Start nothing until I say yes; if I decline, do the lane yourself\./);
+  assert.match(b, /Show the dispatch first, with this prompt: "Work track N through its implement lane: read the lane guide, follow plan\.md, commit in your worktree, report commits and test results; do not merge or push\." If I say to do the lane here, do it yourself\./);
   assert.match(b, /If it is not listed: do the lane in this session following the guide\./);
-  assert.match(flat(body(command('review'))), /Show the exact dispatch, with this prompt: "Review track N in the review lane: read the lane guide, evaluate the work, do not fix it, report a verdict with evidence; do not merge or push\."/);
+  assert.match(flat(body(command('review'))), /Show the dispatch first, with this prompt: "Review track N in the review lane: read the lane guide, evaluate the work, do not fix it, report a verdict with evidence; do not merge or push\."/);
 });
 
 test('14.2: the connector catalog (MCP prompts) gates the same way for implement, review and run, and skips the dispatch steps for a non-dev track', () => {
   for (const n of ['implement', 'review', 'run']) {
     const p = COMMANDS.find((c) => c.name === n).procedure;
     assert.match(p, NON_DEV, n);
-    assert.match(p, /\(skip steps 3 and 4\)\. A code track: RECOMMEND, do not start/, n);
-    assert.ok(p.search(NON_DEV) < p.indexOf('RECOMMEND, do not start'), n);
+    assert.match(p, /\(skip steps 3 and 4\)\. A code track: DISPATCH now/, n);
+    assert.ok(p.search(NON_DEV) < p.indexOf('DISPATCH now'), n);
   }
 });
 

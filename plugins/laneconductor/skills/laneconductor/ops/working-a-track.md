@@ -29,11 +29,11 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 Only for a code track (`**Type**` `dev`). A non-dev track (marketing, sales, support, other) writes no code: no sub-agent, no
 worktree, no question about one; work its lane in this session.
 
-With the optional laneconductor-parallel add-on installed (Claude Code or Cowork, not chat), its `laneconductor-parallel:track-runner`
-subagent is the recommended way to work a code track: one subagent per track, each in its own worktree, so code stays off the
-primary checkout, tracks run in parallel and do not collide, and conflict-checked writes keep the shared track state safe. Recommend it
-and show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes. `/laneconductor:run N`,
-`:implement N` and `:review N` do this when the agent is listed. It never merges or pushes.
+With the laneconductor-parallel add-on installed (Claude Code or Cowork, not chat), dispatch its `laneconductor-parallel:track-runner`
+subagent for a code track: one per track, each in its own worktree, so code stays off the primary checkout and tracks do not collide.
+Show the agent and one-line prompt first; typing the command is the yes, and "do it here" declines. Independent phases of one track
+(different files, no shared output) may each get one; run dependent phases in order. `/laneconductor:run N`, `:implement N` and
+`:review N` do this. It never merges or pushes.
 
 Without the add-on, work the lane in this session, or by hand in a worktree: `git worktree add .worktrees/track-N -b track-N`,
 a separate session started in that folder, one track per worktree, and never `git add -A` there. Say what the add-on adds

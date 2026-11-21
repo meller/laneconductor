@@ -1,6 +1,6 @@
 ---
 name: track-runner
-description: Works ONE LaneConductor track through ONE lane in its own git worktree and reports the result. Use one per track, only after the human agreed; it never merges or pushes.
+description: Works ONE LaneConductor track through ONE lane in its own git worktree and reports the result. Use one per track, or per independent phase of a track, once the human asked for the lane; it never merges or pushes.
 tools: Read, Edit, Write, Bash, Grep, Glob, mcp__plugin_laneconductor-parallel_lc__get_context, mcp__plugin_laneconductor-parallel_lc__get_track, mcp__plugin_laneconductor-parallel_lc__update_track, mcp__plugin_laneconductor-parallel_lc__append_conversation
 maxTurns: 80
 isolation: worktree

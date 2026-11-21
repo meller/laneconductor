@@ -189,14 +189,14 @@ test('agents: documented frontmatter only, valid isolation, tool names that exis
   assert.deepEqual(runnerTools, ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', `${P}get_context`, `${P}get_track`, `${P}update_track`, `${P}append_conversation`], 'the connector tools are in track-runner\'s tools list');
 });
 
-test('run, implement and review recommend the add-on\'s track-runner, show the dispatch and start nothing unasked; without the add-on they work in session', () => {
+test('run, implement and review dispatch the add-on\'s track-runner (the command is the yes), show the dispatch first; without the add-on they work in session', () => {
   for (const c of ['run', 'implement', 'review']) {
     const t = read(`commands/${c}.md`);
     assert.ok(t.includes('laneconductor-parallel:track-runner'), `${c}: names the subagent`);
-    assert.match(t, /RECOMMEND, do not start/, `${c}: recommends, does not start`);
+    assert.match(t, /DISPATCH it now/, `${c}: dispatches`);
     assert.match(t, /one sub-agent per track/, `${c}: one subagent per track`);
     assert.match(t, /own worktree/, `${c}: own worktree`);
-    assert.match(t, /Start nothing until I say yes/, `${c}: waits for a yes`);
+    assert.match(t, /typing this command is my yes/, `${c}: the command is the yes`);
     assert.match(t, /If it is not listed: do the lane in this session/, `${c}: works without the add-on`);
     assert.match(t, /git worktree add/, `${c}: the by-hand way`);
     assert.match(t, /Otherwise mention nothing/, `${c}: no nagging`);

@@ -392,8 +392,8 @@ const LANE = (lane, file, extra = '') => (
 );
 const PARALLEL_STEP = (dispatch) => (
   'If `**Type**` is not `dev` (marketing, sales, support, other) the track has no code: recommend no sub-agent and no worktree, ask no question about one, and do the lane in this session. A code track: '
-  + `if the sub-agent \`${TRACK_RUNNER_AGENT}\` is listed (the add-on is installed): RECOMMEND, do not start: one sub-agent per track, each in its own worktree, so the work stays off the primary checkout and tracks run in parallel without colliding. `
-  + `Show the exact dispatch, with this prompt: "${dispatch}" Start nothing until I say yes; if I decline, do the lane yourself. `
+  + `if the sub-agent \`${TRACK_RUNNER_AGENT}\` is listed (the add-on is installed): DISPATCH it now (typing this command is my yes): one sub-agent per track, each in its own worktree, off the primary checkout and without collisions; independent phases of one track may each get their own, dependent ones run in order. `
+  + `Show the dispatch first, with this prompt: "${dispatch}" If I say to do the lane here, do it yourself. `
   + 'If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) '
   + `and, once, what the ${NAMES.parallel} add-on adds (${entryOf(NAMES.parallel).why}; ${installsNote('parallel')} Show its install commands as written, from "The add-on's install commands" in the Reference below; never run them). Otherwise mention nothing.`
 );
