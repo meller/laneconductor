@@ -16,5 +16,5 @@
 ## Phase 3: Owner steps and discovery
 
 - [x] Task 7 (HUMAN): add the `agent-skill` topic to the GitHub repository
-- [ ] Task 8: With the owner's yes, run `npx skills add meller/laneconductor --list` and record whether it finds the skills; optionally submit to the submit-form directories
+- [x] Task 8: With the owner's yes, run `npx skills add meller/laneconductor --list` and record whether it finds the skills; optionally submit to the submit-form directories
 - [x] Task 9: Update the README and the site with what changed (deploy only on the owner's word)
