@@ -225,7 +225,7 @@ Besides the process, the marketplace `meller/laneconductor` carries six small sk
 | `laneconductor-node-postgres` | Local Postgres and Neon in production with the secret in Secret Manager; Prisma in Cloud Functions; an isolated test database; a Makefile for local runs | `claude plugin install laneconductor-node-postgres@laneconductor` |
 | `laneconductor-gemini` | Every LLM call through TokenTalos; Gemini on Vertex AI with Application Default Credentials; image generation with retry and a GCS upload | `claude plugin install laneconductor-gemini@laneconductor` |
 | `laneconductor-skill-from-code` | Authoring: turn a pattern or a verified incident, shown by working code, into a new skill, and package your skills as a plugin ready for Anthropic's directory | `claude plugin install laneconductor-skill-from-code@laneconductor` |
-| `laneconductor-analytics-monitoring` | Google Analytics 4 behind a consent choice, advertising features off, with Search Console ownership and a tested sitemap and robots.txt (monitoring and logging skills follow) | `claude plugin install laneconductor-analytics-monitoring@laneconductor` |
+| `laneconductor-analytics-monitoring` | Google Analytics 4 behind a consent choice with Search Console ownership and a tested sitemap and robots.txt; production monitoring on Google Cloud as one script; structured and slow-query logs that alerts can count | `claude plugin install laneconductor-analytics-monitoring@laneconductor` |
 
 Add the marketplace first with `claude plugin marketplace add meller/laneconductor`. Each pack's page lists its skills; `docs/plugin-map.md` lists them all.
 

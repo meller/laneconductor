@@ -18,7 +18,7 @@ const SPEC_TABLE = {
   'laneconductor-node-postgres': ['postgres-local-neon-prod-secret-manager', 'prisma-in-cloud-functions', 'isolated-test-database', 'makefile-local-run'],
   'laneconductor-gemini': ['llm-through-tokentalos', 'vertex-gemini-adc', 'vertex-imagen-retry-gcs-fallback'],
   'laneconductor-skill-from-code': ['plugin-from-skills', 'skill-from-code'],
-  'laneconductor-analytics-monitoring': ['ga4-gtag-with-consent'],
+  'laneconductor-analytics-monitoring': ['ga4-gtag-with-consent', 'cloud-monitoring-as-code', 'structured-logs-for-alerts'],
 };
 // A claim of being listed in Anthropic's directory is forbidden until a reviewer has published the plugin (track AM-10148); a plain mention
 // (for example a skill that helps to submit one) is fine.
@@ -37,7 +37,7 @@ test('the pack list is exactly the five packs of the spec, and every skill folde
   const all = packs.flatMap((p) => p.skills);
   assert.equal(new Set(all).size, all.length, 'no skill twice');
   assert.deepEqual([...all].sort(), skillFolders(REPO), 'every folder under skills/ is in a pack, and every pack skill exists');
-  assert.equal(skillFolders(REPO).length, 15);
+  assert.equal(skillFolders(REPO).length, 17);
   // Each pack has its own version, independent of the other plugins and of each other (a pack moves when its skills change).
   for (const p of packs) assert.match(p.version, /^\d+\.\d+\.\d+$/, `${p.name}: its own semver version`);
 });

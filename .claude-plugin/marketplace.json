@@ -78,8 +78,8 @@
     {
       "name": "laneconductor-analytics-monitoring",
       "source": "./plugins/laneconductor-analytics-monitoring",
-      "description": "Skills for knowing how a product does, starting with analytics: Google Analytics 4 behind a consent choice, advertising features off, with Search Console ownership and a tested sitemap.xml and robots.txt.",
-      "version": "0.1.0",
+      "description": "Skills for knowing how a product does: Google Analytics 4 behind a consent choice with Search Console ownership and a tested sitemap.xml and robots.txt; production monitoring on Google Cloud as one idempotent script; structured logs and a slow-query log that alerts can count.",
+      "version": "0.2.0",
       "author": {
         "name": "Asaf Meller"
       }
