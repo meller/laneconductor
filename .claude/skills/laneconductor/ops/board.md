@@ -36,7 +36,9 @@ ever see more files than that, stop and say so instead of publishing part of the
 
 ## 2. Find the URL
 
-Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file ([settings.md](settings.md)). The file may be missing or have no `board` key; then there is no stored URL.
+Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file ([settings.md](settings.md)), at the project root; in a git worktree that has none, in the main checkout's (the first path of `git worktree list`). The file may be missing or have no `board` key.
+
+With no stored URL, look for this project's board before creating one, and never ask which one: Artifact tool, action `list`; for each artifact titled like a board (`<project> Board` or `LaneConductor Board`), `read` its `board.json` and compare its `project` with this project's name (`project.name` in the settings file, else the folder name). One match: use it as the stored URL (store it as in 3b, step 3) and update it (3a). Several: use the most recently updated and name the others in one line. None: create (3b).
 
 ## 3a. URL exists: update (a partial publish: only the files that changed)
 

@@ -438,6 +438,7 @@ test('lc-board --site writes the owner-step keys into board.json and the page fi
   assert.equal(r.status, 0, r.stderr);
   const board = JSON.parse(fs.readFileSync(path.join(site, 'board.json'), 'utf8'));
   assert.deepEqual([board.tracks[0].oa, board.tracks[0].od], ['Post the launch video', '2026-11-20']);
-  assert.equal(fs.readFileSync(path.join(site, 'board.html'), 'utf8'), fs.readFileSync(PAGE, 'utf8'));
+  const noTitle = (t) => t.replace(/<title>[^<]*<\/title>/, '<title>X</title>');
+  assert.equal(noTitle(fs.readFileSync(path.join(site, 'board.html'), 'utf8')), noTitle(fs.readFileSync(PAGE, 'utf8')), 'the shipped page but for its <title>, which names the project');
   assert.ok(!fs.readFileSync(path.join(site, 'board.html'), 'utf8').includes('Post the launch video'));
 });

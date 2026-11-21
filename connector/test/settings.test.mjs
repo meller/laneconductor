@@ -120,8 +120,12 @@ test('TC-13 the board script prints board: (not lc board:) on stderr, and --chec
 test('TC-14 board (no argument) still reads board.artifact_url and handles the missing file or key', () => {
   const show = COMMANDS.find((c) => c.name === 'board');
   assert.match(show.procedure, /board\.artifact_url/);
-  assert.match(show.procedure, /If no board URL is stored, there is no board yet and running this command means I want one: do not ask/);
+  assert.match(show.procedure, /If no board URL is stored, first look for the board of this project among the artifacts/);
+  assert.match(show.procedure, /With no match there is no board yet and running this command means I want one: do not ask/);
   const board = fs.readFileSync(path.join(REPO, RELS.base, 'skills/laneconductor/ops/board.md'), 'utf8');
-  assert.match(board, /may be missing or have no `board` key; then there is no stored URL/);
+  assert.match(board, /The file may be missing or have no `board` key\./);
+  assert.match(board, /in a git worktree that has none, in the main checkout's/);
+  assert.match(board, /With no stored URL, look for this project's board before creating one, and never ask which one/);
+  assert.match(board, /compare its `project` with this project's name/);
   assert.match(board, /listed in `\.gitignore`/);
 });

@@ -58,12 +58,26 @@ function readSeen(root) {
 }
 
 const git = (root, args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim();
+/** The personal settings file of a project: its own, or (a git worktree has no copy of the git-ignored file) the main checkout's. */
+function settingsPath(root) {
+  const own = path.join(root, '.laneconductor.json');
+  if (fs.existsSync(own)) return own;
+  try {
+    const common = git(root, ['rev-parse', '--git-common-dir']);
+    const main = path.dirname(path.resolve(root, common));
+    const alt = path.join(main, '.laneconductor.json');
+    if (path.resolve(main) !== path.resolve(root) && fs.existsSync(alt)) return alt;
+  } catch { /* not a git repository */ }
+  return own;
+}
+const settingsOf = (root) => readJson(settingsPath(root));
+
 const SAFE_BRANCH = /^[A-Za-z0-9._][A-Za-z0-9._/-]{0,100}$/;
 
 /** A short fingerprint of the project's tracks as the board is built from them, or null (not a git repository, no such branch, any failure). */
 function fingerprint(root) {
   try {
-    const configured = str(readJson(path.join(root, '.laneconductor.json'))?.connector?.state_branch);
+    const configured = str(settingsOf(root)?.connector?.state_branch);
     const branches = configured && SAFE_BRANCH.test(configured) ? [configured] : ['main', 'master'];
     let tree = null;
     for (const b of branches) {
@@ -117,7 +131,7 @@ function changedRoot(input) {
     if (!abs) return null;
     const m = path.relative(root, abs).split(path.sep).join('/').match(/^conductor\/tracks\/([^/]+)\/([^/]+)$/);
     if (!m || m[1].startsWith('_')) continue;
-    if (TRACK_DOCS.has(m[2]) || (m[2] === 'conversation.md' && readJson(path.join(root, '.laneconductor.json'))?.board?.include_conversation === true)) return root;
+    if (TRACK_DOCS.has(m[2]) || (m[2] === 'conversation.md' && settingsOf(root)?.board?.include_conversation === true)) return root;
   }
   return null;
 }
@@ -156,7 +170,7 @@ function claimStarted(input, root) {
 
 /** A stored board with auto-update on (the default): the settings under which the hook speaks at all. */
 function wantsRefresh(root) {
-  const board = readJson(path.join(root, '.laneconductor.json'))?.board;
+  const board = settingsOf(root)?.board;
   if (!board || typeof board !== 'object') return false;
   return Boolean(str(board.artifact_url)) && !(board.auto_update === false || board.auto_update === 'false');
 }
@@ -189,7 +203,7 @@ function seen() {
 
 function stop(input) {
   for (const root of roots(input)) {
-    const board = readJson(path.join(root, '.laneconductor.json'))?.board;
+    const board = settingsOf(root)?.board;
     if (!board || typeof board !== 'object') continue; // no readable settings: nothing to do, nothing to say
     const url = str(board.artifact_url);
     const off = board.auto_update === false || board.auto_update === 'false'; // only an explicit false turns the default off

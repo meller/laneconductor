@@ -102,8 +102,9 @@ test('lc-board --site writes the type into board.json and the page file stays th
   const a = JSON.parse(fs.readFileSync(path.join(siteA, 'board.json'), 'utf8'));
   assert.deepEqual(a.tracks.filter((t) => t.y).map((t) => `${t.n}:${t.y}`).sort(), ['403:marketing', '404:sales', '405:support', '406:marketing', '407:other']);
   assert.ok(!fs.readFileSync(path.join(siteB, 'board.json'), 'utf8').includes('"y"'));
-  assert.equal(fs.readFileSync(path.join(siteA, 'board.html'), 'utf8'), fs.readFileSync(path.join(siteB, 'board.html'), 'utf8'));
-  assert.equal(fs.readFileSync(path.join(siteA, 'board.html'), 'utf8'), fs.readFileSync(PAGE, 'utf8'));
+  const noTitle = (t) => t.replace(/<title>[^<]*<\/title>/, '<title>X</title>');
+  assert.equal(noTitle(fs.readFileSync(path.join(siteA, 'board.html'), 'utf8')), noTitle(fs.readFileSync(path.join(siteB, 'board.html'), 'utf8')));
+  assert.equal(noTitle(fs.readFileSync(path.join(siteA, 'board.html'), 'utf8')), noTitle(fs.readFileSync(PAGE, 'utf8')));
   const html = fs.readFileSync(PAGE, 'utf8');
   for (const e of MIXED) assert.ok(!html.includes(e.index.content.split('\n')[0].replace(/^# Track AM-\d+: /, '')), 'no track data in the page file');
 });

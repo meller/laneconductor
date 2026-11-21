@@ -439,3 +439,19 @@ test('H6 the end-of-turn instruction is quiet too, and the base board refresh re
   assert.match(text, /8\. \*\*Quiet\.\*\* When the check at a lane start or at the end of a turn asked for this \(its message says quietly\), report nothing, not the link, the counts or the withheld files, unless a step failed: then one line with the step and the error\./);
   assert.match(fs.readFileSync(path.join(BASE, 'commands/board.md'), 'utf8'), /When the check at a lane start or at the end of a turn asked for it, say nothing unless it failed/);
 });
+
+// ---- H7: a git worktree has no copy of the git-ignored settings file, so the hook reads the main checkout's.
+test('H7 in a git worktree the hook uses the main checkout\'s settings file (stored board, auto_update); with no file anywhere it stays silent', () => {
+  const main = gitProject(auto()); const data = tmp('lc-hook-data-');
+  const wt = path.join(tmp('lc-hook-wt-'), 'wt');
+  sh(main, 'worktree', 'add', '-q', '-b', 'wt-branch', wt);
+  // gitProject commits the settings file, so remove the worktree's copy to match a real git-ignored one
+  fs.rmSync(path.join(wt, '.laneconductor.json'), { force: true });
+  assert.match(asksNow(editIndex(wt, data, 'plan', 'running')), /quietly/, 'a claim in the worktree asks, using the main checkout\'s settings');
+  // the same worktree, with the main checkout's auto_update switched off: silent
+  fs.writeFileSync(path.join(main, '.laneconductor.json'), JSON.stringify(auto({ auto_update: false })));
+  silent(editIndex(wt, tmp('lc-hook-data-'), 'implement', 'running'), 'auto_update false in the main checkout');
+  // and with no settings file anywhere: silent
+  fs.rmSync(path.join(main, '.laneconductor.json'), { force: true });
+  silent(editIndex(wt, tmp('lc-hook-data-'), 'review', 'running'), 'no settings file in either place');
+});

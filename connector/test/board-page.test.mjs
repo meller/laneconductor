@@ -62,7 +62,8 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.equal(later.status, 0, later.stderr);
   const pageA = fs.readFileSync(path.join(a, 'board.html'));
   assert.ok(pageA.equals(fs.readFileSync(path.join(b, 'board.html'))), 'the page does not change with the data or the time');
-  assert.ok(pageA.equals(fs.readFileSync(PAGE)), 'the page is the shipped static file, byte for byte');
+  const masked = (buf) => buf.toString('utf8').replace(/<title>[^<]*<\/title>/, '<title>X</title>');
+  assert.equal(masked(pageA), masked(fs.readFileSync(PAGE)), 'the page is the shipped static file, byte for byte, but for its <title> (named after the project)');
   const html = pageA.toString('utf8');
   assert.ok(!html.includes(TITLE_SENTINEL) && !html.includes('Page Fixture') && !html.includes(NOW), 'no data in the page');
   assert.ok(!html.includes('__DATA__') && !html.includes('id="data"'), 'no data placeholder or embedded data block');
@@ -1642,4 +1643,23 @@ test('page: a track serving only a future KPI carries the future KPI badge on it
   ids['d-close'].onclick(); await flush();
   cardN(ids, 501).handlers.click(); await flush();
   assert.ok(ids['d-lnks'].textContent.includes('KPI-1 (2)'), 'two tracks serve KPI-1');
+});
+
+// ---- the board is named after its project (the artifact's name in the list comes from the page's <title>)
+import { spawnSync as spawnTitle } from 'node:child_process';
+test('board.html is titled "<project> Board": the project name from the settings file or the folder, cleaned and clipped; the source page stays generic', () => {
+  const run = (cfg, folder) => {
+    const repo = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-title-')); const dir = path.join(repo, folder); fs.mkdirSync(path.join(dir, 'conductor/tracks'), { recursive: true });
+    if (cfg) fs.writeFileSync(path.join(dir, '.laneconductor.json'), JSON.stringify(cfg));
+    const site = fs.mkdtempSync(path.join(repo, 'site-'));
+    const r = spawnTitle(process.execPath, [new URL('../bin/lc-board.mjs', import.meta.url).pathname, '--repo', dir, '--site', site], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const html = fs.readFileSync(path.join(site, 'board.html'), 'utf8'); fs.rmSync(repo, { recursive: true, force: true });
+    return html.match(/<title>([^<]*)<\/title>/)[1];
+  };
+  assert.equal(run({ project: { name: 'aitutor' } }, 'coachai'), 'aitutor Board', 'the settings name wins');
+  assert.equal(run(null, 'macrodash'), 'macrodash Board', 'else the folder name');
+  assert.equal(run({ project: { name: '<b>Evil & "co"</b>' } }, 'x'), 'bEvil  co/b Board'.replace('  ', ' ').replace('co/b', 'co/b'), 'markup characters are dropped');
+  assert.equal(run({ project: { name: 'a'.repeat(80) } }, 'x'), `${'a'.repeat(40)} Board`, 'clipped to 40 characters');
+  assert.ok(fs.readFileSync(new URL('../src/board-page.html', import.meta.url), 'utf8').includes('<title>LaneConductor Board</title>'), 'the repository page stays generic');
 });

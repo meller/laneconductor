@@ -94,7 +94,7 @@ test('the board script runs from a temp copy of the board add-on ALONE (no node_
   assert.ok(out.files.includes('board.json') && out.files.includes('docs/301.json') && out.files.includes('docs/302.json'), out.files.join(','));
   assert.ok(!out.files.includes('docs/303.json'), 'done tracks get no documents');
   const html = fs.readFileSync(out.page, 'utf8');
-  assert.ok(html.includes('<title>LaneConductor Board</title>') && html.length > 2000, 'board.html is the page');
+  assert.ok(/<title>[^<]+ Board<\/title>/.test(html) && html.length > 2000, 'board.html is the page');
   const data = readJson(path.join(site, 'board.json'));
   assert.equal(data.project, 'Board Fixture');
   const ids = JSON.stringify(data.tracks ?? data);

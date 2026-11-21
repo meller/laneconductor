@@ -10,7 +10,7 @@
 // files of conductor/ (product.md, tech-stack.md, workflow.md, quality-gate.md, kpis.md, the guidelines, user-stories.md,
 // deployment-stack.md). It never publishes .laneconductor.json.
 // --site <dir> writes the two files a board artifact is published from: board.html (the static page,
-// byte-identical every run, no data in it) and board.json (the page's data), plus docs/<number>.json
+// byte-identical every run for one project, no data in it; only its <title> names the project) and board.json (the page's data), plus docs/<number>.json
 // for each track that is not done (the documents the page shows when a track is opened; see
 // src/board-docs.mjs; `board.include_docs: false` in .laneconductor.json turns them off,
 // `board.include_conversation: true` adds conversation.md), and ctx/<key>.json for each project definition file that exists
@@ -78,7 +78,10 @@ if (siteDir) {
   await fs.mkdir(dir, { recursive: true });
   const page = path.join(dir, 'board.html');
   const data = path.join(dir, 'board.json');
-  await fs.copyFile(BOARD_PAGE_PATH, page);
+  // The artifact's name in the list comes from the page's <title>, so a board is named after its project ("<project> Board"), not the same for every project.
+  const titleName = project.replace(/[<>&"'\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) || 'LaneConductor';
+  const pageText = (await fs.readFile(BOARD_PAGE_PATH, 'utf8')).replace('<title>LaneConductor Board</title>', `<title>${titleName} Board</title>`);
+  await fs.writeFile(page, pageText);
 
   // The documents behind the track detail. A previous run's docs files in the same folder never survive.
   const docsDir = path.join(dir, 'docs');

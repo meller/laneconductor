@@ -11,13 +11,13 @@ Open the existing board. Read only: never regenerate or republish it.
 
 1. Find the stored board URL (`board.artifact_url` in the optional settings file `.laneconductor.json`, see the skill file `ops/settings.md`; step 2 of `ops/board.md`).
 2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done. If it is more than an hour old, say so and suggest refreshing it (this command with the argument `refresh`; the page also has a Refresh board button that copies it).
-3. If no board URL is stored, there is no board yet and running this command means I want one: do not ask. Follow the refresh procedure below, which builds and publishes it (step 3b of `ops/board.md`), store the link and open it. If the board add-on is not installed, say that it has to be installed first and show the install commands, as below.
+3. If no board URL is stored, first look for the board of this project among the artifacts (step 2 of `ops/board.md`: match the `project` in the `board.json` of each board; never ask which one). With no match there is no board yet and running this command means I want one: do not ask. Follow the refresh procedure below, which builds and publishes it (step 3b of `ops/board.md`), store the link and open it. If the board add-on is not installed, say that it has to be installed first and show the install commands, as below.
 
 If it is `refresh`, refresh:
 Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.
 
 1. Generate the page and data (step 1) with the board script, found as step 1 of `ops/board.md` says. If it does not exist, say so and stop; do not build the page by hand.
-2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, create the board now without asking (step 3b), store the URL and open it. With a stored URL it is a partial publish: read the live `manifest.json` and `board.json`, pass them to the script as `--previous` and `--live-board`, send only what `publish` lists, then record the state with the `seen` step of the hook script (3a). When the check at a lane start or at the end of a turn asked for it, say nothing unless it failed.
+2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, find the board of this project by the `project` in the `board.json` of each board (step 2), else create it now without asking (step 3b), store the URL and open it. With a stored URL it is a partial publish: read the live `manifest.json` and `board.json`, pass them to the script as `--previous` and `--live-board`, send only what `publish` lists, then record the state with the `seen` step of the hook script (3a). When the check at a lane start or at the end of a turn asked for it, say nothing unless it failed.
 3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name. For a board created now, also say what it holds: private, a snapshot, the documents of every track that is not done, and that `board.include_docs: false` turns the documents off.
 
 In Claude Code, type the refresh as `/laneconductor:board refresh`.
@@ -82,7 +82,9 @@ ever see more files than that, stop and say so instead of publishing part of the
 
 #### 2. Find the URL
 
-Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file (`ops/settings.md`). The file may be missing or have no `board` key; then there is no stored URL.
+Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file (`ops/settings.md`), at the project root; in a git worktree that has none, in the main checkout's (the first path of `git worktree list`). The file may be missing or have no `board` key.
+
+With no stored URL, look for this project's board before creating one, and never ask which one: Artifact tool, action `list`; for each artifact titled like a board (`<project> Board` or `LaneConductor Board`), `read` its `board.json` and compare its `project` with this project's name (`project.name` in the settings file, else the folder name). One match: use it as the stored URL (store it as in 3b, step 3) and update it (3a). Several: use the most recently updated and name the others in one line. None: create (3b).
 
 #### 3a. URL exists: update (a partial publish: only the files that changed)
 
