@@ -10,3 +10,4 @@
 - [x] Task 8: The hook's `seen` step and the refresh command's last step (REQ-8; board 1.10.8; tests H5 in `board-hooks.test.mjs`)
 - [x] Task 9: The lane-start refresh and the quiet refresh (REQ-9; board 1.10.9; tests H6 in `board-hooks.test.mjs`)
 - [x] Task 10: One namespace: the base `board refresh` is the partial publish, the add-on ships no commands (REQ-10; base 1.9.14, board 1.10.10)
+- [x] Task 11: Find a project's board by its project name, name the page after the project, read the settings from the main checkout in a worktree (REQ-11; base 1.9.15, board 1.10.11)
