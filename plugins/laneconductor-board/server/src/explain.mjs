@@ -183,6 +183,7 @@ export function renderExplain(r, { now = r.generatedAt } = {}) {
       const lane = `${x.lane}${x.claimed ? '' : ' (no claim commit)'}${x.open ? ' (still running)' : ''}`;
       L.push(`| ${lane} | ${stamp(x.start)} | ${stamp(x.end)} | ${fmtMs(x.wallMs)} | ${fmtMs(x.agentMs)} | ${fmtMs(x.humanMs)} | ${n(x.responses)} | ${n(x.tokens.output)} | ${n(x.tokens.fresh)} | ${n(x.tokens.cacheCreated)} | ${n(x.tokens.cacheRead)} | ${n(toolCount(x.tools))} | ${share} |`);
     }
+    if (r.runs.some((x) => !x.claimed || x.open)) L.push('', '"no claim commit" marks a lane that moved on without ever being set to running: its window runs from the moment the lane was next in line (queue, or the previous lane done) to the next state change, so it includes any wait in the queue and, in a session shared with other tracks, other tracks\' messages. "still running" marks a lane whose status was never closed. Treat both as upper bounds; the Statistics tab keeps them in separate rows from claimed runs.');
     L.push('', 'Tokens are shown apart: output is what the model wrote, fresh input is what it read without the cache, cache created is context stored for reuse, cache read is stored context read again (large and cheap). A response is one model reply; its tokens are counted once even though the transcript writes one line per content block.', '');
   }
   if (r.phases.length) {
@@ -226,7 +227,7 @@ export function parseExplain(text) {
     }
     return rows;
   };
-  for (const c of tableAfter('## Lane runs')) out.runs.push({ lane: c[0].replace(/ \(.*$/, ''), wallMs: parseMs(c[3]), agentMs: parseMs(c[4]), humanMs: parseMs(c[5]), responses: parseN(c[6]), output: parseN(c[7]), fresh: parseN(c[8]), cacheCreated: parseN(c[9]), cacheRead: parseN(c[10]), tools: parseN(c[11]) });
+  for (const c of tableAfter('## Lane runs')) out.runs.push({ lane: c[0], wallMs: parseMs(c[3]), agentMs: parseMs(c[4]), humanMs: parseMs(c[5]), responses: parseN(c[6]), output: parseN(c[7]), fresh: parseN(c[8]), cacheCreated: parseN(c[9]), cacheRead: parseN(c[10]), tools: parseN(c[11]) });
   for (const c of tableAfter('## Phases of the implement lane')) out.phases.push({ label: c[0], key: /^Phase (\d+)/.exec(c[0])?.[0] ?? c[0], wallMs: parseMs(c[1]), agentMs: parseMs(c[2]), humanMs: parseMs(c[3]), responses: parseN(c[4]), output: parseN(c[5]), fresh: parseN(c[6]), cacheCreated: parseN(c[7]), cacheRead: parseN(c[8]), tools: parseN(c[9]) });
   return out;
 }
