@@ -6,7 +6,7 @@
 
 ## Phase 2: The script
 - [ ] Task 3 (test first): Boundaries from the track files and git: lane runs and phases with their start and end (REQ-2)
-- [ ] Task 4: Attribute transcript messages to a lane or phase by time window and working directory; active versus waiting time (REQ-2, REQ-3)
+- [ ] Task 4: Attribute transcript messages to a lane or phase by time window and working directory; agent time versus human time from the `(HUMAN)` markers and waiting lines (REQ-2, REQ-3, D4)
 - [ ] Task 5: Token split, tool calls by kind, slowest steps, sub-agent share, repeated reads as counts (REQ-3)
 - [ ] Task 6: Write `explain.md` (generated, overwritten, with its sources and time) and print the same table (REQ-1, REQ-5)
 - [ ] Task 7: The privacy test: a transcript with a token and an email in its content never reaches the output (REQ-4)
