@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: Implement started 2026-11-21: one track-runner sub-agent works phases 1 to 4 (probe, script, board tab, first use) in its own worktree; the post (phase 5) waits for real output.
+**Progress**: 77%
+**Phase**: Phases 1 to 4 done (tasks 1 to 10): lc-explain.mjs in the board add-on 1.10.12, Agent run and Statistics tabs, first runs on 10154, 10146, 10114, 10116. Left: Task 11 (HUMAN decision), Phase 5 (the post).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
