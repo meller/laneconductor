@@ -25,6 +25,17 @@ This add-on adds no slash commands. You can also run the script yourself:
 `node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json` and one documents file per track that
 is not done into `<dir>`, which must be outside `conductor/`; with `--previous <the manifest.json read from the live artifact>` its JSON also lists what changed.
 
+## Agent run statistics (`lc-explain.mjs`)
+
+A second script, `server/bin/lc-explain.mjs`, shows where a track's time and tokens went, like an SQL EXPLAIN for agent work:
+`node server/bin/lc-explain.mjs --repo . --track <number>` prints per lane and per implement phase the wall-clock time (agent time and
+human time apart), the tokens (output, fresh input, cache created, cache read, shown separately), the tool calls by kind, the slowest
+steps and the files read twice. It writes `conductor/tracks/<folder>/explain.md` (generated, overwritten on each run) and
+`conductor/statistics.md` (one row per track that has an `explain.md`); the board shows them as the "Agent run" tab of a track and the
+"Statistics" tab of the Project drawer. It reads your Claude session transcripts under `~/.claude/projects` (read only) and keeps
+numbers only: timestamps, token counts and tool names; no prompt, message, tool input or output, or file content is copied. Every
+table carries a note that the attribution to a track is approximate. No network request.
+
 ## Install
 
 {{SELF_NOTE}}

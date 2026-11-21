@@ -29,7 +29,7 @@ test('the facts are the real folders: commands, skills, agents, scripts, tools a
   assert.deepEqual(facts.base.tools.concat(facts.board.tools, facts.base.prompts, facts.board.prompts), [], 'only the connector has tools and prompts');
   assert.deepEqual(facts.parallel.agents, [{ name: 'track-runner', isolation: 'worktree' }]);
   assert.deepEqual(facts.base.agents, [{ name: 'plan-reviewer', isolation: null }]);
-  assert.deepEqual(facts.board.scripts, ['lc-board.mjs']);
+  assert.deepEqual(facts.board.scripts, ['lc-board.mjs', 'lc-explain.mjs']);
   assert.deepEqual(facts.parallel.scripts, ['lc-connector.mjs', 'lc-scaffold.mjs']);
   assert.equal(facts.base.program, false);
 });

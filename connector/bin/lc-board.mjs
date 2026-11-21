@@ -30,7 +30,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES, sameBoard } from '../src/board.mjs';
 import { blobSha } from '../src/blob.mjs';
-import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
+import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
 import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
@@ -116,7 +116,7 @@ if (siteDir) {
     if (sel.keep.length) await fs.mkdir(docsDir, { recursive: true });
     for (const k of sel.keep.sort((x, y) => x.number - y.number)) {
       const texts = {};
-      for (const [field, file] of includeConversation ? [...DOC_FIELDS, CONVERSATION_FIELD] : DOC_FIELDS) texts[field] = await readText(path.join(tracksDir, k.folder, file));
+      for (const [field, file] of [...DOC_FIELDS, ...(includeConversation ? [CONVERSATION_FIELD] : []), EXPLAIN_FIELD]) texts[field] = await readText(path.join(tracksDir, k.folder, file));
       const { doc, withheld } = buildDoc({ number: k.number, folder: k.folder, texts, includeConversation });
       await fs.writeFile(path.join(docsDir, `${k.number}.json`), `${JSON.stringify(doc)}\n`, 'utf8');
       files.push(`docs/${k.number}.json`);

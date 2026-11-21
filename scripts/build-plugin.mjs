@@ -81,7 +81,7 @@ export const README_SRC = 'connector/plugin-extras/readme';
 // The experimental, currently unmaintained daemon-era tier does not ship; it stays in the LaneConductor repository's own skill.
 export const SKILL_EXCLUDE_DIRS = ['legacy'];
 // Server entry points per plugin (their relative imports follow).
-export const SERVER_ENTRIES = { parallel: ['bin/lc-connector.mjs', 'bin/lc-scaffold.mjs'], board: ['bin/lc-board.mjs'] };
+export const SERVER_ENTRIES = { parallel: ['bin/lc-connector.mjs', 'bin/lc-scaffold.mjs'], board: ['bin/lc-board.mjs', 'bin/lc-explain.mjs'] };
 export const SERVER_ASSETS = { parallel: [], board: ['src/board-page.html'] };
 export const SERVER_DIRS = { parallel: ['guides'], board: [] };
 // The board add-on's own command and hooks (track AM-10115 Phase 0): the base stays Markdown only, with no hooks.
@@ -440,7 +440,7 @@ export function shortMap(facts, profile = 'base') {
     '| :--- | :--- |',
     `| \`${b.name}\` (base) | the ${list(b.skills, (s) => `\`${s}\``)} skill, every slash command (\`/${b.name}:<name>\`), the ${list(b.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent. Markdown only. |`,
     `| \`${p.name}\` (add-on) | the connector's tools (\`${CONNECTOR_TOOL_PREFIX}*\`) and MCP prompts, the ${list(p.agents.map((a) => a.name), (a) => `\`${a}\``)} subagent (one per track, in its own worktree), ${list(p.scripts.filter((s) => s !== 'lc-connector.mjs'), (s) => `\`${s}\``)}. No slash commands. |`,
-    `| \`${d.name}\` (add-on) | ${list(d.scripts, (s) => `\`${s}\``)} and its page and hooks. No slash commands; refresh with \`/${b.name}:board refresh\`. |`,
+    `| \`${d.name}\` (add-on) | ${list(d.scripts.filter((s) => s !== 'lc-explain.mjs'), (s) => `\`${s}\``)} and its page and hooks. No slash commands; refresh with \`/${b.name}:board refresh\`. |`,
   ].join('\n');
 }
 

@@ -12,7 +12,7 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 | Agents | `plan-reviewer` | `track-runner` (isolation: worktree) | none |
 | MCP tools | none | `append_conversation`, `create_track`, `get_context`, `get_track`, `health_report`, `help`, `list_tracks`, `report_outcome`, `update_track`; named `mcp__plugin_laneconductor-parallel_lc__<tool>` | none |
 | MCP prompts | none | `next`, `suggest-skills`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `setup`, `deploy` (the command catalog, served by the connector) | none |
-| Scripts | none | `server/bin/lc-connector.mjs`, `server/bin/lc-scaffold.mjs` | `server/bin/lc-board.mjs` |
+| Scripts | none | `server/bin/lc-connector.mjs`, `server/bin/lc-scaffold.mjs` | `server/bin/lc-board.mjs`, `server/bin/lc-explain.mjs` |
 | Files | Markdown, JSON and one PNG only (what the directory portal accepts) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) |
 | Installs code | no | yes: an MCP server (a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
 | Needs the others | no: each works alone | no: each works alone | no: each works alone |

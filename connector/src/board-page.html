@@ -1069,7 +1069,7 @@ td .act { border-top: 0; padding-top: 0; }
 
   // ---- Track detail: a drawer (a full-screen sheet on phones) with the track's documents.
   var $ = function (id) { return document.getElementById(id); };
-  var DOC_TABS = [['index', 'Overview', 'index.md'], ['plan', 'Plan', 'plan.md'], ['spec', 'Spec', 'spec.md'], ['test', 'Tests', 'test.md'], ['conversation', 'Conversation', 'conversation.md']];
+  var DOC_TABS = [['index', 'Overview', 'index.md'], ['plan', 'Plan', 'plan.md'], ['spec', 'Spec', 'spec.md'], ['test', 'Tests', 'test.md'], ['conversation', 'Conversation', 'conversation.md'], ['explain', 'Agent run', 'explain.md']];
   var docsCache = {}, focusEls = {}, cur = null, seq = 0, tabEls = [], bodyLinks = [], linkBtns = [], retryBtn = null;
 
   function loadDocs(t) {
@@ -1084,6 +1084,9 @@ td .act { border-top: 0; padding-top: 0; }
     return q;
   }
   function hasConversation(doc) { return Boolean(doc && (doc.conversation !== undefined || (doc.withheld && doc.withheld.conversation))); }
+  function hasExplain(doc) { return Boolean(doc && (doc.explain !== undefined || (doc.withheld && doc.withheld.explain))); }
+  // The optional tabs (the conversation, the generated agent-run statistics) exist only when the document has the field.
+  function optionalTab(x, doc) { return (x[0] !== 'conversation' || hasConversation(doc)) && (x[0] !== 'explain' || hasExplain(doc)); }
   function loadingEl() {
     var s = el('div', 'status'); s.setAttribute('role', 'status');
     var sp = el('span', 'spin'); sp.setAttribute('aria-hidden', 'true'); s.appendChild(sp); s.appendChild(el('div', 'big', 'Loading the document'));
@@ -1121,7 +1124,7 @@ td .act { border-top: 0; padding-top: 0; }
     b.scrollTop = 0;
   }
   function buildTabs(doc) {
-    buildTabList(DOC_TABS.filter(function (x) { return x[0] !== 'conversation' || hasConversation(doc); }), 'Track documents');
+    buildTabList(DOC_TABS.filter(function (x) { return optionalTab(x, doc); }), 'Track documents');
   }
   // items: [key, label]
   function buildTabList(items, label) {
@@ -1147,7 +1150,7 @@ td .act { border-top: 0; padding-top: 0; }
     var mine = cur.seq;
     loadDocs(cur.t).then(function (doc) {
       if (!cur || cur.seq !== mine || cur.tab !== key) return;
-      if (hasConversation(doc) && !tabEls.some(function (x) { return x.dataset.k === 'conversation'; })) buildTabs(doc);
+      if ((hasConversation(doc) && !tabEls.some(function (x) { return x.dataset.k === 'conversation'; })) || (hasExplain(doc) && !tabEls.some(function (x) { return x.dataset.k === 'explain'; }))) buildTabs(doc);
       renderDoc(doc, key);
     }).catch(function (e) { if (cur && cur.seq === mine && cur.tab === key) renderError(e); });
   }
