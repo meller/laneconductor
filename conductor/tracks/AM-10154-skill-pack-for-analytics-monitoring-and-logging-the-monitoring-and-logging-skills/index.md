@@ -1,9 +1,9 @@
 # Track AM-10154: Skill pack for analytics, monitoring and logging: the monitoring and logging skills
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 30%
-**Phase**: Planned 2026-11-21. The pack `laneconductor-analytics-monitoring` 0.1.0 and its first skill, `ga4-gtag-with-consent`, are built, tested and in the marketplace (3bfba3ba). Left: the monitoring skill and the logging skill, each captured from the owner's working code with the skill-from-code process, then the pack goes to 0.2.0.
+**Phase**: Planned 2026-11-21 (refined). The pack `laneconductor-analytics-monitoring` 0.1.0 and `ga4-gtag-with-consent` are built and in the marketplace (3bfba3ba). Left: the monitoring and logging skills, captured from the owner's working code with the skill-from-code process, then the pack goes to 0.2.0. Blocked on one owner input: which repository holds the working code (plan task 0).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

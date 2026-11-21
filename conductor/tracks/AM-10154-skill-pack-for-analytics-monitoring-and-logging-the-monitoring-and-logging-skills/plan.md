@@ -1,12 +1,13 @@
 # Plan: AM-10154
 
 ## Phase 1: Capture check and reading
-- [ ] Task 1: Run the capture check for each skill (an owner convention or an incident, working code that shows it, real time spent) and search the library for an overlap before adding anything
+- [ ] Task 0 (HUMAN): Name the repository that holds the working monitoring and logging code (read only; nothing in it is run or changed)
+- [ ] Task 1: Run the capture check for each skill (an owner convention or an incident, working code that shows it, real time spent); the library search is done (D5), repeat it if the library changed
 - [ ] Task 2: Read the monitoring sources (`apply.py`, `dashboard.json`, `prod-status.ts`) and the logger; write down what was observed, in general words, and what was not (REQ-1, REQ-2, REQ-4)
 - [ ] Task 3: Check the Google-side claims against Google's documentation in the same session (Cloud Monitoring alert policies, uptime checks, log-based metrics, budgets, structured log fields); label the rest unproven
 
 ## Phase 2: The monitoring skill
-- [ ] Task 4: Draft `skills/cloud-monitoring-as-code/SKILL.md` (and `files/` if a template helps) in the library format; format check and privacy gate (REQ-1, REQ-3)
+- [ ] Task 4: Draft `skills/cloud-monitoring-as-code/SKILL.md` (no `files/`, D2 and D3; the budget alert is a section, D4) in the library format; format check and privacy gate (REQ-1, REQ-3)
 - [ ] Task 5 (HUMAN): Read the draft; say yes or no before it is saved
 
 ## Phase 3: The logging skill

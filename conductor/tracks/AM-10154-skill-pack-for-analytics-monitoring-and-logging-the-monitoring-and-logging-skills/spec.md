@@ -28,8 +28,18 @@ Each runs at a different moment (building the page, deploying, debugging product
 
 An advisor catalog entry and stack tags for the pack (base text); using the skills in other projects (each project does that itself); the GA4 setup of the LaneConductor site (track 10149).
 
+## Decisions (2026-11-21, plan lane; the owner can overrule any of them)
+
+- D1 Names stay `cloud-monitoring-as-code` and `structured-logs-for-alerts`: each says the pattern, and a person typing "alert on slow requests" or "log so I can alert" matches the description. A rename is cheap until the pack is released.
+- D2 The status script is described in the monitoring skill, not shipped as a template. It reads one app's own counts, so a template would be that app's code with names changed, and nothing here can run it against Google Cloud (REQ-4). The skill states the shape (read only, counts, names and dates, no secrets) and says it was observed, not run.
+- D3 The apply script is not shipped as a template either, for the same reason: it needs a Google Cloud project to run, and an untested template teaches a wrong shape with confidence. If the owner has a project to try it in, a template can be added in a later version.
+- D4 The budget alert stays a section of the monitoring skill: it is created by the same apply script, by the same look-up-by-name step. Split it out only if the monitoring body goes past 8,000 characters.
+- D5 Capture check (REQ-3 and the process step 1): the library has no monitoring or logging skill (searched `skills/` on 2026-11-21; the only hits are a security-alert line in `llm-through-tokentalos`), so there is nothing to update instead. Both patterns are the owner's convention with working code; the real-time-spent test is the owner's call at the draft review.
+
+## Owner input needed before the build
+
+- The path or name of the repository that holds the working code. The skills are written from reading it (read only); without it the plan stops at Phase 1.
+
 ## Open questions
 
-- The skill names (`cloud-monitoring-as-code`, `structured-logs-for-alerts`).
-- Whether the read-only production status script is a template inside the monitoring skill (`files/`) or only described.
-- Whether the budget alert belongs in the monitoring skill or is its own small skill.
+- None that block planning. D1 to D4 stand unless the owner says otherwise.
