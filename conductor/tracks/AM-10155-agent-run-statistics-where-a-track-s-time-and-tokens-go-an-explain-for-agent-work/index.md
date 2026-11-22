@@ -1,13 +1,12 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: done
+**Lane**: plan
 **Lane Status**: success
-**Progress**: 100%
-**Phase**: Shipped 2026-11-22: lc-explain, the Agent run and Statistics tabs with the insight first, finished tracks on the board in shards, the Run statistics action and the compact tables (board add-on 1.10.16) are on main (merge mode direct; last shipping commit 040c5969). Quality gate passed, merge recorded.
+**Progress**: 75%
+**Phase**: Phase 8 planned 2026-11-22 (spec D15 to D18, tasks 25 to 32, tests TC-21 to TC-26): recommendations for the next run (where to run, which model, what effort, what waited) and a per-phase path. It was done:success; reopened to plan, parked at plan:success.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
-**Verdict**: pass
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
