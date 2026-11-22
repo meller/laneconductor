@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 100%
-**Phase**: Built, checked and published: lc-explain.mjs, the Agent run and Statistics tabs, the Run statistics action (board add-on 1.10.13), and the post "Stop guessing what your agent is doing" live at /posts/ (399bcd17, deployed 2026-11-22). Waits for review and the quality gate.
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 80%
+**Phase**: Reopened 2026-11-22 for phase 6: a bug in the first-response context figure, finished tracks on the board (sharded), and a correction of the published post (spec D10 to D12).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
