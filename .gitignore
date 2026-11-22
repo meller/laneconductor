@@ -136,3 +136,6 @@ scratch/delete_prod_*.*
 
 # Skills library: the local list of private names for the privacy gate (never committed)
 .homebrew-deny.local.txt
+
+# written into the deploy copy by scripts/deploy-site.sh (the live version, not committed)
+landing/version.json

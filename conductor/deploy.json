@@ -2,16 +2,12 @@
   "defaultEnvironment": "production",
   "environments": {
     "production": {
-      "command": "bash scripts/deploy.sh production",
-      "description": "Production AWS/Cloud stack"
-    },
-    "prod": {
-      "command": "bash scripts/deploy.sh prod",
-      "description": "Production AWS/Cloud stack"
-    },
-    "staging": {
-      "command": "bash scripts/deploy.sh staging",
-      "description": "Staging preview environment"
+      "command": "bash scripts/deploy-site.sh",
+      "description": "The public site (landing/) on Firebase Hosting, project laneconductor-site, from a clean copy of main",
+      "service": "laneconductor-site",
+      "liveVersionUrl": "https://laneconductor-site.web.app/version.json",
+      "liveVersionField": "version",
+      "rollback": "bash scripts/deploy-site.sh {commit}"
     }
   }
 }
