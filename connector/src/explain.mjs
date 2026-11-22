@@ -224,7 +224,7 @@ export function renderInsight(r) {
     if (x.responses && x.firstContext >= LONG_CONTEXT && share < LOW_SUB_SHARE) look.push(`- The ${x.lane} run starting ${stamp(x.start)} began with ${n(x.firstContext)} tokens of context in the main session and only ${share}% of its replies came from sub-agents: a sub-agent or a fresh session may do the long work with less context.`);
   }
   const bounds = runs.filter((x) => !x.claimed || x.open);
-  if (bounds.length) look.push(`- ${plural(bounds.length, 'lane run has', 'lane runs have')} no claim commit or ${bounds.length === 1 ? 'was' : 'were'} never closed (${bounds.map((x) => x.lane).join(', ')}): their times are upper bounds; claim the lane when starting it (set it to running).`);
+  if (bounds.length) look.push(`- ${plural(bounds.length, 'lane run has', 'lane runs have')} no claim commit or ${bounds.length === 1 ? 'was' : 'were'} never closed (${bounds.map((x) => x.lane).join(', ')}): ${bounds.length === 1 ? 'its time is an upper bound' : 'their times are upper bounds'}; claim the lane when starting it (set it to running).`);
   const repeated = sum(runs, 'repeatedReads');
   if (repeated) look.push(`- ${plural(repeated, 'repeated read', 'repeated reads')}: files read more than once in the same run.`);
   const gaps = sum(runs, 'gapsOver30');
