@@ -29,12 +29,12 @@
 - [x] TC-19 (D14): statistics.md starts with its own `## Insight`, and reading the explain.md files back (with the new section) gives the same tables as before
 - [x] TC-20 (D13): in the board page, the Agent run tab of a track with an explain opens on the insight (it is the first section of the rendered document)
 
-- [ ] TC-21 (D16): a synthetic transcript with two models, thinking tokens and two effort levels gives the exact model mix, thinking share and effort levels per lane and phase, and every existing total is unchanged
-- [ ] TC-22 (D15, D16): each recommendation rule has a fires and a stays-quiet test at its limits (400,000 and 399,999 tokens, 30 percent sub-agent share, 80 percent mechanical tool calls, 30 percent thinking, 5 minutes), the suggested setup names a lane, a place, a model tier and an effort, and the quiet case says "No change suggested"
-- [ ] TC-23 (D17): the Path of a phase is the run-length encoded tool kinds in order, cut to 8 segments, with no tool input or output content
-- [ ] TC-24 (D18): statistics.md recommendations across tracks give the model mix of all replies, the share of unclaimed lane runs and the tracks where most rules fired
-- [ ] TC-25 (REQ-4): the recommendations contain only numbers, model ids, tool names and times; a transcript with a token, an email and a prompt never reaches them
-- [ ] TC-26 (D15): in the board page, the Agent run tab shows Recommendations right after Insight
+- [x] TC-21 (D16): a synthetic transcript with two models, thinking tokens and two effort levels gives the exact model mix, thinking share and effort levels per lane and phase, and every existing total is unchanged
+- [x] TC-22 (D15, D16): each recommendation rule has a fires and a stays-quiet test at its limits (400,000 and 399,999 tokens, 30 percent sub-agent share, 80 percent mechanical tool calls, 30 percent thinking, 5 minutes), the suggested setup names a lane, a place, a model tier and an effort, and the quiet case says "No change suggested"
+- [x] TC-23 (D17): the Path of a phase is the run-length encoded tool kinds in order, cut to 8 segments, with no tool input or output content
+- [x] TC-24 (D18): statistics.md recommendations across tracks give the model mix of all replies, the share of unclaimed lane runs and the tracks where most rules fired
+- [x] TC-25 (REQ-4): the recommendations contain only numbers, model ids, tool names and times; a transcript with a token, an email and a prompt never reaches them
+- [x] TC-26 (D15): in the board page, the Agent run tab shows Recommendations right after Insight
 
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals

@@ -43,12 +43,12 @@
 ## ✅ QUALITY PASSED (phase 7)
 
 ## Phase 8: Recommendations for the next run (2026-11-22)
-- [ ] Task 25: Probe the fields in the main and sub-agent transcripts (model per reply, thinking tokens, effort per turn) on three real tracks and write down what is missing (D15 to D17)
-- [ ] Task 26 (test first): model mix, thinking tokens and effort levels per lane and phase are computed from the transcripts (numbers only) and shown in the details, without changing any existing total (D16)
-- [ ] Task 27 (test first): `## Recommendations` right after `## Insight`: each rule of D16 has a test that fires and one that stays quiet, the thresholds are named constants, each recommendation carries its evidence number, and the quiet case says "No change suggested" (D15, D16)
-- [ ] Task 28 (test first): the per-phase Path of D17 (run-length encoded tool kinds, first 8 segments)
-- [ ] Task 29 (test first): `statistics.md` recommendations across tracks (D18)
-- [ ] Task 30: the board shows Recommendations right after the Insight; board add-on 1.10.17, regenerate, tests, strict validation; base and parallel plugins unchanged (REQ-7)
+- [x] Task 25: Probe the fields in the main and sub-agent transcripts (model per reply, thinking tokens, effort per turn) on three real tracks and write down what is missing (D15 to D17)
+- [x] Task 26 (test first): model mix, thinking tokens and effort levels per lane and phase are computed from the transcripts (numbers only) and shown in the details, without changing any existing total (D16)
+- [x] Task 27 (test first): `## Recommendations` right after `## Insight`: each rule of D16 has a test that fires and one that stays quiet, the thresholds are named constants, each recommendation carries its evidence number, and the quiet case says "No change suggested" (D15, D16)
+- [x] Task 28 (test first): the per-phase Path of D17 (run-length encoded tool kinds, first 8 segments)
+- [x] Task 29 (test first): `statistics.md` recommendations across tracks (D18)
+- [x] Task 30: the board shows Recommendations right after the Insight; board add-on 1.10.17, regenerate, tests, strict validation; base and parallel plugins unchanged (REQ-7)
 - [ ] Task 31 (HUMAN): the owner reads the recommendations of two real tracks, says which are useful, and the thresholds and wording are adjusted
 - [ ] Task 32: regenerate this project's explain files and refresh the boards, on the owner's word
 
