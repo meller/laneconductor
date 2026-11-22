@@ -369,7 +369,7 @@
                 </ul>
             </div>
             <div class="sidebar-group">
-                <div class="sidebar-title">Code not in use (needs owners)</div>
+                <div class="sidebar-title">An earlier code path, not in use</div>
                 <ul class="sidebar-links">
                     <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
                     <li><a href="#modes">Operating Modes</a></li>
@@ -750,10 +750,12 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
 
             <section id="unused-code">
                 <h2>Code that exists but is not in use</h2>
-                <p>These parts of the repository are not part of the plugin and are not in use at the moment: a local
-                    database and dashboard, a background worker, a command line (<code>lc</code>) and the pieces around them.
-                    The code is there, at the git tag <code>v1-legacy</code>, and it needs owners: nobody maintains it today.
-                    Each part is described below in case you want to pick one up.</p>
+                <p>The repository also holds an earlier code path that was written and is not in use: a local database and
+                    dashboard, a background worker, a command line (<code>lc</code>) and the pieces around them. It is an
+                    architecture for running work across agents, so it could be the starting point for support of agents
+                    other than Claude, or of other platforms. It covers some of the same ground as sub-agents, the current
+                    focus is Claude, and nobody maintains it today. It is open source, at the git tag
+                    <code>v1-legacy</code>: anyone who wants to build on it can take it. Each part is described below.</p>
                 <details class="unused" id="vs-coding-agents">
                     <summary>LaneConductor vs. Standalone Coding Agents</summary>
                 <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>

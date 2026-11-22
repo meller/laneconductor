@@ -2306,7 +2306,7 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
     <section class="modes-section" id="modes">
         <div class="container" style="padding-top:96px;padding-bottom:96px;">
             <div class="section-label">Where it works</div>
-            <h2 class="section-title">What works where.<br />And what does not yet.</h2>
+            <h2 class="section-title">What works where.</h2>
             <p class="section-sub" style="margin-bottom: 32px;">The plugin loads in several Claude surfaces, but the connector, the board script and the subagents run only on your own computer.</p>
             <div class="modes-grid">
                 <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
@@ -2335,30 +2335,18 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
                     </div>
                 </div>
 
-                <div class="mode-card mode-remote fade-in" style="transition-delay:0.1s;opacity:0.75;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                        <span class="mode-badge">remote</span>
-                        <span style="font-size:11px;font-weight:600;color:var(--ink-faint);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 7px;letter-spacing:0.05em;">NOT YET AVAILABLE</span>
-                    </div>
-                    <div class="mode-title">Chat and mobile connector</div>
-                    <p class="mode-desc">There is no remote connector for claude.ai chat and mobile: the plugin runs
-                        in Claude Code and Cowork. It is also not in Anthropic's plugin directory yet.</p>
-                    <div class="mode-facts">
-                        <div class="mode-fact"><span class="dot"></span>Install from the marketplace for now</div>
-                        <div class="mode-fact"><span class="dot"></span>Works in Claude Code and Cowork</div>
-                    </div>
-                </div>
-
-                <div class="mode-card mode-local fade-in" style="transition-delay:0.2s;opacity:0.75;">
-                    <span class="mode-badge">experimental</span>
-                    <div class="mode-title">The earlier stack: experimental, currently unmaintained</div>
-                    <p class="mode-desc">The Postgres dashboard, the sync daemon, workers and dispatch, the cloud
-                        collector and federated hubs are kept at the <code
+                <div class="mode-card mode-local fade-in" style="transition-delay:0.2s;opacity:0.75;grid-column:1 / -1;">
+                    <span class="mode-badge">not in use</span>
+                    <div class="mode-title">An earlier code path, written and unused</div>
+                    <p class="mode-desc">A Postgres dashboard, a sync daemon, workers and dispatch, a cloud collector and
+                        federated hubs were written before the plugin and are kept at the <code
                             style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">v1-legacy</code> git
-                        tag. The plugin does not need any of them, and the daemon is stopped.</p>
+                        tag. It is a starting point for anyone who wants agents other than Claude, or other platforms.
+                        It covers some of the same ground as sub-agents, it is not maintained, and the plugin does not
+                        need it. It is open source: take it if it is useful to you.</p>
                     <div class="mode-facts">
                         <div class="mode-fact"><span class="dot"></span>Optional, never required</div>
-                        <div class="mode-fact"><span class="dot"></span>Existing projects: install the plugin, remove the old skill link, stop the worker</div>
+                        <div class="mode-fact"><span class="dot"></span>Current focus: Claude</div>
                     </div>
                 </div>
             </div>
@@ -2371,8 +2359,7 @@ Hint: Someone else edited first. Re-read with get_track, merge their change with
             <div class="section-label">Architecture</div>
             <h2 class="section-title">Files in git.<br />Claude plus a connector.</h2>
             <p class="section-sub">Tracks are Markdown files in your repository. Claude reads and writes them through
-                a small local connector. There is no database and no daemon; the older tier that had both is optional and
-                parked.</p>
+                a small local connector. There is no database and no daemon.</p>
 
             <div class="arch-diag-container fade-in">
                 <div class="arch-flow">
