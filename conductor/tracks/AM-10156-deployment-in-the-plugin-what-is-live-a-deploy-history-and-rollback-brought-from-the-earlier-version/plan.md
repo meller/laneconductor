@@ -21,4 +21,4 @@
 
 ## Phase 6: Use it for real
 - [ ] Task 10: add a `version.json` (commit and time) to the deploy copy of this site at deploy time, write the records for this site's production hosting deploys and check `status` and the rollback prompt against the live site (no rollback is executed)
-- [ ] Task 11 (HUMAN): the owner reads the texts, and approves one base release (REQ-8)
+- [x] Task 11 (HUMAN): the owner reads the texts, and approves one base release (REQ-8)
