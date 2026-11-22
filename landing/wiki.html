@@ -325,6 +325,9 @@
                 padding: 48px 24px;
             }
         }
+        details.unused { margin: 0 0 12px; border: 1px solid var(--border, #2a2f3a); border-radius: 8px; padding: 0 16px; }
+        details.unused > summary { cursor: pointer; padding: 12px 0; font-weight: 600; }
+        details.unused[open] > summary { margin-bottom: 8px; }
     </style>
 </head>
 
@@ -363,11 +366,10 @@
                     <li><a href="#filesystem-bus">Files in git</a></li>
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
                     <li><a href="#quality-gates">Quality Gates</a></li>
-                    <li><a href="#project-status">Project Status</a></li>
                 </ul>
             </div>
             <div class="sidebar-group">
-                <div class="sidebar-title">Experimental tier, unmaintained (v1-legacy)</div>
+                <div class="sidebar-title">Code not in use (needs owners)</div>
                 <ul class="sidebar-links">
                     <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
                     <li><a href="#modes">Operating Modes</a></li>
@@ -384,6 +386,7 @@
                     <li><a href="#operational-safety">Operational Safety</a></li>
                     <li><a href="#autoresearch">Autoresearch</a></li>
                     <li><a href="#cli-general">CLI Reference</a></li>
+                    <li><a href="#cli-track">CLI: Track Management</a></li>
                     <li><a href="#configuration">Configuration</a></li>
                     <li><a href="#secret-management">Secret Management</a></li>
                     <li><a href="#gitignore-pattern">What to Gitignore</a></li>
@@ -404,15 +407,7 @@
                     tests and conversation. Claude plans, implements, reviews and merges tracks for you, and git keeps the
                     history. There is no database to run and no background process to keep alive.</p>
 
-                <div class="callout">
-                    <div class="callout-title">Direction (decided 2026-11-16)</div>
-                    <p>Claude plus git plus a connector. LaneConductor is a Markdown-only base plugin, two optional add-ons
-                        (parallel work, and the board) and optional skill packs. The Postgres dashboard, the sync daemon,
-                        workers and dispatch, the cloud collector and federated hubs are the earlier version of
-                        LaneConductor. They are experimental and currently unmaintained, kept at the <code>v1-legacy</code>
-                        git tag, and the plugins do not need any of them. Sections of this page that describe that older
-                        stack are listed under <strong>Experimental tier</strong> in the sidebar and marked on the page.</p>
-                </div>
+                <p>LaneConductor is a Markdown-only base plugin, two optional add-ons (parallel work, and the board) and optional skill packs.</p>
 
                 <h3>Track Types</h3>
                 <table>
@@ -426,69 +421,7 @@
                 </table>
             </section>
 
-            <section id="vs-coding-agents">
-                <h2>LaneConductor vs. Standalone Coding Agents</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
-                <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>
-
-                <div class="callout">
-                    <div class="callout-title">The Paradigm Shift</div>
-                    <p>Instead of babysitting a single terminal REPL while it makes in-place file modifications, you coordinate an autonomous fleet. You align on architecture and plans in chat, update design documents, and queue background workers in isolated Git worktrees that plan, implement, verify with quality gates, and open PRs independently.</p>
-                </div>
-
-                <h3>Head-to-Head Comparison</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Dimension</th>
-                            <th>Standalone Coding Agents</th>
-                            <th>LaneConductor Control Plane</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Architecture</strong></td>
-                            <td>Ephemeral, single-terminal REPL (1 human &harr; 1 session)</td>
-                            <td>Sovereign multi-agent control plane with background worker fleet</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Visibility</strong></td>
-                            <td>Terminal scrollback buffer (lost across sessions)</td>
-                            <td>Persistent Kanban dashboard backed by local Postgres &amp; Markdown bus</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Workspace Isolation</strong></td>
-                            <td>Direct in-place edits on primary checkout; prone to dirty checkouts</td>
-                            <td><strong>Git Worktree Isolation</strong>: dedicated worktrees keep <code>main</code> pristine</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Execution Safety</strong></td>
-                            <td>Chat turns write code directly to your working tree</td>
-                            <td><strong>Dual-Mode Safety</strong>: chat turns edit design docs only; code changes are sandboxed in worktrees</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Target Switchability</strong></td>
-                            <td>Single monolithic terminal session</td>
-                            <td>Switch dynamically between <strong>The Manager</strong> (instance health &amp; gaps) and <strong>Track Workers</strong></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Steerable Roadmaps</strong></td>
-                            <td>Ad-hoc prompt conversation disconnected from track plans</td>
-                            <td>Conversational steering updates <code>spec.md</code>/<code>plan.md</code> and re-queues tracks (<code>/laneconductor move</code>)</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Quality Gates &amp; PRs</strong></td>
-                            <td>Manual review, manual commit, manual test execution</td>
-                            <td>Automated Quality Gates, lint/build verification, and automated PR / Direct Merge</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </section>
+            
 
             <section id="conductor-pattern">
                 <h2>The Conductor Pattern</h2>
@@ -564,22 +497,7 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <tr><td>claude.ai chat</td><td>yes (Claude edits the track files directly)</td><td>no</td></tr>
                     </tbody>
                 </table>
-                <p>A remote connector for chat and mobile does not exist yet; it is not available. The plugin is not
-                    in Anthropic's plugin directory yet, so you install it from the marketplace above.
-                    Hooks are planned as a separate opt-in extension, <code>laneconductor-hooks</code>, and are not
-                    available yet.</p>
 
-                <h3>Migrating a project that used the earlier install</h3>
-                <ol>
-                    <li>Install the plugin (above).</li>
-                    <li>Open a session in the project and confirm <code>/mcp</code> shows
-                        <code>plugin:laneconductor:lc</code>.</li>
-                    <li>Remove the project's own skill (<code>.claude/skills/laneconductor</code>, often a symlink) and
-                        any copy in <code>~/.claude/skills</code>, so the skill is not loaded twice.</li>
-                    <li>If a worker runs for the project, stop it with <code>lc worker stop</code> (the deprecated <code>lc</code> command line).</li>
-                </ol>
-                <p>Your tracks do not change. <code>make install</code>, <code>lc start</code> and a Postgres database
-                    belong to the experimental tier and are not needed.</p>
             </section>
 
             <section id="claude-skill">
@@ -629,7 +547,7 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <code>board.json</code> and one document file per track, and publishes them as a <strong>private</strong>
                         artifact. The artifact's URL is kept in <code>.laneconductor.json</code>
                         (<code>board.artifact_url</code>).</li>
-                    <li><strong>It refreshes itself.</strong> With board add-on 1.10.10 and base 1.9.14 or newer, when Claude finishes a turn after a track
+                    <li><strong>It refreshes itself.</strong> The add-on carries the hooks for this. With board add-on 1.10.10 and base 1.9.14 or newer, when Claude finishes a turn after a track
                         changed (by any tool: an edit, the connector, a push), and when a lane starts running (plan, implement, review or
                         quality gate), it is asked to run <code>/laneconductor:board refresh</code>. That publishes only the files that
                         changed: a manifest of hashes decides which, and it reports nothing unless it failed. This is on by default once
@@ -745,245 +663,9 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         import them into the LaneConductor system automatically.</p>
                 </div>
             </section>
+            
 
-            <section id="llm-config">
-                <h2>LLM Configuration</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
-                </div>
-
-                <p>LaneConductor allows you to define which AI agents and models are used for specific tasks, providing
-                    a robust fallback system.</p>
-
-                <h3>Primary vs. Secondary LLMs</h3>
-                <p>Configured during <code>lc setup</code> or manually in <code>.laneconductor.json</code>, you can
-                    specify:</p>
-                <ul>
-                    <li><strong>Primary Agent:</strong> The default worker. (Default: <code>claude</code> using
-                        <code>haiku</code>). Claude is the most thoroughly tested and recommended configuration.
-                    </li>
-                    <li><strong>Secondary Agent:</strong> <span style="background: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 3px; color: var(--amber);"><strong>Experimental:</strong></span> A fallback worker used if the primary hits rate limits or
-                        specific task failures. (Default: <code>gemini</code> using <code>latest</code>). This feature is still under active development and may have compatibility issues.</li>
-                </ul>
-
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental Support</div>
-                    <p>Secondary LLM support (Gemini, etc.) is currently <strong>experimental</strong>. For production use, Claude is the only fully supported primary agent. Secondary fallback agents may have gaps in task execution and state synchronization.</p>
-                </div>
-
-                <h3>Workflow Overrides</h3>
-                <p>In <code>conductor/workflow.json</code>, you can override models for specific lanes. For example, you
-                    might use a faster model for <code>planning</code> and a more powerful one for
-                    <code>implementation</code>:
-                </p>
-                <pre><code>{
-  "lanes": {
-    "plan": { "primary_model": "claude-opus-5" },
-    "implement": { "primary_model": "claude-sonnet-5" },
-    "review": { "primary_model": "claude-3-5-haiku" }
-  }
-}</code></pre>
-                <p>The key is <code>primary_model</code> — a lane's setting wins over the project default for that
-                    lane's automated runs. The provider (CLI) stays fixed project-wide; only the model varies per
-                    lane, which preserves session continuity across lane transitions.</p>
-            </section>
-
-            <section id="modular-integrations">
-                <h2>Modular Integrations</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
-                <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. It is designed to bridge the gap between your local environment and enterprise tools across multiple operating modes.</p>
-                
-                <div class="callout">
-                    <div class="callout-title">Supported Targets</div>
-                    <ul>
-                        <li><strong>Local API:</strong> Connects to your local Postgres instance for personal project tracking.</li>
-                        <li><strong>Remote API:</strong> Scales to centralized teams via Cloud Functions and Neon Postgres.</li>
-                        <li><strong>Jira:</strong> Bidirectional sync with Atlassian Jira projects (Cloud and On-Premise).</li>
-                        <li><strong>Extensible:</strong> Modular adapters allow adding new providers (GitHub, Slack, etc.) with minimal overhead.</li>
-                    </ul>
-                </div>
-
-                <h3>Secure Proxying</h3>
-                <p>Local workers never see third-party API keys. When a worker needs to update an external service (like Jira), it calls the authenticated <strong>Integration Proxy</strong> on the Cloud API. The API injects the project-specific secrets and forwards the request, ensuring credentials never leave the secure cloud environment.</p>
-
-                <h3>Metadata Mapping</h3>
-                <p>Project and Track metadata is stored in <code>integrations</code> JSONB columns, allowing bidirectional mapping between local tracks and external resources (e.g., mapping Track 1067 to Jira Issue PROJ-1067).</p>
-            </section>
-
-            <section id="jira-workflow">
-                <h2>Jira Workflow — Hybrid Sync</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
-                <p>The Jira integration uses a <strong>Hybrid Sync</strong> model: Inbound Webhooks for instant updates, and Polling-based Bidirectional Sync for reliability and conflict resolution.</p>
-
-                <h3>1. Inbound (Jira → LC)</h3>
-                <p>When a Jira issue is labeled or moved, LaneConductor processes the update via two paths:</p>
-                <ul>
-                    <li><strong>Webhooks (Instant):</strong> Jira sends a POST to <code>/v1/webhooks/jira</code>. The Cloud API translates this to a command that notifies all active workers.</li>
-                    <li><strong>Polling (Reliable):</strong> Workers poll the Jira API every 60 seconds. This captures any updates missed during downtime and performs deep-sync of contents.</li>
-                </ul>
-
-                <h3>2. Outbound (LC → Jira)</h3>
-                <p>Workers push filesystem changes back to Jira after every sync cycle:</p>
-                <ul>
-                    <li><strong>Multi-file Sync:</strong> LaneConductor aggregates <code>index.md</code>, <code>plan.md</code>, <code>spec.md</code>, and <code>test.md</code> into the Jira issue description using Atlassian Document Format (ADF).</li>
-                    <li><strong>Lane Tracking Labels:</strong> Issues are tagged with <code>lconductor-status-&lt;status&gt;</code> (e.g., <code>lconductor-status-running</code>) for state visibility within Jira.</li>
-                    <li><strong>Transitions:</strong> Jira issue status is automatically transitioned to match the local lane (e.g., "Implement" &rarr; "In Progress").</li>
-                </ul>
-
-                <h3>Conflict Resolution</h3>
-                <p><strong>Latest version wins</strong> with a 10-second "edit grace period":</p>
-                <ul>
-                    <li>If both sides are modified within 10 seconds, the sync is delayed to prevent thrashing.</li>
-                    <li>After the grace period, the newer timestamp (Filesystem mtime vs. Jira's <code>updated</code>) becomes the source of truth.</li>
-                    <li><strong>Timestamp-based Dedup:</strong> Multiple workers can safely poll the same project; only the worker that detects a newer timestamp will perform the write.</li>
-                </ul>
-            </section>
-
-            <section id="modes">
-                <h2>Operating Modes</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
-                <p>One of LaneConductor's greatest strengths is its flexibility. You can switch modes based on your
-                    environment.</p>
-
-                <h3>1. Local FS (Headless)</h3>
-                <p>The simplest mode. Everything is stored in Markdown files. There is no database or API server. This
-                    is perfect for <strong>air-gapped environments</strong> or <strong>CI/CD pipelines</strong> where
-                    you want a clean audit trail without infrastructure overhead.</p>
-
-                <h3>2. Local API (Dashboard)</h3>
-                <p>The standard developer experience. A background worker syncs your files to a local Postgres database,
-                    and a Vite-powered dashboard provides a real-time Kanban view of all your projects.</p>
-
-                <h3>3. Remote API (Team)</h3>
-                <p>For teams. Local workers sync to a shared remote collector. This allows project managers and
-                    teammates to see agent progress across the entire organization in a unified view.</p>
-
-                <h3>Skill-Only vs Worker Modes — Feature Comparison</h3>
-                <p>Before any of the three modes above, there's a zero-install on-ramp: <strong>skill-only</strong>.
-                    An AI session (Claude Desktop, an interactive CLI chat) drives the <code>conductor/</code>
-                    files directly through the <code>/laneconductor</code> skill — no worker process, no database,
-                    nothing to install. Everything degrades gracefully to it. The table below is the honest upgrade
-                    path: each column to the right is a reason to install more.</p>
-                <table>
-                    <thead><tr><th>Feature</th><th>Skill-only</th><th>Worker (local-fs)</th><th>Full stack (local-api)</th><th>Cloud (remote-api)</th></tr></thead>
-                    <tbody>
-                        <tr><td>Track scaffolding, plan/implement/review via markdown</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Git lock + worktree isolation</td><td>✅ manual</td><td>✅ automatic</td><td>✅ automatic</td><td>✅ automatic</td></tr>
-                        <tr><td>Auto-launch of queued lane actions</td><td>❌ human invokes each step</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Retry / on-failure lane automation (<code>workflow.json</code>)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td><strong>Per-lane model</strong> (<code>primary_model</code> per lane)</td><td>❌ session model is whatever the human runs</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td><strong>Per-track model override</strong> (planned)</td><td>❌ same reason</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Provider exhaustion fallback (primary → secondary CLI)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Session continuity across lane actions (<code>--resume</code>)</td><td>n/a (one human session)</td><td>✅</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Live model discovery from the machine (heartbeat)</td><td>❌</td><td>❌ no collector to report to</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Kanban dashboard, Inbox, conversation UI</td><td>❌</td><td>❌</td><td>✅ <code>localhost:8090</code></td><td>✅ cloud URL</td></tr>
-                        <tr><td>Worker dispatch ("run this on that worker")</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td></tr>
-                        <tr><td>Multi-machine / team coordination, worker identity</td><td>❌</td><td>git locks only</td><td>✅ single machine</td><td>✅ full</td></tr>
-                    </tbody>
-                </table>
-                <div class="callout">
-                    <div class="callout-title">Model selection is a worker feature — and best-effort</div>
-                    <p>Per-lane and per-track model settings are resolved by the <strong>worker at spawn time</strong>
-                        (it passes <code>--model</code> to the CLI it launches). In skill-only mode there is nothing to
-                        spawn, so the model is simply whatever session you're running. Matching is best-effort: the
-                        model id is not validated against the executing machine's installed models — a mismatch fails
-                        that run (normal retry handling applies) rather than being blocked up front.</p>
-                </div>
-            </section>
-
-            <section id="project-status">
-                <h2>Project Status</h2>
-                <p>The plugin is under active development. It is not in Anthropic's plugin
-                    directory, a remote connector for claude.ai chat and mobile is not available, and the hooks
-                    extension (<code>laneconductor-hooks</code>) is planned, not available. Installing recommended skills for you
-                    is planned, not available.</p>
-            </section>
-
-            <section id="operational-safety">
-                <h2>Operational Safety & Best Practices</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
-                </div>
-
-                <p>Working with AI agents requires a balance between automation and oversight. We've identified two
-                    primary patterns of operation:</p>
-
-                <div class="callout">
-                    <div class="callout-title">Safe Mode (Default & Recommended)</div>
-                    <p>Run the background worker in <strong>sync-only mode</strong> (the default: <code>lc start</code>).
-                        In this mode, the worker only handles data synchronization between the filesystem and the database. You then invoke the
-                        <code>/laneconductor</code> skill manually within Claude Code as you work.
-                        This allows you to <strong>watch the agent's logic in real-time</strong> while using the
-                        UI dashboard for high-level tracking.
-                    </p>
-                </div>
-
-                <h3>The Hallucination Factor</h3>
-                <p>LaneConductor supports a "Full Loop" mode where the agent can automatically move from Plan &rarr;
-                    Implement &rarr; Review. However, this mode carries a higher risk of <strong>LLM
-                        Hallucinations</strong>.</p>
-                <p>Due to current LLM limitations, an agent might occasionally "think" it has completed a task, updated
-                    a file, or passed a test when it hasn't actually performed the action. This can lead to a state
-                    drift between the track documentation and the actual codebase.</p>
-
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Recommendation</div>
-                    <p>Unless you are performing highly repetitive, low-risk tasks, <strong>Safe Mode</strong> is the
-                        preferred workflow. Always use the <strong>Quality Gate</strong> lane or manual verification
-                        for any critical code changes.</p>
-                </div>
-            </section>
-
-            <section id="bidirectional-sync">
-                <h2>Bidirectional Sync &amp; Track Status</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it. The <code>lc</code> commands mentioned here are deprecated.</p>
-                </div>
-
-                <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
-                    between the <strong>Filesystem</strong> (where agents work) and the <strong>API/UI</strong> (where
-                    humans coordinate).</p>
-
-                <h3>The Sync Process</h3>
-                <p>The heartbeat worker (managed by <code>lc start</code>) continuously monitors your <code>conductor/tracks/</code> directory and syncs track status in both directions:</p>
-                <ul>
-                    <li><strong>Filesystem → Database:</strong> When Claude or a human updates a track's <code>index.md</code>, the worker detects the change and updates the database within seconds.</li>
-                    <li><strong>Database → Filesystem:</strong> When you move a card on the Kanban dashboard, the UI writes a signal that the worker detects and updates the corresponding Markdown file.</li>
-                </ul>
-
-                <h3>Sync Strategy: "Newer Wins"</h3>
-                <p>The sync strategy is <strong>"Newer Wins"</strong>. If you edit a Markdown file on disk, the UI
-                    updates within 5 seconds. If you move a card on the Kanban board, the UI writes a signal to the
-                    filesystem that the agent picks up instantly. This ensures real-time coordination between agents and humans.</p>
-
-                <h3>Worker Modes</h3>
-                <p>The heartbeat worker operates in two modes:</p>
-                <ul>
-                    <li><strong>Sync-Only (Default):</strong> <code>lc start</code> runs the worker in sync-only mode by default. It performs filesystem ↔ database synchronization only, without polling the task queue for automated execution. This is the safe, recommended mode for most workflows.</li>
-                    <li><strong>Sync-and-Work:</strong> <code>lc start --sync-and-work</code> enables full automation. The worker will also poll the queue and automatically execute tracks based on your workflow configuration. Use this for highly repetitive, well-tested tasks.</li>
-                </ul>
-            </section>
+            
 
             <section id="filesystem-bus">
                 <h2>Files in git</h2>
@@ -1026,14 +708,301 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                 </p>
             </section>
 
-            <section id="chat-control-plane">
-                <h2>Persistent Chat &amp; Control Surface</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
+            
+
+            
+
+            
+
+            
+
+            
+
+            
+
+            <section id="quality-gates">
+                <h2>Quality Gates</h2>
+                <p>The <strong>Quality Gate</strong> lane is where trust is established. LaneConductor runs your
+                    project's existing verification tools before allowing a track to reach "Done".</p>
+                <p>Configuration is handled in <code>conductor/quality-gate.md</code> using a simple checklist format
+                    that the agent or human can execute.</p>
+                <pre><code># Quality Gate Checklist
+- [ ] Syntax: `npm run lint`
+- [ ] Logic: `npm test`
+- [ ] Security: `npm audit`</code></pre>
+            </section>
+
+            
+
+            
+
+            
+
+            
+
+            
+
+            
+
+            <footer>
+                <p>&copy; 2026 LaneConductor. Sovereign Agent Orchestration.</p>
+            </footer>
+
+            <section id="unused-code">
+                <h2>Code that exists but is not in use</h2>
+                <p>These parts of the repository are not part of the plugin and are not in use at the moment: a local
+                    database and dashboard, a background worker, a command line (<code>lc</code>) and the pieces around them.
+                    The code is there, at the git tag <code>v1-legacy</code>, and it needs owners: nobody maintains it today.
+                    Each part is described below in case you want to pick one up.</p>
+                <details class="unused" id="vs-coding-agents">
+                    <summary>LaneConductor vs. Standalone Coding Agents</summary>
+                <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>
+
+                <div class="callout">
+                    <div class="callout-title">The Paradigm Shift</div>
+                    <p>Instead of babysitting a single terminal REPL while it makes in-place file modifications, you coordinate an autonomous fleet. You align on architecture and plans in chat, update design documents, and queue background workers in isolated Git worktrees that plan, implement, verify with quality gates, and open PRs independently.</p>
                 </div>
 
+                <h3>Head-to-Head Comparison</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dimension</th>
+                            <th>Standalone Coding Agents</th>
+                            <th>LaneConductor Control Plane</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Architecture</strong></td>
+                            <td>Ephemeral, single-terminal REPL (1 human &harr; 1 session)</td>
+                            <td>Sovereign multi-agent control plane with background worker fleet</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Visibility</strong></td>
+                            <td>Terminal scrollback buffer (lost across sessions)</td>
+                            <td>Persistent Kanban dashboard backed by local Postgres &amp; Markdown bus</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Workspace Isolation</strong></td>
+                            <td>Direct in-place edits on primary checkout; prone to dirty checkouts</td>
+                            <td><strong>Git Worktree Isolation</strong>: dedicated worktrees keep <code>main</code> pristine</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Execution Safety</strong></td>
+                            <td>Chat turns write code directly to your working tree</td>
+                            <td><strong>Dual-Mode Safety</strong>: chat turns edit design docs only; code changes are sandboxed in worktrees</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Target Switchability</strong></td>
+                            <td>Single monolithic terminal session</td>
+                            <td>Switch dynamically between <strong>The Manager</strong> (instance health &amp; gaps) and <strong>Track Workers</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Steerable Roadmaps</strong></td>
+                            <td>Ad-hoc prompt conversation disconnected from track plans</td>
+                            <td>Conversational steering updates <code>spec.md</code>/<code>plan.md</code> and re-queues tracks (<code>/laneconductor move</code>)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality Gates &amp; PRs</strong></td>
+                            <td>Manual review, manual commit, manual test execution</td>
+                            <td>Automated Quality Gates, lint/build verification, and automated PR / Direct Merge</td>
+                        </tr>
+                    </tbody>
+                </table>
+            
+                </details>
+                <details class="unused" id="llm-config">
+                    <summary>LLM Configuration</summary>
+                <p>LaneConductor allows you to define which AI agents and models are used for specific tasks, providing
+                    a robust fallback system.</p>
+
+                <h3>Primary vs. Secondary LLMs</h3>
+                <p>Configured during <code>lc setup</code> or manually in <code>.laneconductor.json</code>, you can
+                    specify:</p>
+                <ul>
+                    <li><strong>Primary Agent:</strong> The default worker. (Default: <code>claude</code> using
+                        <code>haiku</code>). Claude is the most thoroughly tested and recommended configuration.
+                    </li>
+                    <li><strong>Secondary Agent:</strong> <span style="background: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 3px; color: var(--amber);"><strong>Experimental:</strong></span> A fallback worker used if the primary hits rate limits or
+                        specific task failures. (Default: <code>gemini</code> using <code>latest</code>). This feature is still under active development and may have compatibility issues.</li>
+                </ul>
+
+                <h3>Workflow Overrides</h3>
+                <p>In <code>conductor/workflow.json</code>, you can override models for specific lanes. For example, you
+                    might use a faster model for <code>planning</code> and a more powerful one for
+                    <code>implementation</code>:
+                </p>
+                <pre><code>{
+  "lanes": {
+    "plan": { "primary_model": "claude-opus-5" },
+    "implement": { "primary_model": "claude-sonnet-5" },
+    "review": { "primary_model": "claude-3-5-haiku" }
+  }
+}</code></pre>
+                <p>The key is <code>primary_model</code> — a lane's setting wins over the project default for that
+                    lane's automated runs. The provider (CLI) stays fixed project-wide; only the model varies per
+                    lane, which preserves session continuity across lane transitions.</p>
+            
+                </details>
+                <details class="unused" id="modular-integrations">
+                    <summary>Modular Integrations</summary>
+                <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. It is designed to bridge the gap between your local environment and enterprise tools across multiple operating modes.</p>
+                
+                <div class="callout">
+                    <div class="callout-title">Supported Targets</div>
+                    <ul>
+                        <li><strong>Local API:</strong> Connects to your local Postgres instance for personal project tracking.</li>
+                        <li><strong>Remote API:</strong> Scales to centralized teams via Cloud Functions and Neon Postgres.</li>
+                        <li><strong>Jira:</strong> Bidirectional sync with Atlassian Jira projects (Cloud and On-Premise).</li>
+                        <li><strong>Extensible:</strong> Modular adapters allow adding new providers (GitHub, Slack, etc.) with minimal overhead.</li>
+                    </ul>
+                </div>
+
+                <h3>Secure Proxying</h3>
+                <p>Local workers never see third-party API keys. When a worker needs to update an external service (like Jira), it calls the authenticated <strong>Integration Proxy</strong> on the Cloud API. The API injects the project-specific secrets and forwards the request, ensuring credentials never leave the secure cloud environment.</p>
+
+                <h3>Metadata Mapping</h3>
+                <p>Project and Track metadata is stored in <code>integrations</code> JSONB columns, allowing bidirectional mapping between local tracks and external resources (e.g., mapping Track 1067 to Jira Issue PROJ-1067).</p>
+            
+                </details>
+                <details class="unused" id="jira-workflow">
+                    <summary>Jira Workflow — Hybrid Sync</summary>
+                <p>The Jira integration uses a <strong>Hybrid Sync</strong> model: Inbound Webhooks for instant updates, and Polling-based Bidirectional Sync for reliability and conflict resolution.</p>
+
+                <h3>1. Inbound (Jira → LC)</h3>
+                <p>When a Jira issue is labeled or moved, LaneConductor processes the update via two paths:</p>
+                <ul>
+                    <li><strong>Webhooks (Instant):</strong> Jira sends a POST to <code>/v1/webhooks/jira</code>. The Cloud API translates this to a command that notifies all active workers.</li>
+                    <li><strong>Polling (Reliable):</strong> Workers poll the Jira API every 60 seconds. This captures any updates missed during downtime and performs deep-sync of contents.</li>
+                </ul>
+
+                <h3>2. Outbound (LC → Jira)</h3>
+                <p>Workers push filesystem changes back to Jira after every sync cycle:</p>
+                <ul>
+                    <li><strong>Multi-file Sync:</strong> LaneConductor aggregates <code>index.md</code>, <code>plan.md</code>, <code>spec.md</code>, and <code>test.md</code> into the Jira issue description using Atlassian Document Format (ADF).</li>
+                    <li><strong>Lane Tracking Labels:</strong> Issues are tagged with <code>lconductor-status-&lt;status&gt;</code> (e.g., <code>lconductor-status-running</code>) for state visibility within Jira.</li>
+                    <li><strong>Transitions:</strong> Jira issue status is automatically transitioned to match the local lane (e.g., "Implement" &rarr; "In Progress").</li>
+                </ul>
+
+                <h3>Conflict Resolution</h3>
+                <p><strong>Latest version wins</strong> with a 10-second "edit grace period":</p>
+                <ul>
+                    <li>If both sides are modified within 10 seconds, the sync is delayed to prevent thrashing.</li>
+                    <li>After the grace period, the newer timestamp (Filesystem mtime vs. Jira's <code>updated</code>) becomes the source of truth.</li>
+                    <li><strong>Timestamp-based Dedup:</strong> Multiple workers can safely poll the same project; only the worker that detects a newer timestamp will perform the write.</li>
+                </ul>
+            
+                </details>
+                <details class="unused" id="modes">
+                    <summary>Operating Modes</summary>
+                <p>One of LaneConductor's greatest strengths is its flexibility. You can switch modes based on your
+                    environment.</p>
+
+                <h3>1. Local FS (Headless)</h3>
+                <p>The simplest mode. Everything is stored in Markdown files. There is no database or API server. This
+                    is perfect for <strong>air-gapped environments</strong> or <strong>CI/CD pipelines</strong> where
+                    you want a clean audit trail without infrastructure overhead.</p>
+
+                <h3>2. Local API (Dashboard)</h3>
+                <p>The standard developer experience. A background worker syncs your files to a local Postgres database,
+                    and a Vite-powered dashboard provides a real-time Kanban view of all your projects.</p>
+
+                <h3>3. Remote API (Team)</h3>
+                <p>For teams. Local workers sync to a shared remote collector. This allows project managers and
+                    teammates to see agent progress across the entire organization in a unified view.</p>
+
+                <h3>Skill-Only vs Worker Modes — Feature Comparison</h3>
+                <p>Before any of the three modes above, there's a zero-install on-ramp: <strong>skill-only</strong>.
+                    An AI session (Claude Desktop, an interactive CLI chat) drives the <code>conductor/</code>
+                    files directly through the <code>/laneconductor</code> skill — no worker process, no database,
+                    nothing to install. Everything degrades gracefully to it. The table below is the honest upgrade
+                    path: each column to the right is a reason to install more.</p>
+                <table>
+                    <thead><tr><th>Feature</th><th>Skill-only</th><th>Worker (local-fs)</th><th>Full stack (local-api)</th><th>Cloud (remote-api)</th></tr></thead>
+                    <tbody>
+                        <tr><td>Track scaffolding, plan/implement/review via markdown</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Git lock + worktree isolation</td><td>✅ manual</td><td>✅ automatic</td><td>✅ automatic</td><td>✅ automatic</td></tr>
+                        <tr><td>Auto-launch of queued lane actions</td><td>❌ human invokes each step</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Retry / on-failure lane automation (<code>workflow.json</code>)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td><strong>Per-lane model</strong> (<code>primary_model</code> per lane)</td><td>❌ session model is whatever the human runs</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Provider exhaustion fallback (primary → secondary CLI)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Session continuity across lane actions (<code>--resume</code>)</td><td>n/a (one human session)</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Live model discovery from the machine (heartbeat)</td><td>❌</td><td>❌ no collector to report to</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Kanban dashboard, Inbox, conversation UI</td><td>❌</td><td>❌</td><td>✅ <code>localhost:8090</code></td><td>✅ cloud URL</td></tr>
+                        <tr><td>Worker dispatch ("run this on that worker")</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Multi-machine / team coordination, worker identity</td><td>❌</td><td>git locks only</td><td>✅ single machine</td><td>✅ full</td></tr>
+                    </tbody>
+                </table>
+                <div class="callout">
+                    <div class="callout-title">Model selection is a worker feature — and best-effort</div>
+                    <p>Per-lane and per-track model settings are resolved by the <strong>worker at spawn time</strong>
+                        (it passes <code>--model</code> to the CLI it launches). In skill-only mode there is nothing to
+                        spawn, so the model is simply whatever session you're running. Matching is best-effort: the
+                        model id is not validated against the executing machine's installed models — a mismatch fails
+                        that run (normal retry handling applies) rather than being blocked up front.</p>
+                </div>
+            
+                </details>
+                <details class="unused" id="operational-safety">
+                    <summary>Operational Safety & Best Practices</summary>
+                <p>Working with AI agents requires a balance between automation and oversight. We've identified two
+                    primary patterns of operation:</p>
+
+                <div class="callout">
+                    <div class="callout-title">Safe Mode (Default & Recommended)</div>
+                    <p>Run the background worker in <strong>sync-only mode</strong> (the default: <code>lc start</code>).
+                        In this mode, the worker only handles data synchronization between the filesystem and the database. You then invoke the
+                        <code>/laneconductor</code> skill manually within Claude Code as you work.
+                        This allows you to <strong>watch the agent's logic in real-time</strong> while using the
+                        UI dashboard for high-level tracking.
+                    </p>
+                </div>
+
+                <h3>The Hallucination Factor</h3>
+                <p>LaneConductor supports a "Full Loop" mode where the agent can automatically move from Plan &rarr;
+                    Implement &rarr; Review. However, this mode carries a higher risk of <strong>LLM
+                        Hallucinations</strong>.</p>
+                <p>Due to current LLM limitations, an agent might occasionally "think" it has completed a task, updated
+                    a file, or passed a test when it hasn't actually performed the action. This can lead to a state
+                    drift between the track documentation and the actual codebase.</p>
+
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Recommendation</div>
+                    <p>Unless you are performing highly repetitive, low-risk tasks, <strong>Safe Mode</strong> is the
+                        preferred workflow. Always use the <strong>Quality Gate</strong> lane or manual verification
+                        for any critical code changes.</p>
+                </div>
+            
+                </details>
+                <details class="unused" id="bidirectional-sync">
+                    <summary>Bidirectional Sync &amp; Track Status</summary>
+                <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
+                    between the <strong>Filesystem</strong> (where agents work) and the <strong>API/UI</strong> (where
+                    humans coordinate).</p>
+
+                <h3>The Sync Process</h3>
+                <p>The heartbeat worker (managed by <code>lc start</code>) continuously monitors your <code>conductor/tracks/</code> directory and syncs track status in both directions:</p>
+                <ul>
+                    <li><strong>Filesystem → Database:</strong> When Claude or a human updates a track's <code>index.md</code>, the worker detects the change and updates the database within seconds.</li>
+                    <li><strong>Database → Filesystem:</strong> When you move a card on the Kanban dashboard, the UI writes a signal that the worker detects and updates the corresponding Markdown file.</li>
+                </ul>
+
+                <h3>Sync Strategy: "Newer Wins"</h3>
+                <p>The sync strategy is <strong>"Newer Wins"</strong>. If you edit a Markdown file on disk, the UI
+                    updates within 5 seconds. If you move a card on the Kanban board, the UI writes a signal to the
+                    filesystem that the agent picks up instantly. This ensures real-time coordination between agents and humans.</p>
+
+                <h3>Worker Modes</h3>
+                <p>The heartbeat worker operates in two modes:</p>
+                <ul>
+                    <li><strong>Sync-Only (Default):</strong> <code>lc start</code> runs the worker in sync-only mode by default. It performs filesystem ↔ database synchronization only, without polling the task queue for automated execution. This is the safe, recommended mode for most workflows.</li>
+                    <li><strong>Sync-and-Work:</strong> <code>lc start --sync-and-work</code> enables full automation. The worker will also poll the queue and automatically execute tracks based on your workflow configuration. Use this for highly repetitive, well-tested tasks.</li>
+                </ul>
+            
+                </details>
+                <details class="unused" id="chat-control-plane">
+                    <summary>Persistent Chat &amp; Control Surface</summary>
                 <p>Accessible at <code>/chat</code> in the web dashboard, the persistent Chat surface provides a unified control room to interact with, steer, and monitor all agents in your LaneConductor instance.</p>
 
                 <h3>1. Target Switchability: Manager vs. Track Workers</h3>
@@ -1063,16 +1032,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
 
                 <h3>5. Deterministic Setup Diagnostics</h3>
                 <p>The Chat surface queries <code>GET /api/state</code> on load. If blocking gaps are detected (e.g., no live worker or missing CLI provider), a client-side setup wizard card guides the user with exact copy-paste remedies. When setup is complete, zero background turns or model tokens are spent.</p>
-            </section>
-
-            <section id="workspace-modes">
-                <h2>Workspace Modes</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="workspace-modes">
+                    <summary>Workspace Modes</summary>
                 <p>Every track resolves to one of two workspace modes at execution time:</p>
                 <ul>
                     <li><strong><code>branch</code> (Default)</strong>: Runs in an isolated Git worktree on a track-specific branch (e.g., <code>track-NNN</code>) and merges back to main only when the track succeeds. This keeps main clean and isolates autonomous runs.</li>
@@ -1084,16 +1047,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                     <li><code>**Track Kind**: bug|feature</code> — Infers the mode (bugs default to <code>main</code>, features default to <code>branch</code>), but auto-run queue pickups default to the safer <code>branch</code> mode if not explicitly overridden.</li>
                 </ul>
                 <p>Note: The <code>plan</code> lane always runs direct on <code>main</code> to generate track docs, lazily creating the worktree on the first <code>implement</code> step if <code>branch</code> mode is active.</p>
-            </section>
-
-            <section id="worktrees-panel">
-                <h2>Worktrees &amp; Panel</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="worktrees-panel">
+                    <summary>Worktrees &amp; Panel</summary>
                 <p>When running a track in <code>branch</code> workspace mode, LaneConductor leverages Git Worktrees to provide isolated parallel execution. This isolates the agent's work, ensuring that uncommitted changes and branch states are quarantined. The <strong>Worktrees Panel</strong> on the dashboard provides direct human visibility and control over these environments:</p>
                 <ul>
                     <li><strong>Active Worktrees Visibility</strong>: Lists all currently checked out track worktrees, their absolute filesystem paths, corresponding branch names, and unmerged commits.</li>
@@ -1101,16 +1058,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                     <li><strong>PR &amp; Integration Hub</strong>: Displays open Pull Requests, merge statuses (e.g., <code>open</code>, <code>conflicted</code>, <code>merged</code>), and provides direct action buttons (like "Approve &amp; Merge" or "Clean up worktree") to let humans control integration from the UI.</li>
                     <li><strong>Lock Serialization</strong>: Visualizes track worktree locks (<code>.conductor/locks/</code>) which guarantee that workers do not clash when claiming tasks.</li>
                 </ul>
-            </section>
-
-            <section id="concurrency-model">
-                <h2>Concurrency &amp; Locking</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="concurrency-model">
+                    <summary>Concurrency &amp; Locking</summary>
                 <p>Four independent constraints govern how many track sessions can run at once, stacked together
                     rather than substituting for one another:</p>
                 <ul>
@@ -1137,60 +1088,29 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                     limits above. <code>main</code>-mode tracks (including every <code>plan</code> lane run, which
                     always executes on <code>main</code>) are additionally serialized to one at a time, since they
                     share a single unprotected checkout instead of an isolated worktree.</p>
-            </section>
-
-            <section id="merge-modes">
-                <h2>PR &amp; Merge Modes</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="merge-modes">
+                    <summary>PR &amp; Merge Modes</summary>
                 <p>Controls how track branches integrate back into the main branch once the Quality Gate passes:</p>
                 <ul>
                     <li><strong><code>pr</code> (Default)</strong>: Pushes the track branch to GitHub and opens a Pull Request. A human can preview the branch from the Worktrees panel and approve/merge the PR directly in the LaneConductor UI or on GitHub.</li>
                     <li><strong><code>direct</code></strong>: The worker automatically merges the track branch straight to <code>main</code> via a fast-forward/non-fast-forward merge upon passing the Quality Gate.</li>
                 </ul>
                 <p>Configure this via the FS marker in <code>index.md</code>: <code>**Merge Mode**: pr|direct</code>.</p>
-            </section>
-
-            <section id="auto-run">
-                <h2>Auto-Run Configuration</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="auto-run">
+                    <summary>Auto-Run Configuration</summary>
                 <p>Determines whether a track can be automatically claimed and executed by background workers without manual human triggering:</p>
                 <ul>
                     <li><code>**Auto Run**: yes</code>: Allows non-sync-only workers to pick up the track from the queue and automatically move it through planning, implementation, and review.</li>
                     <li><code>**Auto Run**: no</code> (or omitted): The track remains in the queue until a developer manually clicks run or dispatch in the UI, ensuring sensitive changes are never run unattended.</li>
                 </ul>
-            </section>
-
-            <section id="quality-gates">
-                <h2>Quality Gates</h2>
-                <p>The <strong>Quality Gate</strong> lane is where trust is established. LaneConductor runs your
-                    project's existing verification tools before allowing a track to reach "Done".</p>
-                <p>Configuration is handled in <code>conductor/quality-gate.md</code> using a simple checklist format
-                    that the agent or human can execute.</p>
-                <pre><code># Quality Gate Checklist
-- [ ] Syntax: `npm run lint`
-- [ ] Logic: `npm test`
-- [ ] Security: `npm audit`</code></pre>
-            </section>
-
-            <section id="autoresearch">
-                <h2>Autoresearch Pattern — Karpathy-Inspired KPI Loops</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
-
+            
+                </details>
+                <details class="unused" id="autoresearch">
+                    <summary>Autoresearch Pattern — Karpathy-Inspired KPI Loops</summary>
                 <p>Most AI workflows focus on the <em>generate</em> step but skip the <em>evaluate</em> step. Andrej
                     Karpathy's autoresearch idea is simple: <strong>define the measurement method before you start,
                     automate it, and let the eval loop close itself.</strong> If you can measure automatically, you can
@@ -1256,17 +1176,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                 <div class="callout">
                     <strong>Why this matters:</strong> Without autoresearch, "done" means shipped. With it, "done" means <em>worked</em>. The system knows the difference, replans on failure, and builds an experiment trail over time — turning every business function into a measurable, improvable loop.
                 </div>
-            </section>
-
-            <section id="cli-general">
-                <h2>CLI Reference: General</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Deprecated: the lc command line</div>
-                    <p>The <code>lc</code> command line belongs to the earlier stack. It is deprecated: unmaintained, and it will get no new
-                        features. Use the plugin commands (<code>/laneconductor:&lt;name&gt;</code>) instead: they work on the track files
-                        directly, with no database and no daemon.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="cli-general">
+                    <summary>CLI Reference: General</summary>
                 <table class="command-table">
                     <tr>
                         <td>lc setup</td>
@@ -1305,17 +1218,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <td>Run health checks on the project setup.</td>
                     </tr>
                 </table>
-            </section>
-
-            <section id="cli-track">
-                <h2>CLI Reference: Track Management</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Deprecated: the lc command line</div>
-                    <p>The <code>lc</code> command line belongs to the earlier stack. It is deprecated: unmaintained, and it will get no new
-                        features. Use the plugin commands (<code>/laneconductor:&lt;name&gt;</code>) instead: they work on the track files
-                        directly, with no database and no daemon.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="cli-track">
+                    <summary>CLI Reference: Track Management</summary>
                 <table class="command-table">
                     <tr>
                         <td>lc new [title]</td>
@@ -1358,16 +1264,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
                         <code>review</code>, <code>quality-gate</code>, and <code>done</code>.
                     </p>
                 </div>
-            </section>
-
-            <section id="configuration">
-                <h2>Configuration</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="configuration">
+                    <summary>Configuration</summary>
                 <p>LaneConductor is highly configurable. The two main control files are:</p>
 
                 <h3>1. .laneconductor.json</h3>
@@ -1385,16 +1285,10 @@ claude plugin update laneconductor-parallel@laneconductor</code></pre>
     }
   }
 }</code></pre>
-            </section>
-
-            <section id="secret-management">
-                <h2>Secret Management</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="secret-management">
+                    <summary>Secret Management</summary>
                 <p>LaneConductor follows a strict pattern: <strong>no secrets in source code, no secrets in git history</strong>. All credentials are stored in GCP Secret Manager and pulled locally on demand via ADC.</p>
 
                 <h3>The Pattern</h3>
@@ -1428,16 +1322,10 @@ export const api = onRequest({ secrets: [dbPassword, dbHost, dbUser] }, app);</c
                 <pre><code>DB_HOST=$(gcloud secrets versions access latest --secret="CLOUD_DB_HOST" --project="$GCP_PROJECT_ID")
 DB_USER=$(gcloud secrets versions access latest --secret="CLOUD_DB_USER" --project="$GCP_PROJECT_ID")
 DB_PASSWORD=$(gcloud secrets versions access latest --secret="CLOUD_DB_PASSWORD" --project="$GCP_PROJECT_ID")</code></pre>
-            </section>
-
-            <section id="gitignore-pattern">
-                <h2>What to Gitignore</h2>
-                <div class="callout" style="border-left-color: var(--amber);">
-                    <div class="callout-title" style="color: var(--amber);">Experimental tier, currently unmaintained</div>
-                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
-                        <code>v1-legacy</code>). It is experimental and currently unmaintained, and the plugin does not need it.</p>
-                </div>
-
+            
+                </details>
+                <details class="unused" id="gitignore-pattern">
+                    <summary>What to Gitignore</summary>
                 <p>The following files are always gitignored. Each has a corresponding <code>.example</code> file committed in its place:</p>
 
                 <table style="width:100%;border-collapse:collapse;margin-top:1rem;">
@@ -1488,13 +1376,21 @@ DB_PASSWORD=$(gcloud secrets versions access latest --secret="CLOUD_DB_PASSWORD"
 check_*.mjs
 fix_*.mjs
 reset_*.mjs</code></pre>
+            
+                </details>
             </section>
-
-            <footer>
-                <p>&copy; 2026 LaneConductor. Sovereign Agent Orchestration.</p>
-            </footer>
         </main>
     </div>
+    <script>
+        (function () {
+            function openTarget() {
+                var el = location.hash && document.getElementById(location.hash.slice(1));
+                if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView(); }
+            }
+            window.addEventListener('hashchange', openTarget);
+            openTarget();
+        })();
+    </script>
 </body>
 
 </html>
