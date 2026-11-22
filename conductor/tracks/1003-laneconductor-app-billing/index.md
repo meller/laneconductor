@@ -1,8 +1,8 @@
 # Track 1003: LaneConductor App Billing
 
 **Lane**: backlog
-**Lane Status**: success
-**Progress**: 100%
+**Lane Status**: queue
+**Progress**: 2%
 **Phase**: Planning & Requirements Gathering
 
 ## Problem

@@ -1,8 +1,8 @@
 # Track 1097: Build Artifact System & AI Release Notes Synthesizer
 
 **Lane**: backlog
-**Lane Status**: success
-**Progress**: 100%
+**Lane Status**: queue
+**Progress**: 0%
 **Phase**: Backlog
 **Type**: dev
 **Summary**: Build artifact storage, API endpoint, CLI command (`lc build`), and AI synthesis engine to generate categorized release notes from completed tracks.
