@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stop guessing what your agent is doing | LaneConductor</title>
+    <meta name="description" content="Plan before, ticks during, numbers after: how to see what an agent is doing, and what it cost, from plain files in git." />
+    <link rel="canonical" href="https://laneconductor.com/posts/stop-guessing-what-your-agent-is-doing.html" />
+    <meta property="og:title" content="Stop guessing what your agent is doing" />
+    <meta property="og:description" content="Plan before, ticks during, numbers after: how to see what an agent is doing, and what it cost, from plain files in git." />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://laneconductor.com/posts/stop-guessing-what-your-agent-is-doing.html" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg:#09090b; --bg-card:#111113; --border:rgba(255,255,255,.07); --ink:#f4f4f5; --ink-muted:#a1a1aa; --ink-faint:#52525b; --purple:#8b5cf6; --cyan:#22d3ee;
+                --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,system-ui,sans-serif; --font-mono:'Menlo','Monaco','Courier New',monospace; }
+        body { font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.7; -webkit-font-smoothing:antialiased; min-height:100vh; }
+        nav { border-bottom:1px solid var(--border); }
+        .nav-inner { max-width:880px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+        .nav-links { display:flex; gap:22px; list-style:none; font-size:14px; }
+        a { color:var(--cyan); text-decoration:none; } a:hover { text-decoration:underline; }
+        main { max-width:720px; margin:0 auto; padding:48px 20px 80px; }
+        h1 { font-size:clamp(28px,5vw,40px); line-height:1.2; margin-bottom:8px; letter-spacing:-0.02em; }
+        .meta { color:var(--ink-faint); font-size:14px; margin-bottom:32px; }
+        p { margin-bottom:20px; color:var(--ink); }
+        code { font-family:var(--font-mono); font-size:.9em; color:var(--cyan); background:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+        .note { margin-top:40px; padding-top:20px; border-top:1px solid var(--border); color:var(--ink-muted); font-size:15px; }
+        .post-list { list-style:none; } .post-list li { padding:20px 0; border-bottom:1px solid var(--border); }
+        .post-list .t { font-size:20px; font-weight:600; } .post-list .d { color:var(--ink-faint); font-size:14px; margin:4px 0 8px; } .post-list .s { color:var(--ink-muted); }
+        footer { max-width:720px; margin:0 auto; padding:0 20px 40px; color:var(--ink-faint); font-size:13px; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <a href="/" class="nav-logo"><img src="/logo.png" alt="LaneConductor" style="height:24px;width:auto;" /></a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/wiki.html">Docs</a></li>
+                <li><a href="/posts/">Posts</a></li>
+                <li><a href="https://github.com/meller/laneconductor">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main>
+        <article>
+            <h1>Stop guessing what your agent is doing</h1>
+            <div class="meta">2026-11-22 &middot; notes from building LaneConductor</div>
+            <p>Most of the time, an agent does its work and you find out what it did at the end. Sometimes you can't even do a post-mortem, because nothing recorded where the effort went. I wanted to stop guessing, so I made the work visible at three moments.</p>
+            <p><strong>Before: the plan says what it will do.</strong> In LaneConductor a piece of work is a folder of plain files, and <code>plan.md</code> is a list of phases with checkboxes. Before any code is written you can read what the agent is about to do, change it, and see which steps are marked as waiting for a person.</p>
+            <p><strong>During: the boxes show what it is doing now.</strong> The agent ticks a box when a task is done and its check passed. Because the plan lives in git and a board reads it, you can see which phase is running, what is done, what failed its test, and what is parked waiting for you. You don't need to scroll a chat to know where it is.</p>
+            <p><strong>After: the numbers show how it went.</strong> A SQL database has <code>EXPLAIN</code>, which shows where a query spends its time. Agent work had the same blind spot, so I added the equivalent. Every Claude Code session already keeps a record of token counts and timestamps, and every track keeps ticks and dated lines in git. A small script joins them and gives the plan with costs, per lane and per phase: time spent working versus waiting for a person, tokens (output, fresh input, cache), tool calls and how much a sub-agent did. The agent doesn't write these numbers, because it can't read a clock or its own meter. They are measured from outside, and only counts, times and tool names are read, never what was said.</p>
+            <p>What it showed on one small track (a skill pack: plan, implement, review, 20 minutes, 3 of them waiting on me): 79 model responses wrote 43,600 tokens and read 15.8 million tokens from cache, about 360 times what was written. On a bigger track it was 540 times. Every reply re-reads the whole conversation so far, about 200,000 tokens per reply on the small track and 266,000 on the bigger one. The first reply of a lane already carried 646,000 to 958,000 tokens of history, because it ran in one long session.</p>
+            <p>I had a theory: the instruction text each lane carries (about 27 KB) must be the cost. It was about 3 percent of one reply's context. The real cost is the length of the session doing the work. A sub-agent in its own worktree starts at a median of 35,000 to 57,000 tokens, against 95,000 to 770,000 for the long session. So I changed the default: lane work goes to a sub-agent unless you say otherwise.</p>
+            <p>I would not have found this without the three views. The plan told me what was supposed to happen, the ticks told me it did, and only the numbers told me what it cost.</p>
+            <p>Limits: this is one repository and a few tracks. It counts tokens, not money. Attributing messages to a track is by time window, so overlapping work can share numbers, and about half of the tracks I looked at never recorded when a lane started, so their times are only inferred. Read these as relative numbers.</p>
+            <p class="note">LaneConductor is a personal project and a pattern being explored. Plans, tracks and the board are plain files in git, and the plugin is open source. <a href="/?src=post-9">Read how it works</a> or see the <a href="/wiki.html">docs</a>.</p>
+        </article>
+    </main>
+</body>
+</html>
