@@ -42,6 +42,11 @@
 - [x] TC-29 (D21, D22): ten synthetic tracks give at most three ranked actions with their counts; 2 tracks give "Not enough tracks with statistics yet (2 of 3)"; 10 tracks with nothing over the threshold give "No change suggested"; an action firing in exactly 3 appears, in 2 does not
 - [x] TC-30 (D19, D21): in the board page the Agent run tab opens on the short plan with Details folded, and the top button opens a drawer with the Copy buttons
 
+### Phase 10: discuss and shared windows
+- [ ] TC-31 (D26): two tracks with one overlapping unclaimed window in the same lane are both `not measured (shared window)` with the run's time kept; one track alone is unchanged; a claimed running window is unchanged; the totals, statistics.md and the token rules leave shared runs out; AM-10154 is unchanged on the real transcripts
+- [ ] TC-32 (D25): the Statistics tab has the Discuss actions from stats button, it copies a plain prompt that names conductor/statistics.md and Recommendations and asks for a yes before any change, with no private path or name
+- [ ] TC-33 (D25): the Agent recommendations drawer has a Discuss all button that copies a prompt over the shown actions; the not-enough and no-change states have none
+
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals
 - [x] No prompt, message or file content appears in any output
