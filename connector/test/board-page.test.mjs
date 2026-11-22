@@ -1682,3 +1682,24 @@ test('board.html is titled "<project> Board": the project name from the settings
   assert.equal(run({ project: { name: 'a'.repeat(80) } }, 'x'), `${'a'.repeat(40)} Board`, 'clipped to 40 characters');
   assert.ok(fs.readFileSync(new URL('../src/board-page.html', import.meta.url), 'utf8').includes('<title>LaneConductor Board</title>'), 'the repository page stays generic');
 });
+
+test('detail: a table of four or more columns with short cells is drawn compact (no wrapping, the wrapper scrolls); prose tables and narrow tables are not', async () => {
+  const repo = detailFixture();
+  writeFile(repo, 'conductor/tracks/AM-201-t201/test.md', [
+    '# Tests 201', '',
+    '| Lane | Start | End | Wall | Output | Cache read |', '|---|---|---|---|---|---|', '| plan | 2026-11-22 12:15 | 2026-11-22 12:16 | 53s | 7,491 | 1,451,768 |', '',
+    '| a | b |', '|---|---|', '| 1 | 2 |', '',
+    '| Name | Notes | C | D |', '|---|---|---|---|', `| x | ${'long prose '.repeat(8)} | 1 | 2 |`, '',
+  ].join('\n'));
+  commitAll(repo);
+  const { fetchStub } = siteFor(repo);
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  tabBy(ids, 'Tests').onclick();
+  await flush();
+  const wraps = all(ids['d-body'], (x) => x.tag === 'div' && /(^| )mdtable( |$)/.test(x.className));
+  assert.deepEqual(wraps.map((w) => w.className), ['mdtable compact', 'mdtable', 'mdtable']);
+  const css = fs.readFileSync(PAGE, 'utf8');
+  assert.match(css, /\.md \.mdtable\.compact th, \.md \.mdtable\.compact td \{[^}]*white-space: nowrap/);
+});
