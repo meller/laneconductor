@@ -75,7 +75,7 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.ok(raw.endsWith('}\n') && !raw.slice(0, -1).includes('\n'), 'compact JSON, one line');
   const j = JSON.parse(raw);
   assert.ok(raw.includes(TITLE_SENTINEL), 'the title is in board.json');
-  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'commit', 'commit_short', 'lanes', 'tracks', 'attn', 'project_docs', 'wf', 'next']); // the fixture has a workflow.json, so the Project drawer has its Workflow tab; the What's next card is always computed
+  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'commit', 'commit_short', 'lanes', 'tracks', 'attn', 'project_docs', 'wf', 'next', 'rec']); // the fixture has a workflow.json, so the Project drawer has its Workflow tab; the What's next card is always computed; rec is the Agent recommendations drawer (AM-10155)
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
   for (const t of j.tracks) assert.deepEqual(Object.keys(t).filter((k) => k !== 'x' && k !== 'ds'), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);

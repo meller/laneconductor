@@ -261,6 +261,18 @@ td .act { border-top: 0; padding-top: 0; }
 .nx .nxopen { font: inherit; font-size: 13px; text-align: left; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; overflow-wrap: anywhere; max-width: 100%; text-decoration: underline; text-underline-offset: 2px; }
 .nx .nxopen:focus-visible, .nx .toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .nx .nxw { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.rc { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 78ch; }
+.rc p { margin: 0; overflow-wrap: anywhere; }
+.rc ol.rclist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rc li.recrow { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.rc .rctitle { font-weight: 600; overflow-wrap: anywhere; }
+.rc .rcnum, .rc .rcsee { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.rc .copy { font: inherit; font-size: 12px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+.rc .copy:focus-visible, .exfold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rc .actrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.rc code.actc { font-family: var(--font-mono); font-size: 12px; background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 2px 6px; overflow-wrap: anywhere; min-width: 0; }
+.rc .copied { font-size: 12px; color: var(--ok); overflow-wrap: anywhere; }
+.exfold { margin: 10px 0; }
 .nx ul.nxprimer { margin: 6px 0 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; color: var(--ink); font-size: 13px; }
 @media (max-width: 700px) {
   .detail { justify-content: stretch; }
@@ -276,6 +288,7 @@ td .act { border-top: 0; padding-top: 0; }
       <h1>LaneConductor Board</h1>
     </div>
     <div class="hright">
+      <button type="button" class="projbtn" id="rec-btn" aria-haspopup="dialog" hidden>Agent recommendations</button>
       <button type="button" class="projbtn" id="next-btn" aria-haspopup="dialog" hidden>What's next</button>
       <button type="button" class="projbtn" id="proj-btn" aria-haspopup="dialog" hidden>Project</button>
       <div class="stamp" id="stamp"></div>
@@ -1155,6 +1168,8 @@ td .act { border-top: 0; padding-top: 0; }
       renderNoStats(b);
     } else if (!doc[key]) {
       b.appendChild(el('div', 'notice plain', 'No ' + meta[2] + ' in this track.'));
+    } else if (key === 'explain' && foldDetails(b, doc[key])) {
+      /* the short plan is shown; the rest is under the Details button */
     } else {
       var md = el('div', 'md'); bodyLinks = mdRender(md, doc[key]); b.appendChild(md);
     }
@@ -1272,7 +1287,7 @@ td .act { border-top: 0; padding-top: 0; }
   }
   function closeDetail() {
     if (!cur) return;
-    var back = cur.project ? $('proj-btn') : cur.kind === 'next' ? $('next-btn') : focusEls[cur.kind + ':' + idOf(cur.t)];
+    var back = cur.project ? $('proj-btn') : cur.kind === 'rec' ? $('rec-btn') : cur.kind === 'next' ? $('next-btn') : focusEls[cur.kind + ':' + idOf(cur.t)];
     cur = null; seq++; headAct = null;
     $('detail').hidden = true;
     $('wrap').removeAttribute('inert');
@@ -1516,6 +1531,80 @@ td .act { border-top: 0; padding-top: 0; }
   $('next-btn').addEventListener('click', openNext);
   $('proj-btn').hidden = !PD.length;
   $('proj-btn').addEventListener('click', function () { openProject(); });
+
+  // ---- Track AM-10155 Phase 9 (D19): an explain.md that has a "## Details" heading shows what comes before it (the short plan), then a button that unfolds the rest;
+  // an older explain.md without the heading renders whole, as before. Returns false when there is no such heading.
+  function foldDetails(b, text) {
+    var lines = String(text).replace(/\r\n?/g, '\n').split('\n'), at = -1;
+    for (var i = 0; i < lines.length; i++) if (/^## Details\s*$/.test(lines[i])) { at = i; break; }
+    if (at < 0) return false;
+    var head = el('div', 'md'), tail = el('div', 'md');
+    var headLinks = mdRender(head, lines.slice(0, at).join('\n')), tailLinks = mdRender(tail, lines.slice(at + 1).join('\n'));
+    tail.setAttribute('id', 'ex-details'); tail.hidden = true;
+    var tg = el('button', 'toggle exfold', 'Show details'); tg.type = 'button'; tg.setAttribute('aria-expanded', 'false'); tg.setAttribute('aria-controls', 'ex-details');
+    tg.addEventListener('click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      var opening = tail.hidden; tail.hidden = !opening; tg.setAttribute('aria-expanded', String(opening)); tg.textContent = opening ? 'Hide details' : 'Show details';
+      bodyLinks = opening ? headLinks.concat([tg], tailLinks) : headLinks.concat([tg]);
+    });
+    b.appendChild(head); b.appendChild(tg); b.appendChild(tail);
+    bodyLinks = headLinks.concat([tg]);
+    return true;
+  }
+
+  // ---- Agent recommendations (D21 to D24): board.json `rec` was worked out when the board was built, from the facts of the last tracks that have agent run
+  // statistics ({ state few | quiet | ok, message, measured, not_measured, min, tracks, actions [{ id, title, count, text, copy }] }). The page shows at most
+  // three actions, each with one number line and a Copy button for one plain sentence. Text only, never markup. A malformed rec leaves the button hidden.
+  var RC = (function () {
+    var r = D.rec, str = function (v) { return typeof v === 'string' ? v : ''; }, cnt = function (v) { return Number.isInteger(v) && v >= 0 ? v : 0; };
+    if (!r || typeof r !== 'object' || ['few', 'quiet', 'ok'].indexOf(r.state) < 0 || (r.actions !== undefined && !Array.isArray(r.actions))) return null;
+    return {
+      state: r.state, message: str(r.message), measured: cnt(r.measured), notMeasured: cnt(r.not_measured), min: cnt(r.min) || 3,
+      tracks: (Array.isArray(r.tracks) ? r.tracks : []).filter(function (x) { return Number.isInteger(x); }).slice(0, 20),
+      actions: (r.actions || []).filter(function (a) { return a && typeof a.title === 'string' && a.title && typeof a.text === 'string' && typeof a.copy === 'string' && a.copy; }).slice(0, 3)
+        .map(function (a) { return { title: a.title, text: a.text, copy: a.copy }; }),
+    };
+  })();
+  function drawRec(b) {
+    var box = el('div', 'rc'), ids = RC.tracks.map(function (n) { var t = trackByNumber(n); return t ? idOf(t) : 'Track ' + n; });
+    if (RC.state === 'ok') {
+      var list = el('ol', 'rclist');
+      RC.actions.forEach(function (a) {
+        var li = el('li', 'recrow'), row = el('div', 'actrow'), code = el('code', 'actc', a.copy), note = el('span', 'copied');
+        note.setAttribute('role', 'status');
+        li.appendChild(el('div', 'rctitle', a.title)); li.appendChild(el('div', 'rcnum', a.text));
+        var cb = el('button', 'copy', 'Copy'); cb.type = 'button'; cb.setAttribute('aria-label', 'Copy the sentence: ' + a.copy);
+        cb.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.copy, code, note); });
+        row.appendChild(code); row.appendChild(cb); row.appendChild(note); li.appendChild(row); list.appendChild(li); bodyLinks.push(cb);
+      });
+      box.appendChild(list);
+    } else {
+      var n = el('div', 'notice plain'); n.appendChild(el('div', null, RC.message));
+      if (!RC.tracks.length) n.appendChild(el('div', 'hint', 'The statistics need tracks worked through lanes and phases.'));
+      else if (RC.notMeasured) n.appendChild(el('div', 'hint', RC.notMeasured + (RC.notMeasured === 1 ? ' track has' : ' tracks have') + ' an older explain.md without the numbers this needs; regenerate it with the Run statistics button of its Agent run tab.'));
+      box.appendChild(n);
+    }
+    if (RC.tracks.length) box.appendChild(el('p', 'rcsee', 'Looked at: ' + ids.join(', ') + ' (the last ' + RC.tracks.length + (RC.tracks.length === 1 ? ' track' : ' tracks') + ' that ' + (RC.tracks.length === 1 ? 'has' : 'have') + ' agent run statistics; ' + RC.measured + ' with the numbers this needs).'));
+    b.appendChild(box);
+  }
+  function openRec() {
+    if (!RC) return;
+    seq++;
+    cur = { next: true, rec: true, kind: 'rec', tab: 'rec', seq: seq };
+    $('d-id').textContent = 'RECOMMENDATIONS'; $('d-type').hidden = true; $('d-pri').hidden = true;
+    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = ''; drawOwn();
+    $('d-title').textContent = 'Agent recommendations';
+    $('d-note').textContent = 'Worked out when this board was read (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. Rule-based, tokens only, not an opinion of a model.';
+    $('d-note').hidden = false;
+    drawHeadAction();
+    $('detail').hidden = false;
+    $('wrap').setAttribute('inert', '');
+    var tabs = $('d-tabs'); tabs.textContent = ''; tabEls = []; tabs.hidden = true;
+    var b = setBody(); drawRec(b); b.scrollTop = 0;
+    $('d-close').focus();
+  }
+  $('rec-btn').hidden = !RC;
+  $('rec-btn').addEventListener('click', openRec);
 
   function activatable(node, t, kind) {
     node.setAttribute('role', 'button'); node.setAttribute('tabindex', '0');
