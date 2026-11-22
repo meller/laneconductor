@@ -1,12 +1,13 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: queue
 **Progress**: 100%
-**Phase**: Phase 7 done 2026-11-22 (board add-on 1.10.16): the Agent run and Statistics tabs open with a rule-based insight (spec D13, D14); this project's explain.md files regenerated. Waits for review and the quality gate again.
+**Phase**: Quality gate passed again 2026-11-22 after phase 7 (983 tests, strict validation, the insight numbers of 10154 equal the sums of its tables, the published board opens on the insight). The code is already on main; merge records it. Not clicked through in a real browser.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
+**Verdict**: pass
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
