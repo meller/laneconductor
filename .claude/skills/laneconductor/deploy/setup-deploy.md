@@ -8,12 +8,15 @@ Once you know the stack (step 1), offer its deploy pack if it is missing, as `de
    and the hosting hints in `package.json`, and read `conductor/deployment-stack.md` if it exists. Say what you found.
 2. **Ask, one question at a time, with a likely default:** which component runs where (frontend, backend, database, secrets),
    the environments (usually `prod`, optionally `staging`), the deploy command (default: the script you found, for example
-   `bash infra/deploy.sh`), and whether CI/CD should deploy too.
+   `bash infra/deploy.sh`), and whether CI/CD should deploy too. Then, per environment and only if the person wants them, the optional keys
+   `rollback` (a command that goes back to a version), `service` (the name a provider command needs), `version` (a command that prints the
+   local build version) and `liveVersionUrl` (where the live server reports its version, for example `https://example.com/version.json`;
+   a static site can ship a small `version.json` with the commit and the time). Leave out what they do not know.
 3. **Credentials.** Ask whether the person is signed in to each provider. You may run a read-only status command (for
    example `gcloud auth list`) after a yes; never ask for, read or write a key or token. Whatever is not signed in is
    marked `NOT CONFIGURED` with the command the person runs themselves.
 4. **Show the plan and get a yes.** List the files you will create (`conductor/deployment-stack.md`,
-   `conductor/deploy.json`, `.env.example`, and the `.gitignore` additions) and which of them already exist; never overwrite
+   `conductor/deploy.json`, `.env.example`, and the `.gitignore` additions; deploy records go to `conductor/deploys/` later, one per run, and are not created now) and which of them already exist; never overwrite
    one without asking.
 5. **Generate the files**, from what you gathered, as below. The gathered facts have this shape:
 ```json
@@ -67,6 +70,7 @@ Once you know the stack (step 1), offer its deploy pack if it is missing, as `de
   "ci": null
 }
 ```
+Add the optional keys (`rollback`, `service`, `version`, `liveVersionUrl`) to an environment only when the person gave them.
 Set `"ci": null` unless `cicd` is `true` in context (in which case add CI config block).
 
 **`.env.example`** — Required CI env var names only, **never actual values**:
