@@ -1,9 +1,9 @@
 # Track AM-10156: Deployment in the plugin: what is live, a deploy history and rollback, brought from the earlier version
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 20%
-**Phase**: Planned and confirmed by the owner 2026-11-22 (D1, D2, D4, D9, D10): records in git, one command with subcommands, rollback to a chosen version, history as the list of versions, local build version compared with the live one. Ready to implement.
+**Phase**: Implement started 2026-11-22: one track-runner works tasks 4 to 9 (records, status and history, rollback, failure recovery, release notes, the Deployment tab) in its own worktree; task 10 (real use on this site) and task 11 (the base release) stay with the owner's session.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
