@@ -1,12 +1,13 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: queue
 **Progress**: 100%
-**Phase**: Phase 6 done 2026-11-22 (board add-on 1.10.14): the first-response context fix, finished tracks on the board in shards, the post corrected and deployed. Waits for review and the quality gate.
+**Phase**: Quality gate passed 2026-11-22 (959 tests, strict validation, independent recompute of 10154 matches exactly, live post and board data checked). The code is already on main. Not clicked through in a real browser: the owner opens a finished track on the board to see it.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
+**Verdict**: pass
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
