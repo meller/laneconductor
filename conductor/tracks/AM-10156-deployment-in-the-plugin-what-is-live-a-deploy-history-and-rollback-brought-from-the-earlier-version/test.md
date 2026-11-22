@@ -11,6 +11,9 @@
 - [ ] TC-5 (REQ-5): the release notes list exactly the tracks finished since the previous good record
 - [ ] TC-6 (REQ-6): in the board page, the Deployment tab shows the live version, history and the Copy button for deploy and rollback
 - [ ] TC-8 (D3): a `deploy.json` with and without the `rollback` and `service` keys is read correctly; without them the default strategy (redeploy the previous good record's commit from a clean checkout) is the one shown
+- [ ] TC-9 (REQ-3b, D9): `history` lists the recorded versions newest first with time, version, commit, result, who and which is live; a rollback is an entry too
+- [ ] TC-10 (REQ-3, D9): `rollback env version` goes to that version's record and shows its exact command; an unknown version is refused; with no version it lists the versions and asks
+- [ ] TC-11 (REQ-2, D10): `status` with a local build version, a last record and a live version reports in sync, local ahead by N commits, and drift when the live version differs from the record; without `liveVersionUrl` it says the live version is not checked
 - [ ] TC-7 (REQ-8): the base plugin has no script added; its commands stay under the size limits; strict validation passes
 
 ## Acceptance Criteria

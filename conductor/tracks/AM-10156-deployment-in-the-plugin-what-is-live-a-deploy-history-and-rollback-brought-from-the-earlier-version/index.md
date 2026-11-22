@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: success
-**Progress**: 15%
-**Phase**: Planned 2026-11-22: probe of the earlier version and the local CLIs done, decisions D1 to D8 proposed in the spec; waiting for the owner to confirm D1, D2 and the scope (task 2) before implementing.
+**Progress**: 20%
+**Phase**: Planned and confirmed by the owner 2026-11-22 (D1, D2, D4, D9, D10): records in git, one command with subcommands, rollback to a chosen version, history as the list of versions, local build version compared with the live one. Ready to implement.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
