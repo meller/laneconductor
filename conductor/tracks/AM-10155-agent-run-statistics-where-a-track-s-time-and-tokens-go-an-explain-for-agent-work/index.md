@@ -1,9 +1,10 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 87%
-**Phase**: Task 11 decided 2026-11-22 (no lane-text change; a Run statistics card action instead). A track-runner builds the button and empty state (tasks 14 to 16); then the post (phase 5).
+**Lane Status**: waiting
+**Waiting Reason**: Task 13: the owner approves and publishes the post "Pick Your Agent's Brain" (reviewed draft, numbers checked)
+**Progress**: 94%
+**Phase**: Built and checked: lc-explain.mjs, the Agent run and Statistics tabs, the Run statistics action (board add-on 1.10.13); the post "Pick Your Agent's Brain" is written with checked numbers (local draft, git-ignored). Left: Task 13 (the owner approves and publishes the post).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

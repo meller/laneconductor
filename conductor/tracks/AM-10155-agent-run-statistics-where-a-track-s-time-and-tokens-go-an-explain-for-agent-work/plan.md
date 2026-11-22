@@ -23,5 +23,5 @@
 - [x] Task 11 (HUMAN): Decide from the findings whether the lanes should run it at completion (a separate track, base text): decided, see D6 to D9 in the spec
 
 ## Phase 5: The post
-- [ ] Task 12: Fill "Pick Your Agent's Brain" with the real output, check every number, move it from draft to reviewed (REQ-9)
+- [x] Task 12: Fill "Pick Your Agent's Brain" with the real output, check every number, move it from draft to reviewed (REQ-9)
 - [ ] Task 13 (HUMAN): Approve and publish the post
