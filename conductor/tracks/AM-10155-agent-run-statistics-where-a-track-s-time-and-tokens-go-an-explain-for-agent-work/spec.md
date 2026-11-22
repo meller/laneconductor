@@ -36,6 +36,12 @@ An agent cannot read a clock or its own token meter, so asking it to write timin
 - D4 (changed by the owner) Human time comes from the human markers, not from a gap threshold: a plan task marked `(HUMAN)` and a lane status of `waiting` (from the dated history lines) are counted as human time and kept apart; the rest is agent time. This is simple and uses what the tracks already say. Known limit: a person who chats in the same session during a lane (not marked anywhere) is counted as agent time; the table says so, and the number of gaps over 30 minutes is shown as a note only.
 - D5 (confirmed) The core stays untouched: `explain.md` is a plain Markdown document in the track folder, like the plan and tests, and the board reads it as one more document. The statistics need a script, because the transcripts are large JSON Lines files that cannot be read by hand reliably; the script lives in the board add-on (`connector/bin/lc-explain.mjs`), never in the core plugin, which keeps scripts out of the base plugin and its directory review. A later, separate track may have the core lanes call the script when the add-on is present (base text).
 
+## Task 11 decision (owner, 2026-11-22)
+- D6 No change to the lane texts: the lanes do not run the statistics script at completion (that would be base text and another directory-review version).
+- D7 A track action instead, like Discuss: the "Agent run" tab of a track with no `explain.md` says "No statistics yet" and has a **Run statistics** button that copies a plain prompt: find the board add-on's `lc-explain.mjs` (Glob under the plugin cache), run it for this track, write `explain.md`, show the table, say what stands out. The Statistics tab marks a finished track without an `explain.md` as "no statistics recorded". The prompt carries the instructions, so no base text changes (REQ-7 holds).
+- D8 No live computing on every board refresh for now (more code; the button covers the need). It can be added later.
+- D9 Sub-agents stay the default for lane work (since base 1.9.16). The first runs showed a sub-agent starts at about 35K to 57K tokens of context against 650K to 960K for a long main session. A runner per phase only for phases that are independent and long (different files, no shared output); dependent phases run in order, by one runner.
+
 ## Out of scope
 Changing the lane texts, any hook that records timings while the agent works, the database-era run ledger (AM-10100), cost limits or alerts.
 
