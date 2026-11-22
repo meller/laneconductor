@@ -17,6 +17,9 @@
 - [ ] TC-7 (REQ-8): the real run on 10154 prints a table whose lane totals are within a few percent of the transcript's own totals
 - [ ] TC-8 (REQ-9): every number in the post is traceable to the real output, and the status line moved from draft to reviewed
 
+- [ ] TC-12 (D7): the board page of a track without `explain.md` has the empty state and the Run statistics button, and the copied prompt names `lc-explain.mjs`, the track number and `explain.md`, and contains no private path or name
+- [ ] TC-13 (D7): the Statistics tab lists a finished track without `explain.md` as "no statistics recorded"
+
 ## Acceptance Criteria
 - [ ] The script runs on a real finished track and the numbers match the transcript totals
 - [ ] No prompt, message or file content appears in any output

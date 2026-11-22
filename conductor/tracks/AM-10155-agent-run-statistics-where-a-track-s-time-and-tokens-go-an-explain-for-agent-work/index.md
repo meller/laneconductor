@@ -1,10 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: implement
-**Lane Status**: waiting
-**Waiting Reason**: Task 11: the owner decides whether the lanes run the explain script at completion, and whether lane work defaults to sub-agents or fresh sessions, from the first findings
+**Lane Status**: running
 **Progress**: 77%
-**Phase**: Phases 1 to 4 done (tasks 1 to 10): lc-explain.mjs in the board add-on 1.10.12, Agent run and Statistics tabs, first runs on 10154, 10146, 10114, 10116. Left: Task 11 (HUMAN decision), Phase 5 (the post).
+**Phase**: Task 11 decided 2026-11-22 (no lane-text change; a Run statistics card action instead). A track-runner builds the button and empty state (tasks 14 to 16); then the post (phase 5).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

@@ -14,10 +14,13 @@
 ## Phase 3: The board
 - [x] Task 8: Publish `explain.md` as a document and show an "Agent run" tab with the per-phase table; decide the done-track question (REQ-6)
 - [x] Task 9: The board plugin version and generated plugin, tests, strict validation; confirm no base plugin file changed (REQ-7)
+- [ ] Task 14 (test first): The "Agent run" tab of a track with no `explain.md` shows "No statistics yet" and a **Run statistics** button that copies the prompt of D7 (board page, add-on only) (D7)
+- [ ] Task 15: The Statistics tab marks a finished track that has no `explain.md` as "no statistics recorded" (D7)
+- [ ] Task 16: Board add-on version bump, regenerate, tests, strict validation; confirm no base plugin file changed (REQ-7)
 
 ## Phase 4: Use it
 - [x] Task 10: Run it on 10154 and one or two other finished tracks; record the findings and the biggest inefficiencies in the spec (REQ-8)
-- [ ] Task 11 (HUMAN): Decide from the findings whether the lanes should run it at completion (a separate track, base text)
+- [x] Task 11 (HUMAN): Decide from the findings whether the lanes should run it at completion (a separate track, base text): decided, see D6 to D9 in the spec
 
 ## Phase 5: The post
 - [ ] Task 12: Fill "Pick Your Agent's Brain" with the real output, check every number, move it from draft to reviewed (REQ-9)
