@@ -30,7 +30,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES, sameBoard } from '../src/board.mjs';
 import { blobSha } from '../src/blob.mjs';
-import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
+import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, markUnrecordedStatistics, MAX_DOCS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
 import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
@@ -103,6 +103,12 @@ if (siteDir) {
     for (const tab of PROJECT_TABS) for (const f of tab.files) texts[f] = await readText(path.join(repo, 'conductor', f));
     const styleDir = path.join(repo, 'conductor', 'code_styleguides');
     for (const d of (await fs.readdir(styleDir, { withFileTypes: true }).catch(() => [])).filter((e) => e.isFile() && /\.md$/i.test(e.name))) texts[`code_styleguides/${d.name}`] = await readText(path.join(styleDir, d.name));
+    // Track AM-10155 (D7): a finished track that has no explain.md is marked in the Statistics tab (only when that tab exists).
+    if (typeof texts['statistics.md'] === 'string' && texts['statistics.md'].trim()) {
+      const have = new Set();
+      for (const t of board.tracks) if (!t.archived && t.lane === 'done' && (await readText(path.join(tracksDir, t.folder, 'explain.md'))) !== null) have.add(t.folder);
+      texts['statistics.md'] = markUnrecordedStatistics(texts['statistics.md'], board.tracks, have);
+    }
     flow = workflowFlow(wf);
     if (flow && scanText(JSON.stringify(flow)).length) { process.stderr.write('board: withheld the workflow drawing: possible secret or personal data in lane names; not published\n'); flow = null; }
     const built = buildProjectDocs({ texts, hasFlow: Boolean(flow) });

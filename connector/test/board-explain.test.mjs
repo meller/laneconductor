@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeRepo, writeFile, rm, INDEX } from './helpers/repo.mjs';
-import { runPage, flush, restorePage } from './helpers/page-dom.mjs';
+import { runPage, flush, restorePage, stubGlobal, unstub, all, cls } from './helpers/page-dom.mjs';
 import { buildDoc } from '../src/board-docs.mjs';
 import { renderStatistics } from '../src/explain.mjs';
 
@@ -87,7 +87,7 @@ test('TC-5: the drawer shows an "Agent run" tab when the document has one, and t
   cards.find((c) => c.textContent.includes('Plain one')).handlers.click();
   await flush();
   assert.ok(names().includes('Overview'));
-  assert.ok(!names().includes('Agent run'), 'a track without the file has no tab once its documents are loaded');
+  assert.ok(names().includes('Agent run'), 'a track without the file has the tab too (Task 14): it holds the empty state');
 });
 
 test('TC-5: an explain.md with a secret match is withheld with the standard placeholder and never copied', () => {
@@ -115,6 +115,67 @@ test('TC-10: the Statistics tab lists every track that has an explain.md, finish
   const ctx = readJson(path.join(dir, 'ctx/statistics.json'));
   assert.equal(ctx.t, 'Statistics');
   assert.ok(ctx.md.includes('AM-803'), 'the finished track is in it');
+});
+
+const RUN_PROMPT_NEEDLES = [/lc-explain\.mjs/, /\*\*\/laneconductor-board\/\*\*\/bin\/lc-explain\.mjs/, /--repo \. --track 802\b/, /explain\.md/, /what stands out/];
+
+test('TC-12: the Agent run tab of a track without explain.md says "No statistics yet" and has a Run statistics button that copies a plain prompt', async () => {
+  const { dir } = site(fixture({ 801: true, 803: true }));
+  const data = readJson(path.join(dir, 'board.json'));
+  const fetchStub = async (u) => {
+    if (u === 'board.json') return { ok: true, status: 200, json: async () => data };
+    const f = path.join(dir, u);
+    return fs.existsSync(f) ? { ok: true, status: 200, json: async () => readJson(f) } : { ok: false, status: 404, json: async () => ({}) };
+  };
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  try {
+    const ids = await runPage(fetchStub);
+    const cards = ids.lanes.children.flatMap((l) => l.children[1]?.children ?? []);
+    cards.find((c) => c.textContent.includes('Plain one')).handlers.click();
+    await flush();
+    ids['d-tabs'].children.find((b) => b._text === 'Agent run').onclick();
+    await flush();
+    const body = ids['d-body'];
+    assert.ok(body.textContent.includes('No statistics yet'), 'the empty state');
+    assert.ok(!body.textContent.includes('Lane runs'));
+    const btns = all(body, (x) => x._text === 'Run statistics');
+    assert.equal(btns.length, 1, 'one Run statistics button');
+    btns[0].handlers.click({ stopPropagation() {} });
+    assert.equal(written.length, 1);
+    const prompt = written[0];
+    for (const re of RUN_PROMPT_NEEDLES) assert.match(prompt, re);
+    assert.ok(!prompt.includes('/laneconductor:'), 'a plain prompt, no command of ours');
+    assert.match(prompt, /read only|do not change any file/i);
+    assert.ok(!/\/home\/|\/Users\/|[A-Za-z]:\\|meller|@/.test(prompt), 'no private path, name or address');
+    assert.ok(!prompt.includes('Plain one'), 'only the track number, not the title');
+    await flush();
+    assert.equal(all(body, cls('copied'))[0].textContent, 'Copied the statistics prompt');
+    // The track that has explain.md shows its table and no button.
+    ids['d-close'].onclick();
+    cards.find((c) => c.textContent.includes('Live one')).handlers.click();
+    await flush();
+    ids['d-tabs'].children.find((b) => b._text === 'Agent run').onclick();
+    await flush();
+    assert.ok(ids['d-body'].textContent.includes('Lane runs'));
+    assert.equal(all(ids['d-body'], (x) => x._text === 'Run statistics').length, 0);
+  } finally { unstub(); }
+});
+
+test('TC-13: the Statistics tab lists a finished track without explain.md as "no statistics recorded"', () => {
+  const repo = fixture({ 801: true });
+  const r = spawnSync('node', [EXPLAIN, '--repo', repo, '--statistics', '--now', NOW], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const { dir } = site(repo);
+  const ctx = readJson(path.join(dir, 'ctx/statistics.json'));
+  assert.match(ctx.md, /^\| 803 \| no statistics recorded \|/m, 'finished track 803 has no explain.md');
+  assert.ok(!/^\| 801 \| no statistics recorded/m.test(ctx.md) && !/^\| 802 \| no statistics recorded/m.test(ctx.md), 'a live track is not marked');
+  assert.ok(ctx.md.includes('## Finished tracks with no statistics recorded'));
+  // Once 803 has its explain.md the mark is gone.
+  const repo2 = fixture({ 801: true, 803: true });
+  assert.equal(spawnSync('node', [EXPLAIN, '--repo', repo2, '--statistics', '--now', NOW], { encoding: 'utf8' }).status, 0);
+  const ctx2 = readJson(path.join(site(repo2).dir, 'ctx/statistics.json'));
+  assert.ok(!ctx2.md.includes('no statistics recorded'));
 });
 
 test('renderStatistics: no explain.md yet says how to make one', () => {

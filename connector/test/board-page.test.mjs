@@ -370,7 +370,7 @@ test('detail: clicking a card opens the drawer with the header, Overview from do
   assert.equal(ids.__doc.activeElement, ids['d-close']);
   assert.match(ids['d-body'].textContent, /Loading the document/);
   await flush();
-  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests']);
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Agent run']);
   assert.equal(tabBy(ids, 'Overview').attrs['aria-selected'], 'true');
   assert.ok(ids['d-body'].textContent.includes('Track AM-201: Planned one'));
   assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), ['docs/201.json']);
@@ -452,7 +452,7 @@ test('detail: the Conversation tab exists only when the doc has one (off by defa
   ids = await runPage(on.fetchStub);
   cardOf(ids, 'plan').handlers.click();
   await flush();
-  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Conversation']);
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Conversation', 'Agent run']);
   tabBy(ids, 'Conversation').onclick();
   await flush();
   assert.ok(ids['d-body'].textContent.includes('talk about 201'));
@@ -1336,7 +1336,7 @@ test('project drawer: Escape closes it; Tab and Shift+Tab are trapped; a track o
   assert.equal(ids['d-note'].hidden, true);
   assert.equal(ids['d-tabs'].attrs['aria-label'], 'Track documents');
   await flush();
-  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests']);
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Agent run']);
 });
 
 test('project drawer: the Workflow tab draws the lanes as boxes with arrows, a text list, the primer, then the workflow.md text', async () => {
