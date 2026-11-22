@@ -20,9 +20,9 @@
 - [x] TC-12 (D7): the board page of a track without `explain.md` has the empty state and the Run statistics button, and the copied prompt names `lc-explain.mjs`, the track number and `explain.md`, and contains no private path or name
 - [x] TC-13 (D7): the Statistics tab lists a finished track without `explain.md` as "no statistics recorded"
 
-- [ ] TC-14 (D10): a synthetic window where a sub-agent message precedes the first main-session message reports the main message's context, and the sub-agent-only window falls back
-- [ ] TC-15 (D11): a board built for a project with 300 finished tracks stays under the file limit, a finished track opens with its documents loaded from a shard, and a document with a secret match is withheld as before
-- [ ] TC-16 (D11): the footer text says that finished tracks are included in what sharing the board shares
+- [x] TC-14 (D10): a synthetic window where a sub-agent message precedes the first main-session message reports the main message's context, and the sub-agent-only window falls back
+- [x] TC-15 (D11): a board built for a project with 300 finished tracks stays under the file limit, a finished track opens with its documents loaded from a shard, and a document with a secret match is withheld as before
+- [x] TC-16 (D11): the footer text says that finished tracks are included in what sharing the board shares
 - [ ] TC-17 (D12): the published post no longer contains the 646,000 to 958,000 and 95,000 to 770,000 claims, and every number left in it traces to a total
 
 ## Acceptance Criteria

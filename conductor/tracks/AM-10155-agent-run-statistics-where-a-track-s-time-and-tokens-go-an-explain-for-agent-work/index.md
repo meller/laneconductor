@@ -2,7 +2,7 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 80%
+**Progress**: 95%
 **Phase**: Reopened 2026-11-22 for phase 6: a bug in the first-response context figure, finished tracks on the board (sharded), and a correction of the published post (spec D10 to D12).
 **Track Kind**: feature
 **Type**: dev

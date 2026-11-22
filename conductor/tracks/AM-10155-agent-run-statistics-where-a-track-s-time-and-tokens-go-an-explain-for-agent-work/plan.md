@@ -27,8 +27,8 @@
 - [x] Task 13 (HUMAN): Approve and publish the post
 
 ## Phase 6: Corrections and finished tracks (2026-11-22)
-- [ ] Task 17 (test first): the first response of a lane run is the first message of the main session: a window where a sub-agent message comes before the main one gives the main one's context; with no main message it falls back to the sub-agent's (D10)
-- [ ] Task 18 (test first): the documents of finished tracks are published in shards and a finished track opens in the page with its tabs, Agent run included; the secret scan, the settings and the file limit hold; the footer says finished tracks are included (D11)
-- [ ] Task 19: board add-on version bump to 1.10.14, regenerate, tests, strict validation; confirm no base plugin file changed (REQ-7)
+- [x] Task 17 (test first): the first response of a lane run is the first message of the main session: a window where a sub-agent message comes before the main one gives the main one's context; with no main message it falls back to the sub-agent's (D10)
+- [x] Task 18 (test first): the documents of finished tracks are published in shards and a finished track opens in the page with its tabs, Agent run included; the secret scan, the settings and the file limit hold; the footer says finished tracks are included (D11)
+- [x] Task 19: board add-on version bump to 1.10.14, regenerate, tests, strict validation; confirm no base plugin file changed (REQ-7)
 - [ ] Task 20: correct the published post (D12) and deploy it, owner's word for the deploy
 
