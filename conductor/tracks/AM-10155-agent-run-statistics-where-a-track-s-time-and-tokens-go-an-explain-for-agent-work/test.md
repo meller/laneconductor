@@ -37,10 +37,10 @@
 - [x] TC-26 (D15): in the board page, the Agent run tab shows Recommendations right after Insight
 
 ### Phase 9: short plan and cross-track recommendations
-- [ ] TC-27 (D19, D20): a synthetic transcript gives a short plan table whose rows match the lane run numbers, the most expensive step marked, at most three fix lines, an approximation note, and every existing section and number unchanged
-- [ ] TC-28 (D23, REQ-4): the `recommend-facts` block holds only rule ids and numbers; a transcript with a token, an email and a prompt never reaches it
-- [ ] TC-29 (D21, D22): ten synthetic tracks give at most three ranked actions with their counts; 2 tracks give "Not enough tracks with statistics yet (2 of 3)"; 10 tracks with nothing over the threshold give "No change suggested"; an action firing in exactly 3 appears, in 2 does not
-- [ ] TC-30 (D19, D21): in the board page the Agent run tab opens on the short plan with Details folded, and the top button opens a drawer with the Copy buttons
+- [x] TC-27 (D19, D20): a synthetic transcript gives a short plan table whose rows match the lane run numbers, the most expensive step marked, at most three fix lines, an approximation note, and every existing section and number unchanged
+- [x] TC-28 (D23, REQ-4): the `recommend-facts` block holds only rule ids and numbers; a transcript with a token, an email and a prompt never reaches it
+- [x] TC-29 (D21, D22): ten synthetic tracks give at most three ranked actions with their counts; 2 tracks give "Not enough tracks with statistics yet (2 of 3)"; 10 tracks with nothing over the threshold give "No change suggested"; an action firing in exactly 3 appears, in 2 does not
+- [x] TC-30 (D19, D21): in the board page the Agent run tab opens on the short plan with Details folded, and the top button opens a drawer with the Copy buttons
 
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals
