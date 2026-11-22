@@ -187,8 +187,17 @@ test('rollback: with a version it goes to that version\'s record and shows the e
   // by commit prefix and by record file name
   assert.equal(rollbackPlan({ records, config, env: 'prod', version: 'aaaaaaa' }).target.version, '1.0.0');
   assert.equal(rollbackPlan({ records, config, env: 'prod', version: recordFileName('prod', R2.time) }).target.version, '1.1.0');
-  // the live version: nothing to do
-  assert.equal(rollbackPlan({ records, config, env: 'prod', version: '1.1.0' }).alreadyLive, true);
+  // the live version: after a failed run (here R3 failed) going back to it restores the recorded version; with no failure and no drift there is nothing to do
+  const restore = rollbackPlan({ records, config, env: 'prod', version: '1.1.0' });
+  assert.deepEqual([restore.action, restore.alreadyLive, restore.restores], ['plan', true, 'the recorded version after a failed run']);
+  assert.equal(restore.target.file, recordFileName('prod', R2.time));
+  const healthy = parseRecords(files(R1, R2));
+  const nothing = rollbackPlan({ records: healthy, config, env: 'prod', version: '1.1.0' });
+  assert.deepEqual([nothing.action, nothing.alreadyLive], ['refused', true]);
+  assert.match(nothing.reason, /already live .* nothing to roll back/);
+  const afterDrift = rollbackPlan({ records: healthy, config, env: 'prod', version: '1.1.0', drift: true });
+  assert.deepEqual([afterDrift.action, afterDrift.restores], ['plan', 'the recorded version after drift']);
+  assert.equal(rollbackPlan({ records: healthy, config, env: 'prod', version: '1.0.0' }).alreadyLive, false);
   // a failed run is not a version to go back to; an unknown one is refused and the known versions are named
   const failed = rollbackPlan({ records, config, env: 'prod', version: '1.2.0' });
   assert.equal(failed.action, 'refused');

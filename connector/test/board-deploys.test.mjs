@@ -95,7 +95,9 @@ test('TC-6 secret scan: a record with a token-shaped value is withheld with the 
   assert.ok(!out.includes('ddddddd'), 'no other field of the withheld record is shown either');
   const md = JSON.parse(out).md;
   assert.match(md, /\| 2026-11-22T11:30:00Z \| withheld: possible secret or personal data \(1 match\) \|/);
-  assert.match(md, /Live: version 1\.1\.0/, 'the live version is the last good record that was published');
+  assert.match(md, /Live: not known from this board: a newer record was withheld.*the last published good record is version 1\.1\.0 at 2026-11-21T10:00:00Z/, 'a newer withheld record means the live version is not known here');
+  assert.ok(!/\| live \|/.test(md.slice(md.indexOf('## prod'), md.indexOf('## staging'))), 'no row is marked live in that environment');
+  assert.match(md.slice(md.indexOf('## staging')), /Live: version 1\.1\.0, deployed 2026-11-21T08:00:00Z/, 'another environment is unaffected');
   assert.match(s.r.stderr, /board: withheld deploy record prod-20261122T113000Z\.md: 1 possible secret or personal data match/);
   assert.ok(!s.r.stderr.includes(TOKEN));
   // a secret in the command is withheld the same way

@@ -159,9 +159,11 @@ const fill = (cmd, vars) => cmd.replace(/\{(service|version|commit)\}/g, (_, k) 
 /**
  * `deploy rollback [env] [version]`. A version is matched against the good records of the environment (the version, a commit of at least 7
  * characters or a record file name; the newest match wins); a failed run is never a version to go back to. Without a version: the list.
+ * The version that is already live is refused ("nothing to roll back") unless the newest run failed or `drift` is true (the live server shows
+ * another version than the records): then restoring the recorded version is the point, and the plan says why in `restores`.
  * @returns {{ action: 'list' | 'refused' | 'plan', ... }}
  */
-export function rollbackPlan({ records, config, env, version }) {
+export function rollbackPlan({ records, config, env, version, drift = false }) {
   const cfg = config && config.env === env ? config : null;
   const refuse = (reason, extra = {}) => ({ action: 'refused', reason, ...extra });
   if (!cfg) return refuse(`deploy.json has no environment ${env} with a command`);
@@ -173,6 +175,9 @@ export function rollbackPlan({ records, config, env, version }) {
   const target = all.find((r) => r.version === v) ?? all.find((r) => v.length >= 7 && r.commit && r.commit.startsWith(v)) ?? all.find((r) => r.file === v);
   if (!target) return refuse(`no good record of version ${v} for ${env}; the versions recorded are ${hist.map((h) => h.version).join(', ')}`, { versions: hist });
   const live = liveRecord(records, env);
+  const alreadyLive = live === target;
+  const newestFailed = !forEnv(records, env).at(-1).good;
+  if (alreadyLive && !newestFailed && !drift) return refuse(`version ${target.version} is already live according to the records, the newest run did not fail and no drift was found: nothing to roll back`, { alreadyLive: true });
   const vars = { service: cfg.service, version: target.version, commit: target.commit };
   let strategy;
   let steps;
@@ -188,7 +193,7 @@ export function rollbackPlan({ records, config, env, version }) {
   if (secretHits(steps.join('\n')).length) return refuse('the command looks like it holds a secret; keep secrets out of deploy.json and say where they come from instead');
   const command = steps.join(' && ');
   return {
-    action: 'plan', strategy, target, alreadyLive: live === target, production: cfg.production, steps, command,
+    action: 'plan', strategy, target, alreadyLive, restores: alreadyLive ? (newestFailed ? 'the recorded version after a failed run' : 'the recorded version after drift') : null, production: cfg.production, steps, command,
     yes: `yes, roll back ${env} to ${target.version} with ${command}`,
   };
 }
@@ -251,11 +256,15 @@ export function deploysForBoard(files) {
     const live = liveRecord(records, env);
     const production = records.some((r) => r.env === env && r.production);
     out.push('', `## ${env}${production ? ' (production)' : ''}`, '');
-    out.push(live
+    // A withheld record newer than the live one has an unknown result, so the board cannot say what is live.
+    const unsure = held.some((w) => w.env === env && (!live || Date.parse(w.time) > Date.parse(live.time)));
+    out.push(unsure
+      ? `Live: not known from this board: a newer record was withheld (possible secret or personal data)${live ? `; the last published good record is version ${cell(live.version)} at ${cell(live.time)}` : ''}. Ask Claude for \`deploy status\`.`
+      : live
       ? `Live: version ${cell(live.version)}, deployed ${cell(live.time)}, ${live.kind === 'rollback' ? 'success (rollback)' : 'success'}, commit ${cell(live.commit)}, approved by ${cell(live.approvedBy)}.`
       : 'Live: nothing is recorded as live (no successful deploy).');
     const rows = [
-      ...historyOf(records, env).map((e) => ({ time: e.time, file: e.file, cols: [cell(e.version), cell(e.commit), `${cell(e.result)}${e.kind === 'rollback' ? ' (rollback)' : ''}`, cell(e.approvedBy), e.live ? 'live' : ''] })),
+      ...historyOf(records, env).map((e) => ({ time: e.time, file: e.file, cols: [cell(e.version), cell(e.commit), `${cell(e.result)}${e.kind === 'rollback' ? ' (rollback)' : ''}`, cell(e.approvedBy), e.live && !unsure ? 'live' : ''] })),
       ...held.filter((w) => w.env === env).map((w) => ({ time: w.time, file: w.file, cols: [`withheld: possible secret or personal data (${w.matches} match${w.matches === 1 ? '' : 'es'})`, '', '', '', ''] })),
     ].sort((a, b) => Date.parse(b.time) - Date.parse(a.time) || b.file.localeCompare(a.file));
     out.push('', '| Time | Version | Commit | Result | Approved by | Live |', '| --- | --- | --- | --- | --- | --- |', ...rows.map((r) => `| ${cell(r.time)} | ${r.cols.join(' | ')} |`));

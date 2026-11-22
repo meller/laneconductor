@@ -84,7 +84,7 @@ test('TC-3 rollback: a version is chosen (a list and a question without one), th
   assert.match(DEPLOY, /^# deploy `\[env\]`, `status \[env\]`, `history \[env\]`, `rollback \[env\] \[version\]`/);
   assert.match(t, /With no version: list the versions as `history` does, only the ones with `result: success`.*and ask which version\. Stop until the answer comes/);
   assert.match(t, /a version, a commit of at least 7 characters or a record file name/);
-  assert.match(t, /None: say so, name the versions recorded and stop/);
+  assert.match(t, /None: say so, name the versions recorded and stop\. Already live: say so; go on only when the newest run failed or `status` found drift.*otherwise stop: there is nothing to roll back/);
   assert.ok(t.indexOf('Show the exact command before anything runs') < t.indexOf('Wait for a yes that names the environment, the version and the command'), 'the command is shown before the yes');
   assert.match(t, /"yes, roll back prod to 1\.0\.0 with <command>"/);
   assert.match(t, /A bare "yes" is not enough/);
