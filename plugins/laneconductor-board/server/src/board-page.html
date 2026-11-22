@@ -1084,9 +1084,8 @@ td .act { border-top: 0; padding-top: 0; }
     return q;
   }
   function hasConversation(doc) { return Boolean(doc && (doc.conversation !== undefined || (doc.withheld && doc.withheld.conversation))); }
-  function hasExplain(doc) { return Boolean(doc && (doc.explain !== undefined || (doc.withheld && doc.withheld.explain))); }
-  // The optional tabs (the conversation, the generated agent-run statistics) exist only when the document has the field.
-  function optionalTab(x, doc) { return (x[0] !== 'conversation' || hasConversation(doc)) && (x[0] !== 'explain' || hasExplain(doc)); }
+  // The conversation tab exists only when the document has the field. The Agent run tab is there once the documents are loaded: with no explain.md it holds the empty state and the Run statistics button.
+  function optionalTab(x, doc) { return (x[0] !== 'conversation' || hasConversation(doc)) && (x[0] !== 'explain' || Boolean(doc)); }
   function loadingEl() {
     var s = el('div', 'status'); s.setAttribute('role', 'status');
     var sp = el('span', 'spin'); sp.setAttribute('aria-hidden', 'true'); s.appendChild(sp); s.appendChild(el('div', 'big', 'Loading the document'));
@@ -1111,11 +1110,31 @@ td .act { border-top: 0; padding-top: 0; }
     retryBtn = el('button', 'btn', 'Try again'); retryBtn.type = 'button'; retryBtn.onclick = function () { showTab(cur.tab); };
     s.appendChild(retryBtn); b.appendChild(s);
   }
+  // The text of the Run statistics button: a plain prompt (no command of ours) that carries the instructions, so no lane text changes. Only the track number and a generic search pattern.
+  function statsPrompt(t) {
+    var n = idOf(t).replace(/^[A-Za-z]+-/, '');
+    return 'Please work out where the agent time and tokens of track ' + n + ' went. Find the script lc-explain.mjs of the laneconductor-board add-on: use Glob with the pattern **/laneconductor-board/**/bin/lc-explain.mjs under ~/.claude/plugins/cache, and do not read the plugin folder in any other way. Then, from the project root, run: node <that path> --repo . --track ' + n + ' . Show me the table it prints and say what stands out. This is read only apart from the explain.md that the script writes in the track folder: change no other file and run no lane command.';
+  }
+  // The Agent run tab of a track with no explain.md.
+  function renderNoStats(b) {
+    var n = el('div', 'notice plain'), t = cur.t;
+    n.appendChild(el('div', null, 'No statistics yet'));
+    n.appendChild(el('div', 'hint', 'Run statistics copies a prompt that asks Claude to work out where the time and tokens of this track went and to write explain.md for it.'));
+    var row = el('div', 'actrow'), note = el('span', 'copied'); note.setAttribute('role', 'status');
+    var prompt = statsPrompt(t), pcode = el('code', 'sr', prompt); pcode.setAttribute('aria-hidden', 'true');
+    var rb = el('button', 'copy', 'Run statistics'); rb.type = 'button'; rb.setAttribute('title', 'Copy a prompt that asks Claude to run the statistics script for this track');
+    rb.setAttribute('aria-label', 'Copy a prompt to run the agent run statistics for ' + idOf(t) + ' with Claude');
+    rb.addEventListener('click', function (e) { e.stopPropagation(); copyText(prompt, pcode, note, 'Copied the statistics prompt'); });
+    row.appendChild(pcode); row.appendChild(rb); row.appendChild(note); n.appendChild(row); b.appendChild(n);
+    retryBtn = null;
+  }
   function renderDoc(doc, key) {
     var b = setBody(), meta = DOC_TABS.filter(function (x) { return x[0] === key; })[0];
     if (doc.withheld && doc.withheld[key]) {
       var w = el('div', 'notice'); w.appendChild(el('div', null, 'withheld: ' + doc.withheld[key]));
       w.appendChild(el('div', 'hint', meta[2] + ' is not published on this board; read it in the repository.')); b.appendChild(w);
+    } else if (!doc[key] && key === 'explain') {
+      renderNoStats(b);
     } else if (!doc[key]) {
       b.appendChild(el('div', 'notice plain', 'No ' + meta[2] + ' in this track.'));
     } else {
@@ -1150,7 +1169,7 @@ td .act { border-top: 0; padding-top: 0; }
     var mine = cur.seq;
     loadDocs(cur.t).then(function (doc) {
       if (!cur || cur.seq !== mine || cur.tab !== key) return;
-      if ((hasConversation(doc) && !tabEls.some(function (x) { return x.dataset.k === 'conversation'; })) || (hasExplain(doc) && !tabEls.some(function (x) { return x.dataset.k === 'explain'; }))) buildTabs(doc);
+      if ((hasConversation(doc) && !tabEls.some(function (x) { return x.dataset.k === 'conversation'; })) || !tabEls.some(function (x) { return x.dataset.k === 'explain'; })) buildTabs(doc);
       renderDoc(doc, key);
     }).catch(function (e) { if (cur && cur.seq === mine && cur.tab === key) renderError(e); });
   }
