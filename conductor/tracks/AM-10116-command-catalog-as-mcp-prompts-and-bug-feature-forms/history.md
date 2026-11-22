@@ -1,0 +1,1 @@
+- 2026-11-22 ⚠️ Closed as done:success at the owner's word (merge mode direct, code on main). Open when closed: Task 2 (HUMAN), AC-5 in a real client, not run; Progress stays 95 percent on purpose.

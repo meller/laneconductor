@@ -1,9 +1,9 @@
 # Track AM-10116: Command catalog as MCP prompts (the FITI pattern) and bug and feature forms
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: success
 **Progress**: 95%
-**Phase**: Merged and pushed (main 3ea4654c; plugin 0.4.0, now superseded by 0.5.0 on main). Review and quality gate passed. Open: AC-5 human check in a real session (update the plugin, type /laneconductor: and try /laneconductor:bug).
+**Phase**: Closed by the owner 2026-11-22 with one open human task: AC-5 (in a real client a prompt such as help appears and returns the list, and /laneconductor:bug creates a bug track) was not run. The code is on main; quality gate passed.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

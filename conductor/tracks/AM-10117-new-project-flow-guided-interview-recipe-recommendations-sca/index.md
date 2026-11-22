@@ -1,9 +1,9 @@
 # Track AM-10117: New-project flow: guided interview, recipe recommendations, scaffold, and add-a-recipe
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: success
 **Progress**: 75%
-**Phase**: Merged and pushed (main 15f9157b), plugin 0.5.0. Phases 1-3 done except the landing mention. Open: Phase 2 Task 5 (human review of the nine recipes before any is shipped), Phase 3 Task 3 (landing mention of the flow), Phase 4 (real use of new-project and add-recipe). Update the plugin to 0.5.0 to try it.
+**Phase**: Closed by the owner 2026-11-22 with 5 open tasks dropped (the recipe-library direction was replaced by the skills library): review of the nine library recipes, the site and README mention of the flow, the two human runs (new-project on a scratch project, add-recipe once), and the find_recipe and bootstrap_project decision in track 10107. Phases 1 to 3 (new-project flow, recipe match, privacy gate, apply, add-recipe) are on main; quality gate passed.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
