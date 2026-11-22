@@ -11,7 +11,7 @@
 // deployment-stack.md). It never publishes .laneconductor.json.
 // --site <dir> writes the two files a board artifact is published from: board.html (the static page,
 // byte-identical every run for one project, no data in it; only its <title> names the project) and board.json (the page's data), plus docs/<number>.json
-// for each track that is not done (the documents the page shows when a track is opened; see
+// for each track that is not done, and docs-done/<k>.json, a few shard files that hold the documents of the finished tracks (about 20 tracks or 1 MB each; board.json names the shard of a finished track as `ds`) (the documents the page shows when a track is opened; see
 // src/board-docs.mjs; `board.include_docs: false` in .laneconductor.json turns them off,
 // `board.include_conversation: true` adds conversation.md), and ctx/<key>.json for each project definition file that exists
 // (the Project drawer; the same scan and the same switch; they count toward the 200-file cap). It prints the two absolute paths, one per
@@ -30,7 +30,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES, sameBoard } from '../src/board.mjs';
 import { blobSha } from '../src/blob.mjs';
-import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, markUnrecordedStatistics, MAX_DOCS } from '../src/board-docs.mjs';
+import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, markUnrecordedStatistics, MAX_DOCS, selectDoneTracks, packShards, MAX_DONE_SHARDS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
 import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
@@ -86,10 +86,13 @@ if (siteDir) {
   // The documents behind the track detail. A previous run's docs files in the same folder never survive.
   const docsDir = path.join(dir, 'docs');
   for (const f of await fs.readdir(docsDir).catch(() => [])) if (/^\d+\.json$/.test(f)) await fs.rm(path.join(docsDir, f));
+  const doneDir = path.join(dir, 'docs-done');
+  for (const f of await fs.readdir(doneDir).catch(() => [])) if (/^\d+\.json$/.test(f)) await fs.rm(path.join(doneDir, f));
   const includeDocs = cfg?.board?.include_docs !== false;
   const includeConversation = includeDocs && cfg?.board?.include_conversation === true;
   const files = ['board.json'];
   let docFolders = [];
+  const doneShards = new Map();
   let dropped = 0;
   let ghUrl = null;
   let projectDocs = [];
@@ -116,14 +119,35 @@ if (siteDir) {
     if (built.ctx.length) await fs.mkdir(ctxDir, { recursive: true });
     for (const c of built.ctx) { await fs.writeFile(path.join(dir, c.name), `${JSON.stringify(c.doc)}\n`, 'utf8'); files.push(c.name); }
     for (const w of built.withheld) process.stderr.write(`board: withheld project file ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
-    const sel = selectDocTracks(board, { max: MAX_DOCS - built.ctx.length });
+    // Track AM-10155 (D11): the documents of finished tracks, packed into a few shard files (docs-done/<k>.json); they count toward the file limit, so the live tracks get what is left.
+    const docTexts = async (k) => {
+      const t = {};
+      for (const [field, file] of [...DOC_FIELDS, ...(includeConversation ? [CONVERSATION_FIELD] : []), EXPLAIN_FIELD]) t[field] = await readText(path.join(tracksDir, k.folder, file));
+      return t;
+    };
+    const doneItems = [];
+    for (const k of selectDoneTracks(board)) {
+      const { doc, withheld } = buildDoc({ number: k.number, folder: k.folder, texts: await docTexts(k), includeConversation });
+      doneItems.push({ number: k.number, folder: k.folder, doc });
+      for (const w of withheld) process.stderr.write(`board: withheld track ${k.number} ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
+    }
+    const allShards = packShards(doneItems);
+    const shards = allShards.slice(Math.max(0, allShards.length - MAX_DONE_SHARDS));
+    if (shards.length < allShards.length) process.stderr.write(`board: the oldest ${allShards.length - shards.length} shard(s) of finished-track documents are left out (limit ${MAX_DONE_SHARDS} shards per site)\n`);
+    const doneFiles = [];
+    if (shards.length) await fs.mkdir(doneDir, { recursive: true });
+    for (const sh of shards) {
+      await fs.writeFile(path.join(doneDir, `${sh.k}.json`), `${JSON.stringify(sh)}\n`, 'utf8');
+      doneFiles.push(`docs-done/${sh.k}.json`);
+      for (const n of Object.keys(sh.docs)) doneShards.set(doneItems.find((x) => String(x.number) === n).folder, sh.k);
+    }
+    files.push(...doneFiles); // sorted order: docs-done/ sorts before docs/
+    const sel = selectDocTracks(board, { max: MAX_DOCS - built.ctx.length - doneFiles.length });
     dropped = sel.dropped;
     docFolders = sel.keep.map((k) => k.folder);
     if (sel.keep.length) await fs.mkdir(docsDir, { recursive: true });
     for (const k of sel.keep.sort((x, y) => x.number - y.number)) {
-      const texts = {};
-      for (const [field, file] of [...DOC_FIELDS, ...(includeConversation ? [CONVERSATION_FIELD] : []), EXPLAIN_FIELD]) texts[field] = await readText(path.join(tracksDir, k.folder, file));
-      const { doc, withheld } = buildDoc({ number: k.number, folder: k.folder, texts, includeConversation });
+      const { doc, withheld } = buildDoc({ number: k.number, folder: k.folder, texts: await docTexts(k), includeConversation });
       await fs.writeFile(path.join(docsDir, `${k.number}.json`), `${JSON.stringify(doc)}\n`, 'utf8');
       files.push(`docs/${k.number}.json`);
       for (const w of withheld) process.stderr.write(`board: withheld track ${k.number} ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
@@ -149,7 +173,7 @@ if (siteDir) {
       if (r.status === 0 && r.stdout.trim()) { commit = r.stdout.trim(); break; }
     }
   } catch { /* no git: the board has no commit and the page shows the age only */ }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, commit }))}\n`, 'utf8');
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, doneShards, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, commit }))}\n`, 'utf8');
   // The manifest: a hash of the exact bytes of the page and of every data file, written last so it describes what is on disk.
   const pageBytes = await fs.readFile(page);
   const bytes = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await fs.readFile(path.join(dir, f))])));

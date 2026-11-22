@@ -63,7 +63,7 @@ test('the default output is unchanged: { page, root, files } with no partial-pub
   const a = board(repo);
   assert.deepEqual(Object.keys(a.out), ['page', 'root', 'files']);
   assert.ok(a.out.files.includes('board.json') && a.out.files.includes('docs/401.json') && a.out.files.includes('docs/402.json'));
-  assert.ok(!a.out.files.includes('docs/403.json'), 'a done track has no document');
+  assert.ok(!a.out.files.includes('docs/403.json'), 'a done track has no document of its own: it is in a shard');
   assert.ok(!a.out.files.includes('manifest.json') && !a.out.files.includes('version.json'), 'neither the manifest nor the version index is listed in files');
   const m = readJson(a.manifest);
   assert.equal(m.version, MANIFEST_VERSION);
@@ -113,7 +113,8 @@ test('a track that became done: its document is removed with null, and board.jso
   const r = board(repo, { now: T2, previous: prev.manifest });
   assert.equal(r.out.mode, 'partial');
   assert.deepEqual(r.out.removed, ['docs/402.json']);
-  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs/402.json': null, 'manifest.json': 'manifest.json', 'version.json': 'version.json' });
+  // The finished tracks' documents are in a shard (track AM-10155): 402 joins 403 there, so that shard changes.
+  assert.deepEqual(r.out.publish, { 'board.json': 'board.json', 'docs-done/1.json': 'docs-done/1.json', 'docs/402.json': null, 'manifest.json': 'manifest.json', 'version.json': 'version.json' });
   assert.ok(!('docs/402.json' in readJson(r.manifest).files));
 });
 

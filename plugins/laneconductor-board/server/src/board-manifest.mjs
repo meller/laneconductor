@@ -10,7 +10,7 @@ export const MANIFEST_FILE = 'manifest.json';
 export const VERSION_FILE = 'version.json';
 export const MANIFEST_VERSION = 1;
 // The only paths a board site can hold. A manifest that names anything else is not ours (it is read back from a place others may edit).
-const SITE_PATH = /^(board\.json|docs\/\d+\.json|ctx\/[a-z-]+\.json)$/;
+const SITE_PATH = /^(board\.json|docs\/\d+\.json|docs-done\/\d+\.json|ctx\/[a-z-]+\.json)$/;
 const SHA = /^[0-9a-f]{64}$/;
 
 /** sha256 (hex) over the exact bytes. */
@@ -20,6 +20,8 @@ export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).diges
 export function carriesWithheld(text) {
   try {
     const doc = JSON.parse(text);
+    // A shard of finished-track documents (docs-done/<k>.json) carries a withheld marker when any document in it does.
+    if (doc && doc.docs && typeof doc.docs === 'object') return Object.values(doc.docs).some((d) => Boolean(d && d.withheld));
     return Boolean(doc && (doc.withheld || (typeof doc.md === 'string' && doc.md.includes('*withheld: '))));
   } catch { return false; }
 }

@@ -49,7 +49,7 @@ test('--site writes board.html, board.json and docs/, prints their absolute path
   const r = run(repo, '--site', site);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `${path.join(site, 'board.html')}\n${path.join(site, 'board.json')}\n`);
-  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs', 'manifest.json', 'version.json']);
+  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs', 'docs-done', 'manifest.json', 'version.json']);
   assert.ok(!fs.readdirSync(repo).includes('board.json'), 'nothing is written into the repo');
 });
 
@@ -78,7 +78,8 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'commit', 'commit_short', 'lanes', 'tracks', 'attn', 'project_docs', 'wf', 'next']); // the fixture has a workflow.json, so the Project drawer has its Workflow tab; the What's next card is always computed
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
-  for (const t of j.tracks) assert.deepEqual(Object.keys(t).filter((k) => k !== 'x'), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
+  for (const t of j.tracks) assert.deepEqual(Object.keys(t).filter((k) => k !== 'x' && k !== 'ds'), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
+  for (const t of j.tracks) assert.equal('ds' in t, t.l === 'done', 'a finished track names its shard (track AM-10155); no other track does');
   for (const a2 of j.attn) assert.deepEqual(Object.keys(a2).filter((k) => k !== 'x'), ['n', 'p', 't', 'r']);
   assert.equal(j.tracks.length, 8, 'live tracks only');
   assert.ok(!raw.includes('ARCHIVED-SENTINEL'), 'archived folders are left out');
@@ -483,32 +484,49 @@ test('detail: a withheld file shows "withheld: <reason>" and never the text; the
   assert.match(ids['d-body'].textContent, /No test\.md in this track/);
 });
 
-test('detail: a done track has no tabs and no fetch, a note, and an Open in GitHub link (https, new tab, noopener)', async () => {
-  const { calls, fetchStub } = siteFor(detailFixture());
+test('detail: a done track opens with its documents from a shard (track AM-10155), an Open in GitHub link (https, new tab, noopener) in the header; one with no shard gets the note and the link in the body', async () => {
+  const { calls, data, fetchStub } = siteFor(detailFixture());
   const ids = await runPage(fetchStub);
   ids['done-rows'].children[0].handlers.click();
   await flush();
-  assert.equal(ids['d-tabs'].hidden, true);
-  assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), []);
-  assert.match(ids['d-body'].textContent, /Finished tracks do not carry their documents/);
-  const links = all(ids['d-body'], (e) => e.tag === 'a');
+  assert.equal(ids['d-tabs'].hidden, false);
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Agent run']);
+  assert.deepEqual(calls.filter((u) => u.startsWith('docs')), ['docs-done/1.json']);
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('DONE-SPEC-SENTINEL'));
+  const links = all(ids['d-lnks'], (e) => e.tag === 'a');
   assert.equal(links.length, 1);
   assert.equal(links[0].textContent, 'Open in GitHub');
   assert.equal(links[0].attrs.href, 'https://github.com/acme/widgets/tree/main/conductor/tracks/AM-203-t203');
   assert.equal(links[0].attrs.target, '_blank');
   assert.match(links[0].attrs.rel, /\bnoopener\b/);
-  assert.ok(!ids['d-body'].textContent.includes('DONE-SPEC-SENTINEL'));
-  // Without a github remote there is no link, only the note. A non-https gh value is never linked.
+  // Without a github remote there is no link. A non-https gh value is never linked.
   const nogh = siteFor(detailFixture({ remote: null }));
   const ids2 = await runPage(nogh.fetchStub);
   ids2['done-rows'].children[0].handlers.click();
-  assert.equal(all(ids2['d-body'], (e) => e.tag === 'a').length, 0);
-  assert.match(ids2['d-body'].textContent, /Finished tracks do not carry/);
-  const bad = JSON.parse(JSON.stringify(nogh.data));
+  await flush();
+  assert.equal(all(ids2['d-lnks'], (e) => e.tag === 'a').length, 0);
+  const bad = JSON.parse(JSON.stringify(data));
   bad.tracks.find((t) => t.n === 203).gh = 'javascript:evil()';
-  const ids3 = await runPage(async (u) => ({ ok: true, status: 200, json: async () => bad }));
+  const ids3 = await runPage(async (u) => (u === 'board.json' ? { ok: true, status: 200, json: async () => bad } : fetchStub(u)));
   ids3['done-rows'].children[0].handlers.click();
-  assert.equal(all(ids3['d-body'], (e) => e.tag === 'a').length, 0);
+  await flush();
+  assert.equal(all(ids3['d-lnks'], (e) => e.tag === 'a').length, 0);
+  // A finished track the board names no shard for (the number is shared, or the shard was left out): no tabs, no fetch, the note and the link.
+  const noshard = JSON.parse(JSON.stringify(data));
+  delete noshard.tracks.find((t) => t.n === 203).ds;
+  const calls4 = [];
+  const ids4 = await runPage(async (u) => { calls4.push(u); return u === 'board.json' ? { ok: true, status: 200, json: async () => noshard } : fetchStub(u); });
+  ids4['done-rows'].children[0].handlers.click();
+  await flush();
+  assert.equal(ids4['d-tabs'].hidden, true);
+  assert.deepEqual(calls4.filter((u) => u.startsWith('docs')), []);
+  assert.match(ids4['d-body'].textContent, /This board does not publish documents for this track\./);
+  const bl = all(ids4['d-body'], (e) => e.tag === 'a');
+  assert.equal(bl.length, 1);
+  assert.equal(bl[0].textContent, 'Open in GitHub');
+  assert.ok(!ids4['d-body'].textContent.includes('DONE-SPEC-SENTINEL'));
 });
 
 test('detail: with board.include_docs false the drawer shows the header only', async () => {
@@ -728,7 +746,7 @@ test('page markup: a dialog with a labelled title, tabs container, the privacy f
   assert.match(html, /<section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">/);
   assert.match(html, /id="d-tabs" role="tablist"/);
   assert.match(html, /id="d-body" role="tabpanel"/);
-  assert.match(html, /Sharing the board shares these documents, including the project definition files\./);
+  assert.match(html, /Sharing the board shares these documents, including the documents of finished tracks and the project definition files\./);
   assert.ok(html.indexOf('id="detail"') > html.indexOf('</footer>'), 'the detail is after (outside) the .wrap block that gets inert');
   assert.match(html, /@media \(max-width: 700px\)[\s\S]*?\.drawer \{ width: 100%/);
   assert.match(html, /@media \(prefers-color-scheme: dark\)/);
@@ -1441,7 +1459,7 @@ test('project drawer: markup and CSS: a header button, theme variables only, wra
   assert.match(html, /button:focus-visible \{ outline/, 'keyboard focus is visible');
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(html));
   const footer = html.slice(html.indexOf('<footer>'), html.indexOf('</footer>'));
-  assert.match(footer, /Sharing the board shares these documents, including the project definition files\./);
+  assert.match(footer, /Sharing the board shares these documents, including the documents of finished tracks and the project definition files\./);
   assert.ok(!/coming soon|planned|roadmap|will be/i.test(footer), 'nothing planned is announced');
 });
 

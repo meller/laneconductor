@@ -22,8 +22,8 @@ dependency on the base plugin or on the connector: it is one script and one page
 - an open board refreshes its own view: while its tab is visible the page reads a tiny index, `version.json` (the board's generated time, about 60 bytes), every 15 seconds and never the board itself. When a newer board was published it reloads itself, unless you have a track open or a search typed; then it shows a "newer board" button instead. One automatic reload per two minutes at most.
 
 This add-on adds no slash commands. You can also run the script yourself:
-`node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json` and one documents file per track that
-is not done into `<dir>`, which must be outside `conductor/`; with `--previous <the manifest.json read from the live artifact>` its JSON also lists what changed.
+`node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json`, `manifest.json`, one documents file per track that
+is not done, and a few shard files (`docs-done/<k>.json`, about 20 finished tracks or 1 MB each) that hold the documents of the finished tracks, into `<dir>`, which must be outside `conductor/`; with `--previous <the manifest.json read from the live artifact>` its JSON also lists what changed.
 
 ## Agent run statistics (`lc-explain.mjs`)
 
@@ -62,7 +62,7 @@ this add-on, and restart your sessions. The files in git are unchanged, so nothi
   approval, never by the script or a hook.
 - Board privacy: every document is scanned for secrets and personal data before it goes onto the board; a file with any match is
   withheld whole and named by track number and file name, never by its content. `conversation.md` is left out unless you set
-  `board.include_conversation: true`, and sharing the artifact shares the documents on it, so share it only with people who may read
+  `board.include_conversation: true`, and sharing the artifact shares the documents on it, those of finished tracks included, so share it only with people who may read
   them. The board is a snapshot: it changes only when you refresh it.
 
 ## Where it works

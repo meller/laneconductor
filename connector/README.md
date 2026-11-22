@@ -349,13 +349,19 @@ The header says the files are a snapshot read when the board was built.
 
 Clicking (or Enter/Space on) a track card, a Done row or a needs-attention row opens a drawer (a
 full-screen sheet at phone width) with the track's id, title, lane, status, progress and phase and the
-tabs Overview (`index.md`), Plan, Spec and Tests, plus Conversation only when the docs file has one.
-The tabs read `docs/<number>.json`, fetched once and kept in memory. `lc-board.mjs --site` writes one such
+tabs Overview (`index.md`), Plan, Spec and Tests, plus Conversation only when the docs file has one, and Agent run (`explain.md`).
+The tabs read `docs/<number>.json`, fetched once and kept in memory; a finished track reads its shard `docs-done/<k>.json` (below), which is fetched once for all of its tracks. `lc-board.mjs --site` writes one such
 file (`{ n, folder, index, plan, spec, test, conversation?, withheld? }`) for every live, non-archived
-track that is not done, at most 200 per site (oldest backlog tracks are dropped first and counted in
+track that is not done, at most 200 per site (the shards count toward the same limit) (oldest backlog tracks are dropped first and counted in
 `board.json` as `docs_dropped`; with the page and `board.json` that stays under the Artifact tool's 255
-files per publish). Each file is cut at 60,000 characters with a `[truncated]` note. Done tracks have no
-docs file; the drawer says so and links to the track folder on GitHub when `origin` is a github.com
+files per publish). Each file is cut at 60,000 characters with a `[truncated]` note. The documents of
+finished tracks (track AM-10155) are packed, in number order, into shard files `docs-done/<k>.json`
+(`{ k, docs: { "<number>": <the same document> } }`, about 20 tracks or 1 MB each, a larger track alone
+in its shard, at most 100 shards), so hundreds of finished tracks need a handful of files; `board.json`
+names the shard of a finished track as `ds`, and the drawer loads it once. The same privacy scan, the
+`board.include_docs` and `board.include_conversation` settings apply, and a shard that holds a withheld
+document is sent again on every refresh. A finished track with no shard (documents off, a number shared
+by two folders) gets a note, and the drawer links to the track folder on GitHub when `origin` is a github.com
 remote (`gh` in `board.json`, https only, opens in a new tab). Track folders are resolved with the same
 helpers as the connector, and a number shared by two live folders gets no docs.
 

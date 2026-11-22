@@ -36,6 +36,50 @@ export function selectDocTracks(board, { max = MAX_DOCS } = {}) {
   return { keep: candidates.filter((t) => !dropSet.has(t.folder)).map((t) => ({ number: t.number, folder: t.folder })), dropped };
 }
 
+// ---- Finished tracks (track AM-10155, D11). Their documents are packed into a few shard files `docs-done/<k>.json`, { k, docs: { "<number>": <the same doc as docs/<number>.json> } },
+// so a project with hundreds of finished tracks stays far below the site's file limit. board.json says which shard holds a finished track (`ds`); the page loads the shard when one is opened.
+export const DONE_SHARD_TRACKS = 20;
+export const DONE_SHARD_BYTES = 1000000;
+/** At most this many shards are published; the oldest (lowest numbers) are left out beyond it, so live tracks always keep half of the file limit. */
+export const MAX_DONE_SHARDS = MAX_DOCS / 2;
+
+/**
+ * Which finished tracks get a document: the same rule as a live track (not archived, the number resolves to one folder), in number order.
+ * @param {{ tracks: { number: number, folder: string, lane: string | null, archived?: boolean }[] }} board
+ * @returns {{ number: number, folder: string }[]}
+ */
+export function selectDoneTracks(board) {
+  const live = board.tracks.filter((t) => !t.archived);
+  const folders = live.map((t) => t.folder);
+  return live
+    .filter((t) => {
+      if (t.lane !== 'done') return false;
+      try { return resolveTrack(folders, String(t.number)) === t.folder; } catch { return false; }
+    })
+    .sort((a, b) => a.number - b.number || a.folder.localeCompare(b.folder))
+    .map((t) => ({ number: t.number, folder: t.folder }));
+}
+
+/**
+ * Packs finished-track documents (already built with `buildDoc`, so capped and scanned) into shards, in number order: a shard is closed when it holds
+ * `maxTracks` tracks or when the next document would take it past `maxBytes`. A document larger than `maxBytes` gets a shard of its own.
+ * @param {{ number: number, folder: string, doc: object }[]} items
+ * @returns {{ k: number, docs: Record<string, object> }[]} shards numbered from 1
+ */
+export function packShards(items, { maxTracks = DONE_SHARD_TRACKS, maxBytes = DONE_SHARD_BYTES } = {}) {
+  const shards = [];
+  let cur = null;
+  let bytes = 0;
+  for (const it of [...items].sort((a, b) => a.number - b.number || a.folder.localeCompare(b.folder))) {
+    const size = Buffer.byteLength(JSON.stringify(it.doc)) + String(it.number).length + 4;
+    if (cur && (Object.keys(cur.docs).length >= maxTracks || bytes + size > maxBytes)) cur = null;
+    if (!cur) { cur = { k: shards.length + 1, docs: {} }; shards.push(cur); bytes = 40; }
+    cur.docs[String(it.number)] = it.doc;
+    bytes += size;
+  }
+  return shards;
+}
+
 const pluralMatches = (n) => `${n} match${n === 1 ? '' : 'es'}`;
 
 /**

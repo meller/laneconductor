@@ -217,6 +217,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
  *           d a docs file is published for this track,
+ *           ds (finished tracks only, when the board publishes documents) the number k of the shard `docs-done/<k>.json` that holds this track's documents (track AM-10155),
  *           pr (only when the track's `**Priority**` is high or low) the priority; absent means normal. The page sorts each lane and the backlog high, normal, low (stable, newest first inside a priority),
  *           y (only when the track's `**Type**` is marketing, sales, support or other) the type; absent means dev, so an old board.json without it reads as all dev,
  *           oa, od, rs, kc (only for a track that has them; see owner-steps.mjs): oa the Owner Action text (200 chars at most), od its Owner Action Due as written (absent: no due date;
@@ -237,12 +238,13 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           Titles and commands only, never document text; it stays when `board.include_docs` is false
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
- * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null, commit?: string | null }} [docs]
+ * @param {{ lanes?: string[], docFolders?: Iterable<string>, doneShards?: Map<string, number> | null, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null, commit?: string | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null, commit = null } = {}) {
+export function boardPageData(board, { docFolders = [], doneShards = null, docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null, commit = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
+  const shardOf = doneShards instanceof Map ? doneShards : new Map();
   return {
     project: board.project,
     generated_at: board.generated_at,
@@ -251,6 +253,7 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
     tracks: live.map((t) => ({
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
       d: withDocs.has(t.folder),
+      ...(t.lane === 'done' && shardOf.has(t.folder) ? { ds: shardOf.get(t.folder) } : {}),
       ...(t.type ? { y: t.type } : {}),
       ...(t.priority ? { pr: t.priority } : {}),
       ...(t.owner_action ? { oa: t.owner_action, ...(t.owner_action_due !== undefined ? { od: t.owner_action_due } : {}) } : {}),

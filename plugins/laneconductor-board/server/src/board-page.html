@@ -338,7 +338,7 @@ td .act { border-top: 0; padding-top: 0; }
 
   <footer>
     <div class="frefresh" id="foot-refresh"></div>
-    A snapshot read from the track files, not a live view. To refresh it, press Refresh board and paste the command into your Claude session. Opening a track shows its documents (overview, plan, spec and tests) as published with this board, and the Project button shows the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories) the same way. Sharing the board shares these documents, including the project definition files.</footer>
+    A snapshot read from the track files, not a live view. To refresh it, press Refresh board and paste the command into your Claude session. Opening a track, a finished one too, shows its documents (overview, plan, spec, tests and the agent run) as published with this board, and the Project button shows the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories) the same way. Sharing the board shares these documents, including the documents of finished tracks and the project definition files.</footer>
 </div>
 
 <div class="detail" id="detail" hidden>
@@ -1072,8 +1072,23 @@ td .act { border-top: 0; padding-top: 0; }
   var DOC_TABS = [['index', 'Overview', 'index.md'], ['plan', 'Plan', 'plan.md'], ['spec', 'Spec', 'spec.md'], ['test', 'Tests', 'test.md'], ['conversation', 'Conversation', 'conversation.md'], ['explain', 'Agent run', 'explain.md']];
   var docsCache = {}, focusEls = {}, cur = null, seq = 0, tabEls = [], bodyLinks = [], linkBtns = [], retryBtn = null;
 
+  // A finished track (board.json `ds`) lives in a shard docs-done/<k>.json with about 20 tracks; the shard is fetched once and cached.
+  var shardCache = {};
+  function hasShard(t) { return Boolean(t) && Number.isInteger(t.ds) && t.ds > 0; }
+  function docsFile(t) { return hasShard(t) ? 'docs-done/' + t.ds + '.json' : 'docs/' + t.n + '.json'; }
+  function loadShard(k) {
+    if (shardCache[k]) return shardCache[k];
+    var p;
+    try { p = fetch('docs-done/' + k + '.json', { cache: 'no-cache' }); } catch (e) { return Promise.reject(e); }
+    var q = p.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { if (!d || typeof d !== 'object' || !d.docs || typeof d.docs !== 'object') throw new Error('unexpected format'); return d; });
+    shardCache[k] = q;
+    q.catch(function () { if (shardCache[k] === q) delete shardCache[k]; });
+    return q;
+  }
   function loadDocs(t) {
     var key = t.n;
+    if (hasShard(t)) return loadShard(t.ds).then(function (sh) { var d = sh.docs[String(t.n)]; if (!d || typeof d !== 'object' || d.n !== t.n) throw new Error('unexpected format'); return d; });
     if (docsCache[key]) return docsCache[key];
     var p;
     try { p = fetch('docs/' + t.n + '.json', { cache: 'no-cache' }); } catch (e) { return Promise.reject(e); }
@@ -1098,14 +1113,14 @@ td .act { border-top: 0; padding-top: 0; }
   }
   function renderNoDocs(t) {
     var b = setBody(), n = el('div', 'notice plain');
-    n.appendChild(el('div', null, t.l === 'done' ? 'Finished tracks do not carry their documents on this board.' : 'This board does not publish documents for this track.'));
+    n.appendChild(el('div', null, 'This board does not publish documents for this track.'));
     var a = ghLink(t.gh);
     if (a) { var p = el('div'); p.appendChild(a); n.appendChild(p); bodyLinks.push(a); }
     b.appendChild(n);
   }
   function renderError(e) {
     var b = setBody(), s = el('div', 'status error'); s.setAttribute('role', 'alert');
-    s.appendChild(el('div', 'big', 'Could not load docs/' + cur.t.n + '.json'));
+    s.appendChild(el('div', 'big', 'Could not load ' + docsFile(cur.t)));
     s.appendChild(el('div', 'sub', 'The documents file is missing or unreadable (' + String(e && e.message || e) + ').'));
     retryBtn = el('button', 'btn', 'Try again'); retryBtn.type = 'button'; retryBtn.onclick = function () { showTab(cur.tab); };
     s.appendChild(retryBtn); b.appendChild(s);
@@ -1219,6 +1234,9 @@ td .act { border-top: 0; padding-top: 0; }
           if (t.kf === 'f') host.appendChild(kpiTag(t));
         } else host.appendChild(el('span', null, t.kp || 'set (the KPI list is not on this board)'));
       }
+      // A finished track that opens with its documents keeps the link to its folder on GitHub (one with no documents shows it in the body).
+      var gh = hasShard(t) ? ghLink(t.gh) : null;
+      if (gh) { host.appendChild(gh); linkBtns.push(gh); any = true; }
     }
     host.hidden = !any;
   }
@@ -1245,7 +1263,7 @@ td .act { border-top: 0; padding-top: 0; }
     $('detail').hidden = false;
     $('wrap').setAttribute('inert', '');
     var tabs = $('d-tabs'); tabs.textContent = ''; tabEls = [];
-    if (t.d && Number.isInteger(t.n)) { buildTabs(null); showTab('index'); }
+    if ((t.d || hasShard(t)) && Number.isInteger(t.n)) { buildTabs(null); showTab('index'); }
     else { tabs.hidden = true; renderNoDocs(t); }
     $('d-close').focus();
   }
