@@ -160,20 +160,89 @@ const n = (x) => Number(x).toLocaleString('en-US');
 const parseN = (text) => Number(String(text).replace(/[^0-9]/g, '')) || 0;
 const stamp = (isoText) => isoText.slice(0, 16).replace('T', ' ');
 const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '0%');
+const sum = (rows, k) => rows.reduce((s, r) => s + r[k], 0);
 const toolCount = (tools) => Object.values(tools).reduce((s, v) => s + v, 0);
 
 export const RUN_HEAD = '| Lane | Start (UTC) | End (UTC) | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls | Sub-agent share |';
 export const PHASE_HEAD = '| Phase | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls | Sub-agent share |';
 const sep = (head) => `|${head.split('|').slice(1, -1).map(() => ' --- |').join('')}`;
 
+// ---- The insight (decisions D13, D14): rule-based observations worked out from the numbers only. No model, no content: every sentence is
+// built from times, counts, token numbers, lane and phase names and tool names that the tables below it already show.
+
+const LONG_CONTEXT = 400000;
+const LOW_SUB_SHARE = 30;
+const MOSTLY_HUMAN = 80;
+const SLOW_STEP_MS = 5 * 60000;
+const INSIGHT_LABEL = 'These are rule-based observations worked out by the script from the numbers below, not an opinion of a model. No prompt, message or file content is used.';
+const plural = (k, one, many) => `${n(k)} ${k === 1 ? one : many}`;
+const ratioText = (read, written) => `${n(Math.round(read / written))} times the tokens written`;
+const pctOf = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+const biggest = (rows, key) => rows.reduce((best, r) => (r[key] > best[key] ? r : best), rows[0]);
+
+/** The `## Insight` section of one track (lines, no trailing blank). */
+export function renderInsight(r) {
+  const L = ['## Insight', '', INSIGHT_LABEL, ''];
+  if (!r.runs.length) { L.push('- No lane run found in the history of this track, so there is nothing to observe yet.', ''); return L; }
+  const runs = r.runs;
+  const wall = sum(runs, 'wallMs'); const human = sum(runs, 'humanMs'); const agent = sum(runs, 'agentMs');
+  L.push(`- Time: ${fmtMs(wall)} wall, ${fmtMs(agent)} agent, ${fmtMs(human)} human, over ${plural(runs.length, 'lane run', 'lane runs')}.`);
+  if (wall > 0 && pctOf(human, wall) >= MOSTLY_HUMAN) L.push(`- Most of the wall time (${pctOf(human, wall)}%) was waiting for a person, not agent work.`);
+  const replies = sum(runs, 'responses');
+  const out = runs.reduce((s, x) => s + x.tokens.output, 0);
+  const read = runs.reduce((s, x) => s + x.tokens.cacheRead, 0);
+  if (!replies) L.push('- Work: no replies were found in the lane windows (no session transcript matched, or the lanes ran on another machine).');
+  else L.push(`- Work: ${plural(replies, 'reply', 'replies')}, ${n(out)} tokens written, ${n(read)} tokens read from cache${out ? ` (${ratioText(read, out)})` : ''}, ${n(Math.round(read / replies))} per reply on average.`);
+  const mains = runs.filter((x) => x.responses && x.firstContext > 0);
+  const subStarts = runs.flatMap((x) => x.subStarts);
+  if (mains.length || subStarts.length) {
+    const parts = [];
+    if (mains.length) parts.push(`the first reply of the lane runs in the main session started with ${n(median(mains.map((x) => x.firstContext)))} tokens of context${mains.length > 1 ? ` (median of ${mains.length} runs, highest ${n(Math.max(...mains.map((x) => x.firstContext)))})` : ''}`);
+    if (subStarts.length) parts.push(`sub-agents started with a median of ${n(median(subStarts))} tokens`);
+    L.push(`- Context: ${parts.join('; ')}.`);
+  }
+  const subReplies = runs.reduce((s, x) => s + x.sub.responses, 0);
+  const subOut = runs.reduce((s, x) => s + x.sub.output, 0);
+  const subRuns = runs.reduce((s, x) => s + x.subStarts.length, 0);
+  if (replies && subReplies) L.push(`- Sub-agents: ${pctOf(subReplies, replies)}% of replies and ${pctOf(subOut, out)}% of output, ${plural(subRuns, 'run', 'runs')}.`);
+  else if (replies) L.push('- Sub-agents: none were used.');
+  const laneMap = new Map();
+  for (const x of runs) { const e = laneMap.get(x.lane) ?? { name: x.lane, wallMs: 0, output: 0 }; e.wallMs += x.wallMs; e.output += x.tokens.output; laneMap.set(x.lane, e); }
+  if (laneMap.size > 1) {
+    const lanes = [...laneMap.values()];
+    L.push(`- Biggest lane by time: ${biggest(lanes, 'wallMs').name} (${fmtMs(biggest(lanes, 'wallMs').wallMs)}). ${out ? `Biggest lane by tokens written: ${biggest(lanes, 'output').name} (${n(biggest(lanes, 'output').output)}).` : ''}`.trim());
+  }
+  const phases = r.phases.map((p) => ({ name: p.label, wallMs: p.wallMs, output: p.tokens.output }));
+  if (phases.length > 1) {
+    const pt = biggest(phases, 'wallMs'); const pk = biggest(phases, 'output');
+    L.push(`- Biggest phase by time: ${pt.name} (${fmtMs(pt.wallMs)}). ${pk.output ? `Biggest phase by tokens written: ${pk.name} (${n(pk.output)}).` : ''}`.trim());
+  }
+  L.push('', '**What to look at**', '');
+  const look = [];
+  for (const x of runs) {
+    const share = pctOf(x.sub.responses, x.responses);
+    if (x.responses && x.firstContext >= LONG_CONTEXT && share < LOW_SUB_SHARE) look.push(`- The ${x.lane} run starting ${stamp(x.start)} began with ${n(x.firstContext)} tokens of context in the main session and only ${share}% of its replies came from sub-agents: a sub-agent or a fresh session may do the long work with less context.`);
+  }
+  const bounds = runs.filter((x) => !x.claimed || x.open);
+  if (bounds.length) look.push(`- ${plural(bounds.length, 'lane run has', 'lane runs have')} no claim commit or ${bounds.length === 1 ? 'was' : 'were'} never closed (${bounds.map((x) => x.lane).join(', ')}): their times are upper bounds; claim the lane when starting it (set it to running).`);
+  const repeated = sum(runs, 'repeatedReads');
+  if (repeated) look.push(`- ${plural(repeated, 'repeated read', 'repeated reads')}: files read more than once in the same run.`);
+  const gaps = sum(runs, 'gapsOver30');
+  if (gaps) look.push(`- ${plural(gaps, 'gap', 'gaps')} of more than 30 minutes between messages.`);
+  const slow = runs.flatMap((x) => x.slowest).sort((a, c) => c.ms - a.ms)[0];
+  if (slow && slow.ms >= SLOW_STEP_MS) look.push(`- The slowest step was ${slow.tool} ${fmtMs(slow.ms)} at ${stamp(slow.at)} (a permission wait is included).`);
+  L.push(...(look.length ? look : ['- Nothing unusual: none of the rules above fired.']), '');
+  return L;
+}
+
 /** The markdown of explain.md (the same text is printed). `now` is the generated time; it is the only line that differs between two runs on the same data. */
 export function renderExplain(r, { now = r.generatedAt } = {}) {
   const L = [];
-  L.push(`# Agent run: ${r.track.folder}`, '', '> Generated by lc-explain.mjs from session transcripts and git; do not edit by hand (it is overwritten on each run). Numbers only: no prompt, message or file content is read into it.', '');
+  L.push(`# Agent run: ${r.track.folder}`, '', ...renderInsight(r), '> Generated by lc-explain.mjs from session transcripts and git; do not edit by hand (it is overwritten on each run). Numbers only: no prompt, message or file content is read into it.', '');
   L.push(`Generated: ${now}`);
   const s = r.sources;
-  const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
-  L.push(`Sources: ${plural(s.mainFiles, 'session file', 'session files')}, ${plural(s.subFiles, 'sub-agent file', 'sub-agent files')}${s.sessions.length ? ` (sessions ${s.sessions.join(', ')})` : ''}; the lane and plan boundaries come from git history of this track's index.md and plan.md.`, '');
+  const pl = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+  L.push(`Sources: ${pl(s.mainFiles, 'session file', 'session files')}, ${pl(s.subFiles, 'sub-agent file', 'sub-agent files')}${s.sessions.length ? ` (sessions ${s.sessions.join(', ')})` : ''}; the lane and plan boundaries come from git history of this track's index.md and plan.md.`, '');
   L.push(`> ${APPROX_NOTE}`, '');
   L.push('## Lane runs', '');
   if (!r.runs.length) L.push('No lane run found in the history of this track.', '');
@@ -233,23 +302,39 @@ export function parseExplain(text) {
   return out;
 }
 
-const sum = (rows, k) => rows.reduce((s, r) => s + r[k], 0);
 const STAT_HEAD = '| Track | Lane runs | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls |';
 const LANE_HEAD = '| Lane | Runs | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls |';
 const PH_HEAD = '| Phase | Tracks | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls |';
 const rowOf = (label, count, rows) => `| ${label} | ${count} | ${fmtMs(sum(rows, 'wallMs'))} | ${fmtMs(sum(rows, 'agentMs'))} | ${fmtMs(sum(rows, 'humanMs'))} | ${n(sum(rows, 'responses'))} | ${n(sum(rows, 'output'))} | ${n(sum(rows, 'fresh'))} | ${n(sum(rows, 'cacheCreated'))} | ${n(sum(rows, 'cacheRead'))} | ${n(sum(rows, 'tools'))} |`;
+
+const trackLabel = (folder) => folder.replace(/^([A-Za-z]+-)?(\d+)-.*$/, (m, pre, num) => `${pre ?? ''}${num}`);
+
+/** The `## Insight` of statistics.md across tracks (D14). The finished tracks with no statistics yet are added by the board when it is built (markUnrecordedStatistics in board-docs.mjs). */
+function renderStatisticsInsight(parsed) {
+  const L = ['## Insight', '', INSIGHT_LABEL, ''];
+  if (!parsed.length) { L.push('- No track has statistics yet.', ''); return L; }
+  const rows = parsed.map((p) => ({ label: trackLabel(p.folder), wall: sum(p.runs, 'wallMs'), human: sum(p.runs, 'humanMs'), out: sum(p.runs, 'output'), read: sum(p.runs, 'cacheRead') }));
+  L.push(`- ${parsed.length === 1 ? '1 track has' : `${parsed.length} tracks have`} statistics.`);
+  const withOut = rows.filter((x) => x.out > 0);
+  if (withOut.length) { const top = withOut.reduce((b, x) => (x.read / x.out > b.read / b.out ? x : b), withOut[0]); L.push(`- Highest cache-read ratio: ${top.label} (${ratioText(top.read, top.out)}).`); }
+  const waited = rows.filter((x) => x.human > 0);
+  if (waited.length) { const top = biggest(waited, 'human'); L.push(`- Most human waiting: ${top.label} (${fmtMs(top.human)}, ${pctOf(top.human, top.wall)}% of its wall time).`); }
+  L.push(`- Total across tracks: ${n(sum(rows, 'out'))} tokens written and ${n(sum(rows, 'read'))} tokens read from cache.`);
+  L.push('- The board lists the finished tracks that have no statistics yet at the end of this page.', '');
+  return L;
+}
 
 /**
  * The text of conductor/statistics.md from every track's explain.md: `items` is [{ folder, text }]. Finished tracks are included.
  */
 export function renderStatistics(items, { now }) {
   const parsed = items.map((it) => ({ folder: it.folder, ...parseExplain(it.text) })).sort((a, b) => a.folder.localeCompare(b.folder, undefined, { numeric: true }));
-  const L = ['# Agent run statistics', '', '> Generated by lc-explain.mjs from every track\'s explain.md; do not edit by hand. Numbers only.', '', `Generated: ${now}`, `Tracks with an explain.md: ${parsed.length}`, '', `> ${APPROX_NOTE}`, ''];
+  const L = ['# Agent run statistics', '', ...renderStatisticsInsight(parsed), '> Generated by lc-explain.mjs from every track\'s explain.md; do not edit by hand. Numbers only.', '', `Generated: ${now}`, `Tracks with an explain.md: ${parsed.length}`, '', `> ${APPROX_NOTE}`, ''];
   L.push('## Tracks', '');
   if (!parsed.length) L.push('No track has an explain.md yet. Run `node lc-explain.mjs --repo . --track <number>`.', '');
   else {
     L.push(STAT_HEAD, sep(STAT_HEAD));
-    for (const p of parsed) L.push(rowOf(p.folder.replace(/^([A-Za-z]+-)?(\d+)-.*$/, (m, pre, num) => `${pre ?? ''}${num}`), p.runs.length, p.runs));
+    for (const p of parsed) L.push(rowOf(trackLabel(p.folder), p.runs.length, p.runs));
     L.push('');
     L.push('## Lane totals', '', LANE_HEAD, sep(LANE_HEAD));
     const lanes = [...new Set(parsed.flatMap((p) => p.runs.map((r) => r.lane)))];
