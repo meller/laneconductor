@@ -1,9 +1,10 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 94%
-**Phase**: Implement started 2026-11-22 for phase 8 (recommendations for the next run, spec D15 to D18): one track-runner works tasks 25 to 30 in its own worktree; task 31 is the owner's, task 32 is the owner's session.
+**Lane Status**: waiting
+**Waiting Reason**: Task 31: the owner reads the recommendations of two real tracks and says which are useful; thresholds and wording are then adjusted
+**Progress**: 97%
+**Phase**: Phase 8 built and pushed 2026-11-22 (board add-on 1.10.17): Recommendations, the per-phase Path and the cross-track view; explain.md of 10146, 10154 and 10155 regenerated. Left: Task 31, the owner reads two real recommendations (HUMAN).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

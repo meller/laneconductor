@@ -50,5 +50,5 @@
 - [x] Task 29 (test first): `statistics.md` recommendations across tracks (D18)
 - [x] Task 30: the board shows Recommendations right after the Insight; board add-on 1.10.17, regenerate, tests, strict validation; base and parallel plugins unchanged (REQ-7)
 - [ ] Task 31 (HUMAN): the owner reads the recommendations of two real tracks, says which are useful, and the thresholds and wording are adjusted
-- [ ] Task 32: regenerate this project's explain files and refresh the boards, on the owner's word
+- [x] Task 32: regenerate this project's explain files and refresh the boards, on the owner's word
 
