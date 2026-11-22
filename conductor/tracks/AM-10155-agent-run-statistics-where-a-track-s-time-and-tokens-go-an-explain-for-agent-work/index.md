@@ -1,13 +1,12 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: done
-**Lane Status**: success
-**Progress**: 100%
-**Phase**: Shipped 2026-11-22: lc-explain, the Agent run and Statistics tabs and finished tracks on the board, board add-on 1.10.15 are on main (merge mode direct; last commit 093527f6). Quality gate passed, merge recorded.
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 83%
+**Phase**: Reopened 2026-11-22 for phase 7 at the owner's request (the Agent run tab should open with the insight, spec D13 and D14); it was done:success.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
-**Verdict**: pass
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
