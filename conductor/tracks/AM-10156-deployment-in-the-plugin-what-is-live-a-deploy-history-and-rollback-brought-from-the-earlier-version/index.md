@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 20%
-**Phase**: Implement started 2026-11-22: one track-runner works tasks 4 to 9 (records, status and history, rollback, failure recovery, release notes, the Deployment tab) in its own worktree; task 10 (real use on this site) and task 11 (the base release) stay with the owner's session.
+**Progress**: 75%
+**Phase**: Tasks 4 to 9 done 2026-11-22 (records, status, history, rollback, failure recovery, release notes, the Deployment tab; base 1.9.17, board 1.10.18). Open: task 10 (real use on this site, the owner's session) and task 11 (the owner approves the base release).
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

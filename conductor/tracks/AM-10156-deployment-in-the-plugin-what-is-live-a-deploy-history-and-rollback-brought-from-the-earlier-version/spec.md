@@ -60,3 +60,7 @@ A daemon or dispatch queue, a deploy UI server, CI runners, automatic deploys, d
 ## Open questions
 - Which environments does this project really have (this site has one production hosting target)?
 - Should a rollback also create a track for the cause?
+
+## Details chosen while implementing (2026-11-22, implement lane; the owner may change them)
+- D11 The record file name is `<env>-<YYYYMMDDTHHMMSSZ>.md` (no colons). Beyond the nine header lines of REQ-1 a record may carry `production: yes`, `kind: rollback` and `restored record: <file>`; a rollback record holds the restored version and commit, so the live version after a rollback is that version. `deploy.json` also reads `liveVersionField` (the field of the live answer that holds the version; default `version`), because D10 says the field is named: a fifth optional key. A date-only line in a track's history counts to the end of that day for "shipped since the last deploy". The default rollback strategy checks the commit out with `git worktree add --detach /tmp/deploy-<env>-<commit>` and removes it afterwards with `git worktree remove --force`. After a rollback the text asks whether to open a track for the cause (it opens none); that was an open question, so the owner decides whether the question stays.
+- The Deployment tab reads the records when the board is built and never asks the live server (that is `deploy status`).
