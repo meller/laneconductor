@@ -1,9 +1,9 @@
 # Track AM-10156: Deployment in the plugin: what is live, a deploy history and rollback, brought from the earlier version
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Drafted 2026-11-22 from the owner's idea (first-cut spec, plan and tests); needs /laneconductor:plan to settle the open decisions with the owner.
+**Lane Status**: success
+**Progress**: 15%
+**Phase**: Planned 2026-11-22: probe of the earlier version and the local CLIs done, decisions D1 to D8 proposed in the spec; waiting for the owner to confirm D1, D2 and the scope (task 2) before implementing.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

@@ -1,16 +1,16 @@
 # Plan: AM-10156
 
 ## Phase 1: Probe and decide
-- [ ] Task 1: Read the earlier runner, config and docs (tag `v1-legacy`) and the backlog tracks 1065 and 1097; list what to bring and what stays in the tag
+- [x] Task 1: Read the earlier runner, config and docs (tag `v1-legacy`) and the backlog tracks 1065 and 1097; list what to bring and what stays in the tag
 - [ ] Task 2 (HUMAN): Settle the decisions of the spec with the owner: record format and place, rollback strategies, command shape
-- [ ] Task 3: Write the settled decisions into the spec with their dates
+- [x] Task 3: Write the settled decisions into the spec with their dates (proposed defaults D1 to D8, confirmed in task 2)
 
 ## Phase 2: Records and status
 - [ ] Task 4 (test first): the record format and a writer rule in the base `deploy` text; a synthetic project with two records answers `status` correctly (REQ-1, REQ-2)
 - [ ] Task 5: `deploy status` in the base text (read only) (REQ-2)
 
 ## Phase 3: Rollback
-- [ ] Task 6 (test first): the rollback text and the `rollback` key of `deploy.json`; the yes gate names the environment and command; no reset or force push (REQ-3, REQ-7)
+- [ ] Task 6 (test first): the rollback text, the optional `rollback` and `service` keys of `deploy.json` (D3), the default redeploy-the-previous-commit strategy and the provider hints; the yes gate names the environment and command; no reset or force push (REQ-3, REQ-7)
 
 ## Phase 4: Failure recovery and release notes
 - [ ] Task 7: the failure-recovery steps in the base text (REQ-4)

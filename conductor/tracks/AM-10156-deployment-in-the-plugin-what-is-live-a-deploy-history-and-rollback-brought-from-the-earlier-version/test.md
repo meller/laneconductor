@@ -10,6 +10,7 @@
 - [ ] TC-4 (REQ-4): a failed deploy log leads to the failed step being named and only that step re-run after a yes
 - [ ] TC-5 (REQ-5): the release notes list exactly the tracks finished since the previous good record
 - [ ] TC-6 (REQ-6): in the board page, the Deployment tab shows the live version, history and the Copy button for deploy and rollback
+- [ ] TC-8 (D3): a `deploy.json` with and without the `rollback` and `service` keys is read correctly; without them the default strategy (redeploy the previous good record's commit from a clean checkout) is the one shown
 - [ ] TC-7 (REQ-8): the base plugin has no script added; its commands stay under the size limits; strict validation passes
 
 ## Acceptance Criteria

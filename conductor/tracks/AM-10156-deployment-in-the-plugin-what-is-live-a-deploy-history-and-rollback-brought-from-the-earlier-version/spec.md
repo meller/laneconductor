@@ -25,12 +25,30 @@ Deploying is the riskiest thing a project does, and the plugin treats it as one 
 - REQ-7 Safety: every deploy or rollback needs the owner's yes naming environment and command; production is marked; nothing runs from a build step; secrets are never written into records, logs shown or the board.
 - REQ-8 Where it lives: command text in the base plugin (Markdown only, no scripts); the tab in the board add-on. Every base text change makes another version for the Anthropic review, so the base changes ship as one release.
 
-## Decisions to settle in the plan lane
-- Which legacy pieces are worth bringing, and which stay in the tag (the list above is a proposal).
-- Record format and place (Markdown with a small header, or JSON lines), tracked or git-ignored.
-- Rollback strategies per stack (Firebase Hosting release rollback, Cloud Run revisions, redeploy of a previous commit); what `deploy.json` gains (`rollback`, `version`).
-- Subcommands of `deploy` (`status`, `rollback`, `history`) or separate commands, given that every new command adds base text.
-- Whether `status` needs a script (a read of the records may be enough).
+## Probe findings (2026-11-22, plan lane, read only)
+- The earlier `conductor/deploy.json` is `{ "defaultEnvironment": "...", "environments": { "<env>": { "command": "...", "description": "..." } } }`; its providers were Firebase Hosting (`firebase deploy --only hosting --project <slug>-<env>`) and GCP Cloud Run (`gcloud run deploy <slug>-<env> --source . --region ...`); track 1065 also handled a `commands` list per environment.
+- The earlier build artifact (track 1097, `conductor/builds/<id>.json`) held id, time, git commit and branch, the track numbers, and a release-notes Markdown grouped into features, fixes and improvements.
+- Track 1065 (error recovery) asked for: the output of each failed step captured, recovery opt-in and never implicit, retry inside the step loop, only the failed step re-run, non-interactive safety.
+- Today's base `deploy` text logs to `conductor/logs/deploy-<env>-<timestamp>.log` and nothing else: no record, no version, no rollback.
+- Rollback tools on this machine (their own help output): `gcloud run services update-traffic SERVICE --to-revisions=REVISION=100` moves Cloud Run traffic back to a named revision; the Firebase CLI here has `hosting:clone <site>:<channel> <site>:live` (copies a channel's content to live) and channels, but no rollback command in its help; the rollback of a Hosting release in the console was not checked.
+
+## Decisions (2026-11-22, plan lane; proposed defaults, the owner confirms in task 2)
+- D1 Records are Markdown files `conductor/deploys/<env>-<UTC timestamp>.md` with a short header of `key: value` lines (environment, time, commit, version, command, result, log, approved by, previous good record), tracked in git so the history is shared. Secrets are never written; the command is the one in `deploy.json`.
+- D2 One command, subcommands: `/laneconductor:deploy [env]`, `deploy status [env]`, `deploy rollback [env]`, `deploy history [env]`. No new command files: only the `deploy` text grows, which keeps the base change small.
+- D3 `deploy.json` gains optional keys per environment: `rollback` (a command) and `service` (the name a provider command needs). The default rollback strategy, always available, is to redeploy the previous good record's commit from a clean checkout. Provider hints, labelled by what was verified: Cloud Run traffic to the previous revision (verified in gcloud help); Firebase Hosting: redeploy the previous commit, or clone a channel that holds the previous version to live (the clone command exists; a console rollback is not verified here). Never `git reset` or a force push on main.
+- D4 What comes from the earlier version: records and status (new), rollback (new), failure recovery (the 1065 idea in plain steps: read the log tail, name the failed step, offer a fix, re-run only that step after a yes), release notes (the 1097 idea, as Markdown from the tracks finished since the previous good record, no model, no JSON artifact), and a Deployment tab. What stays in the tag: the daemon, the database, the dispatch queue, the deploy UI server, the build artifact JSON files (replaced by the records) and the `deploy.sh` builder.
+- D5 Version: from `package.json`, a git tag or the plugin version when one is found; otherwise the short commit.
+- D6 Approvals: every deploy and every rollback needs the owner's yes naming the environment and the exact command; production is marked in the record; nothing runs from a build step.
+- D7 The base text changes (deploy.md and setup-deploy.md) ship as one base release; the Deployment tab is a board add-on release.
+- D8 The first real use is this site's Firebase Hosting deploys (`firebase deploy --only hosting --project laneconductor-site` from a clean copy of main): write their records, answer `status`, and show the rollback prompt without running it.
+
+## Needed from the owner (plan task 2)
+- Confirm D1 (records tracked in git) and D2 (subcommands of `deploy`).
+- Confirm the scope of D4: what is brought and what stays in the tag.
+
+## Decisions still open
+- Whether a rollback should also open a track for the cause.
+- How many environments this project has (the site has one, production).
 
 ## Out of scope
 A daemon or dispatch queue, a deploy UI server, CI runners, automatic deploys, dollar costs, secrets handling.
