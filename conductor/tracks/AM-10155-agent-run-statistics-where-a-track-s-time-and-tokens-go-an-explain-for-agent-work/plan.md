@@ -14,7 +14,7 @@
 ## Phase 3: The board
 - [x] Task 8: Publish `explain.md` as a document and show an "Agent run" tab with the per-phase table; decide the done-track question (REQ-6)
 - [x] Task 9: The board plugin version and generated plugin, tests, strict validation; confirm no base plugin file changed (REQ-7)
-- [ ] Task 14 (test first): The "Agent run" tab of a track with no `explain.md` shows "No statistics yet" and a **Run statistics** button that copies the prompt of D7 (board page, add-on only) (D7)
+- [x] Task 14 (test first): The "Agent run" tab of a track with no `explain.md` shows "No statistics yet" and a **Run statistics** button that copies the prompt of D7 (board page, add-on only) (D7)
 - [ ] Task 15: The Statistics tab marks a finished track that has no `explain.md` as "no statistics recorded" (D7)
 - [ ] Task 16: Board add-on version bump, regenerate, tests, strict validation; confirm no base plugin file changed (REQ-7)
 

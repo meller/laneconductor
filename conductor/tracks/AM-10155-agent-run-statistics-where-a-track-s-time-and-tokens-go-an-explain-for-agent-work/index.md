@@ -2,7 +2,7 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 77%
+**Progress**: 87%
 **Phase**: Task 11 decided 2026-11-22 (no lane-text change; a Run statistics card action instead). A track-runner builds the button and empty state (tasks 14 to 16); then the post (phase 5).
 **Track Kind**: feature
 **Type**: dev
