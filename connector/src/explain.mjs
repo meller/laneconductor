@@ -367,11 +367,11 @@ export function recommend(r) {
     const muchThinking = th.recorded > 0 && th.output > 0 && th.tokens * 100 >= THINKING_SHARE * th.output;
     if (mech.yes && smallReplies && tier === 3) {
       lighter.add(u.lane);
-      add('lighter-model', u.lane, `${u.name}: use a model one tier down (sonnet) for this phase or its sub-agent: ${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits (limit ${MECHANICAL_SHARE}%) and replies were small (${n(avgOut)} tokens written per reply, limit ${n(SMALL_REPLY_OUTPUT)}), yet ${n(dom[1])} of ${n(u.responses)} replies ran on ${dom[0]}.`);
+      add('lighter-model', u.lane, `${u.name}: use a model one tier down (sonnet) for this work or its sub-agent: ${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits (limit ${MECHANICAL_SHARE}%) and replies were small (${n(avgOut)} tokens written per reply, limit ${n(SMALL_REPLY_OUTPUT)}), yet ${n(dom[1])} of ${n(u.responses)} replies ran on ${dom[0]}.`);
     }
     if (!mech.yes && tier === 1 && (bigReplies || muchThinking)) {
       larger.add(u.lane);
-      add('larger-model', u.lane, `${u.name}: keep or use a larger model (sonnet or above) for this phase: ${bigReplies ? `replies were big (${n(avgOut)} tokens written per reply, limit ${n(BIG_REPLY_OUTPUT)})` : `thinking was ${thinkingPct(th)}% of the output on the replies that record it (limit ${THINKING_SHARE}%)`} and it ran on ${dom[0]} (${n(dom[1])} of ${n(u.responses)} replies).`);
+      add('larger-model', u.lane, `${u.name}: keep or use a larger model (sonnet or above) for this work: ${bigReplies ? `replies were big (${n(avgOut)} tokens written per reply, limit ${n(BIG_REPLY_OUTPUT)})` : `thinking was ${thinkingPct(th)}% of the output on the replies that record it (limit ${THINKING_SHARE}%)`} and it ran on ${dom[0]} (${n(dom[1])} of ${n(u.responses)} replies).`);
     }
     if (mech.yes) {
       const known = Object.entries(u.efforts).filter(([k]) => k !== 'unknown').reduce((s, [, v]) => s + v, 0);
@@ -381,7 +381,7 @@ export function recommend(r) {
         const why = [];
         if (muchThinking) why.push(`thinking was ${thinkingPct(th)}% of the output tokens on the ${n(th.recorded)} replies that record it (limit ${THINKING_SHARE}%)`);
         if (allHigh) why.push(`effort was high on all ${n(known)} replies that record an effort`);
-        add('lower-effort', u.lane, `${u.name}: use a lower effort for this mechanical phase (${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits): ${why.join(' and ')}.`);
+        add('lower-effort', u.lane, `${u.name}: use a lower effort for this mechanical work (${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits): ${why.join(' and ')}.`);
       }
     }
   }
@@ -400,14 +400,14 @@ export function recommend(r) {
     const laneModels = {}; const laneEfforts = {};
     for (const x of runs) { for (const [k, v] of Object.entries(x.models)) laneModels[k] = (laneModels[k] ?? 0) + v; for (const [k, v] of Object.entries(x.efforts)) laneEfforts[k] = (laneEfforts[k] ?? 0) + v; }
     const dom = dominantModel(laneModels);
-    const tier = lighter.has(lane) ? 'sonnet for the mechanical phases (one tier down)' : larger.has(lane) ? 'sonnet or above where replies are big or thinking is heavy' : dom ? `${TIER_NAME[tierOf(dom[0])]} (as before)` : 'unknown (no recognised model id)';
+    const tier = lighter.has(lane) ? 'sonnet for the mechanical work (one tier down)' : larger.has(lane) ? 'sonnet or above where replies are big or thinking is heavy' : dom ? `${TIER_NAME[tierOf(dom[0])]} (as before)` : 'unknown (no recognised model id)';
     const eff = dominantEffort(laneEfforts);
     let effort = eff ? `${eff} (as before)` : 'unknown (no effort recorded)';
     if (lowerEffort.has(lane)) {
       const mech = {};
       for (const u of units.filter((v) => v.lane === lane && mechanicalOf(v.tools).yes)) for (const [k, v] of Object.entries(u.efforts)) mech[k] = (mech[k] ?? 0) + v;
       const cur = dominantEffort(mech) ?? eff ?? 'high';
-      effort = `${EFFORT_ORDER[Math.max(0, EFFORT_ORDER.indexOf(cur) - 1)]} for the mechanical phases (one level below ${cur})`;
+      effort = `${EFFORT_ORDER[Math.max(0, EFFORT_ORDER.indexOf(cur) - 1)]} for the mechanical work (one level below ${cur})`;
     }
     setup.push(`- ${lane}: where to run: ${where}; model tier: ${tier}; effort: ${effort}`);
   }

@@ -179,7 +179,7 @@ test('TC-22: the suggested setup has one line per lane with where to run, a mode
   const body = reco(runs);
   assert.match(body, /\*\*Suggested setup for the next run\*\*/);
   assert.match(body, /^- plan: where to run: the main session \(as before\); model tier: sonnet \(as before\); effort: medium \(as before\)$/m);
-  assert.match(body, /^- implement: where to run: a sub-agent or a fresh session; model tier: sonnet for the mechanical phases \(one tier down\); effort: medium for the mechanical phases \(one level below high\)$/m);
+  assert.match(body, /^- implement: where to run: a sub-agent or a fresh session; model tier: sonnet for the mechanical work \(one tier down\); effort: medium for the mechanical work \(one level below high\)$/m);
   assert.match(body, /^- review: no replies were found in this lane, so there is nothing to suggest$/m);
   assert.equal(body.split('\n').filter((l) => /^- (plan|implement|review):/.test(l)).length, 3, 'one line per lane');
 });
