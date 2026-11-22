@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 96%
-**Phase**: Reopened 2026-11-22 for phase 7 at the owner's request (the Agent run tab should open with the insight, spec D13 and D14); it was done:success.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Phase 7 done 2026-11-22 (board add-on 1.10.16): the Agent run and Statistics tabs open with a rule-based insight (spec D13, D14); this project's explain.md files regenerated. Waits for review and the quality gate again.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

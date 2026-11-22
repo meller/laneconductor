@@ -38,5 +38,5 @@
 - [x] Task 21 (test first): `explain.md` starts with `## Insight` right after the title, built by the rules of D13 from the numbers only (no content): each rule has a test that fires and one that stays quiet, and the nothing-unusual line (D13)
 - [x] Task 22 (test first): `statistics.md` starts with the cross-track `## Insight` of D14; the parser that reads explain.md files for the statistics still works with the new section (D14)
 - [x] Task 23: the board shows the Agent run tab and the Statistics tab opening with the insight; board add-on version 1.10.16, regenerate, tests, strict validation; base and parallel plugins unchanged (REQ-7)
-- [ ] Task 24: regenerate this project's explain.md files with the new script and refresh the boards, on the owner's word (D13)
+- [x] Task 24: regenerate this project's explain.md files with the new script and refresh the boards, on the owner's word (D13)
 
