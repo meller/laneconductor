@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Quality gate passed again 2026-11-22 after phase 7 (983 tests, strict validation, the insight numbers of 10154 equal the sums of its tables, the published board opens on the insight). The code is already on main; merge records it. Not clicked through in a real browser.
+**Phase**: Shipped 2026-11-22: lc-explain, the Agent run and Statistics tabs with the insight first, finished tracks on the board in shards, the Run statistics action and the compact tables (board add-on 1.10.16) are on main (merge mode direct; last shipping commit 040c5969). Quality gate passed, merge recorded.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
