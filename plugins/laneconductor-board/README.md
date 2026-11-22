@@ -4,7 +4,7 @@ LaneConductor Board is an optional add-on for LaneConductor, which keeps a proje
 track under `conductor/tracks/`). It builds the board: one private page that shows every track by lane, with a needs-attention
 list, which Claude publishes as a private artifact.
 
-Version 1.10.15. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
+Version 1.10.16. It is distributed from the marketplace `meller/laneconductor`, not from Anthropic's directory. It has no
 dependency on the base plugin or on the connector: it is one script and one page, and it works alone.
 
 | Plugin | Provides |
@@ -36,7 +36,7 @@ A second script, `server/bin/lc-explain.mjs`, shows where a track's time and tok
 human time apart), the tokens (output, fresh input, cache created, cache read, shown separately), the tool calls by kind, the slowest
 steps and the files read twice. It writes `conductor/tracks/<folder>/explain.md` (generated, overwritten on each run) and
 `conductor/statistics.md` (one row per track that has an `explain.md`); the board shows them as the "Agent run" tab of a track and the
-"Statistics" tab of the Project drawer. It reads your Claude session transcripts under `~/.claude/projects` (read only) and keeps
+"Statistics" tab of the Project drawer. Both open with an `## Insight`: a few plain sentences that the script works out from the numbers with fixed rules (time, work, context, sub-agents, the biggest lane or phase, and what to look at, or "Nothing unusual"); they are rule-based observations, not an opinion of a model. It reads your Claude session transcripts under `~/.claude/projects` (read only) and keeps
 numbers only: timestamps, token counts and tool names; no prompt, message, tool input or output, or file content is copied. Every
 table carries a note that the attribution to a track is approximate. No network request.
 
