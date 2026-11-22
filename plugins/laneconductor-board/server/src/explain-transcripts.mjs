@@ -5,6 +5,9 @@
 // (from a branch such as `track-10155`, a worktree folder `.worktrees/10155`, or the sub-agent's meta description) and, for the tool
 // `Read` only, a short hash of the file path so repeats can be counted (the path itself is dropped at once and never leaves this
 // function). No text of any message, input or result is stored, returned, logged or thrown. Errors name a file by its basename only.
+// Phase 8 (D16, D17) adds, per reply: the model id, the effort level and the thinking token count. The model id, the effort and every tool
+// NAME are free text in a transcript, so each goes through an allow-list (a short fixed shape, else the word "other"): a token, an email or a
+// prompt that landed in one of those fields never leaves this module.
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -16,6 +19,21 @@ const TRACK_WORDS = /\btrack\s+(?:[A-Za-z]+-)?(\d+)\b/i;
 
 /** The folder name Claude uses for a project path: every character that is not a letter or digit becomes a dash. */
 export const projectFolderName = (p) => p.replace(/[^A-Za-z0-9]/g, '-');
+
+/** The model id of a reply: a `claude-` id of a short fixed shape, `synthetic` for the placeholder replies no model wrote, `unknown` when absent, else `other`. */
+export const cleanModel = (v) => {
+  if (v === '<synthetic>') return 'synthetic';
+  if (typeof v !== 'string') return 'unknown';
+  return /^claude-[a-z0-9-]{1,48}$/.test(v) ? v : 'other';
+};
+/** An effort level of a line: a short lower-case word, else `other`; null when the line does not carry one (perTurnEffort wins over effort: the two never differ on the lines that carry both). */
+export const cleanEffort = (o) => {
+  const v = typeof o.perTurnEffort === 'string' ? o.perTurnEffort : typeof o.effort === 'string' ? o.effort : null;
+  if (v === null) return null;
+  return /^[a-z]{2,10}$/.test(v) ? v : 'other';
+};
+/** A tool name: letters, digits and a few separators (the names of built-in and MCP tools), else `other`. */
+export const cleanTool = (v) => (typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(v) ? v : 'other');
 
 const num = (v) => (Number.isFinite(v) ? v : 0);
 const hash = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 12);
@@ -31,7 +49,8 @@ export function trackOfLine(branch, cwd) {
 
 /**
  * Reads one transcript file. Returns { messages, results, count } where
- *  messages: Map id -> { id, ts, session, agent, owner, usage: {output, fresh, cacheCreated, cacheRead}, tools: [{ id, name, ts, fileKey }] }
+ *  messages: Map id -> { id, ts, session, agent, owner, usage: {output, fresh, cacheCreated, cacheRead}, model, effort, thinking, tools: [{ id, name, ts, fileKey }] }
+ *    (effort: a level or null; thinking: the thinking token count or null when the reply does not record it)
  *  results:  Map toolUseId -> ts (ms)
  *  count:    lines that were in this repository (cwd under `roots`)
  * `agentOwner` is the track number the sub-agent's meta file names, or null.
@@ -63,7 +82,7 @@ export async function readTranscriptFile(file, { roots, agentOwner = null, since
     const u = m.usage ?? {};
     let e = messages.get(m.id);
     if (!e) {
-      e = { id: m.id, ts, session: typeof o.sessionId === 'string' ? o.sessionId : '', agent: typeof o.agentId === 'string' ? o.agentId : null, owner: agentOwner ?? trackOfLine(o.gitBranch, o.cwd), usage: { output: 0, fresh: 0, cacheCreated: 0, cacheRead: 0 }, tools: [] };
+      e = { id: m.id, ts, session: typeof o.sessionId === 'string' ? o.sessionId : '', agent: typeof o.agentId === 'string' ? o.agentId : null, owner: agentOwner ?? trackOfLine(o.gitBranch, o.cwd), usage: { output: 0, fresh: 0, cacheCreated: 0, cacheRead: 0 }, model: cleanModel(m.model), effort: null, thinking: null, tools: [] };
       messages.set(m.id, e);
     }
     // The same response is written once per content block, with the same usage (a streaming line can hold a smaller output count): the largest value wins, once per response.
@@ -72,9 +91,12 @@ export async function readTranscriptFile(file, { roots, agentOwner = null, since
     e.usage.fresh = Math.max(e.usage.fresh, num(u.input_tokens));
     e.usage.cacheCreated = Math.max(e.usage.cacheCreated, num(u.cache_creation_input_tokens));
     e.usage.cacheRead = Math.max(e.usage.cacheRead, num(u.cache_read_input_tokens));
+    if (e.effort === null) e.effort = cleanEffort(o);
+    const th = u.output_tokens_details?.thinking_tokens;
+    if (Number.isFinite(th)) e.thinking = Math.max(e.thinking ?? 0, th);
     for (const c of Array.isArray(m.content) ? m.content : []) {
       if (c?.type !== 'tool_use' || typeof c.id !== 'string' || e.tools.some((t) => t.id === c.id)) continue;
-      const name = typeof c.name === 'string' ? c.name.slice(0, 80) : 'unknown';
+      const name = cleanTool(c.name);
       const fp = name === 'Read' && typeof c.input?.file_path === 'string' ? hash(c.input.file_path) : null;
       e.tools.push({ id: c.id, name, ts, fileKey: fp });
     }

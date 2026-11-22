@@ -18,6 +18,7 @@ const run = (over = {}) => {
     lane: 'implement', start: '2026-11-20T10:00:00.000Z', end: '2026-11-20T11:00:00.000Z', claimed: true, open: false, endState: 'success',
     wallMs, humanMs, agentMs: wallMs - humanMs, responses: 20, tokens: { output: 2000, fresh: 20, cacheCreated: 4000, cacheRead: 600000 },
     tools: { Read: 4, Bash: 3 }, sub: { responses: 10, output: 900 }, firstContext: 100000, subStarts: [20000, 30000], repeatedReads: 0,
+    models: { m: 20 }, efforts: { medium: 20 }, thinking: { tokens: 0, recorded: 0, output: 0 }, path: '',
     slowest: [{ tool: 'Read', ms: 40000, at: '2026-11-20T10:10:00.000Z' }], gapsOver30: 0, asks: { count: 0, ms: 0 }, ...over,
   };
 };
@@ -121,7 +122,7 @@ test('TC-18: the unclaimed rule says to claim the lane when starting it', () => 
 test('TC-18: the biggest lane and phase by time and by tokens written', () => {
   const plan = run({ lane: 'plan', wallMs: 30 * MIN, tokens: { output: 9000, fresh: 1, cacheCreated: 1, cacheRead: 1 } });
   const impl = run({ lane: 'implement', wallMs: 90 * MIN, tokens: { output: 3000, fresh: 1, cacheCreated: 1, cacheRead: 1 } });
-  const ph = (label, wallMs, output) => ({ label, key: label.slice(0, 7), wallMs, humanMs: 0, agentMs: wallMs, responses: 1, tokens: { output, fresh: 0, cacheCreated: 0, cacheRead: 0 }, tools: {}, sub: { responses: 0, output: 0 }, tasks: 1 });
+  const ph = (label, wallMs, output) => ({ label, key: label.slice(0, 7), wallMs, humanMs: 0, agentMs: wallMs, responses: 1, tokens: { output, fresh: 0, cacheCreated: 0, cacheRead: 0 }, tools: {}, models: { m: 1 }, efforts: { medium: 1 }, thinking: { tokens: 0, recorded: 0, output: 0 }, path: '', sub: { responses: 0, output: 0 }, tasks: 1 });
   const body = insight([plan, impl], [ph('Phase 1: First', 10 * MIN, 500), ph('Phase 2: Second', 50 * MIN, 100)]);
   assert.match(body, /Biggest lane by time: implement/);
   assert.match(body, /Biggest lane by tokens written: plan/);
@@ -142,7 +143,7 @@ const stripInsight = (text) => text.replace(/^## Insight\n[\s\S]*?(?=^> Generate
 
 test('TC-19: the tables read back from an explain.md are the same with or without the insight section', () => {
   const runs = [run({ lane: 'plan', wallMs: 30 * MIN, humanMs: 5 * MIN }), run({ wallMs: 120 * MIN, humanMs: 40 * MIN, claimed: false })];
-  const phases = [{ label: 'Phase 1: First', key: 'Phase 1', wallMs: 60 * MIN, humanMs: 40 * MIN, agentMs: 20 * MIN, responses: 12, tokens: { output: 1200, fresh: 12, cacheCreated: 2400, cacheRead: 36000 }, tools: { Read: 5 }, sub: { responses: 0, output: 0 }, tasks: 2 }];
+  const phases = [{ label: 'Phase 1: First', key: 'Phase 1', wallMs: 60 * MIN, humanMs: 40 * MIN, agentMs: 20 * MIN, responses: 12, tokens: { output: 1200, fresh: 12, cacheCreated: 2400, cacheRead: 36000 }, tools: { Read: 5 }, sub: { responses: 0, output: 0 }, models: { m: 1 }, efforts: { medium: 1 }, thinking: { tokens: 0, recorded: 0, output: 0 }, path: '', tasks: 2 }];
   const withIt = renderExplain(result(runs, phases), { now: NOW });
   assert.ok(withIt.includes('## Insight'));
   const without = stripInsight(withIt);
