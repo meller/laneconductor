@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 75%
-**Phase**: Phase 8 planned 2026-11-22 (spec D15 to D18, tasks 25 to 32, tests TC-21 to TC-26): recommendations for the next run (where to run, which model, what effort, what waited) and a per-phase path. It was done:success; reopened to plan, parked at plan:success.
+**Phase**: Implement started 2026-11-22 for phase 8 (recommendations for the next run, spec D15 to D18): one track-runner works tasks 25 to 30 in its own worktree; task 31 is the owner's, task 32 is the owner's session.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
