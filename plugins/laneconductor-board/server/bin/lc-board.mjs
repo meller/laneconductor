@@ -32,6 +32,7 @@ import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES
 import { blobSha } from '../src/blob.mjs';
 import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, EXPLAIN_FIELD, PROJECT_TABS, markUnrecordedStatistics, MAX_DOCS, selectDoneTracks, packShards, MAX_DONE_SHARDS } from '../src/board-docs.mjs';
 import { scanText } from '../src/scan.mjs';
+import { deploysForBoard } from '../src/deploys.mjs';
 import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
 import { parseKpis } from '../src/kpis.mjs';
@@ -114,7 +115,15 @@ if (siteDir) {
     }
     flow = workflowFlow(wf);
     if (flow && scanText(JSON.stringify(flow)).length) { process.stderr.write('board: withheld the workflow drawing: possible secret or personal data in lane names; not published\n'); flow = null; }
-    const built = buildProjectDocs({ texts, hasFlow: Boolean(flow) });
+    // Track AM-10156: the deploy records (conductor/deploys/<env>-<UTC timestamp>.md) make the Deployment tab show what is live and the history.
+    // Each record is scanned on its own inside deploysForBoard; no records, no change.
+    const deployFiles = [];
+    for (const e of (await fs.readdir(path.join(repo, 'conductor', 'deploys'), { withFileTypes: true }).catch(() => [])).filter((x) => x.isFile() && x.name.endsWith('.md'))) {
+      deployFiles.push({ name: e.name, text: await readText(path.join(repo, 'conductor', 'deploys', e.name)) });
+    }
+    const deploys = deploysForBoard(deployFiles.filter((f) => typeof f.text === 'string'));
+    for (const w of deploys?.withheld ?? []) process.stderr.write(`board: withheld deploy record ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
+    const built = buildProjectDocs({ texts, hasFlow: Boolean(flow), deploys });
     projectDocs = built.tabs;
     if (built.ctx.length) await fs.mkdir(ctxDir, { recursive: true });
     for (const c of built.ctx) { await fs.writeFile(path.join(dir, c.name), `${JSON.stringify(c.doc)}\n`, 'utf8'); files.push(c.name); }

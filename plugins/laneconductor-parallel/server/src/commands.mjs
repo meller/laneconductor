@@ -252,11 +252,11 @@ export const COMMANDS = [
   },
   {
     name: 'deploy', group: 'setup and deploy', title: 'Deploy',
-    description: 'Set up or run deployment for this project (runs only because you named it)',
+    description: 'Set up, run, check or roll back deployment for this project (runs only because you named it)',
     example: 'deploy this project',
-    args: [ACTION('setup', '`setup` generates the deploy configuration; empty runs the deployment.')],
+    args: [ACTION('status | history | rollback | setup', '`status` compares the local, recorded and live versions; `history` lists the versions deployed; `rollback` goes back to a chosen version; `setup` generates the deploy configuration; empty runs the deployment.')],
     procedure: 'Deploy: {{action}}. This runs only because I named it; do nothing else with it.\n\n'
-      + 'Follow the skill file `deploy/deploy.md`, or `deploy/setup-deploy.md` when the action is `setup`. Read the file in full first and show me each deploy command before you run it; never deploy without my yes.',
+      + 'Follow the skill file `deploy/deploy.md` (it covers `status`, `history` and `rollback` too), or `deploy/setup-deploy.md` when the action is `setup`. Read the file in full first and show me each deploy command before you run it; never deploy or roll back without my yes.',
   },
 ];
 

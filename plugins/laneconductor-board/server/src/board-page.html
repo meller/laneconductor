@@ -1342,9 +1342,38 @@ td .act { border-top: 0; padding-top: 0; }
     wrap.appendChild(el('p', 'wfprimer', PRIMER));
     host.appendChild(wrap);
   }
+  // Track AM-10156: the Deployment tab. Per environment named in the ctx file, three Copy buttons whose prompts are plain text that only ask
+  // Claude to run the base command (`deploy status`, `deploy`, `deploy rollback`). Nothing from a record goes into a prompt: only the
+  // environment name, and only when it is lower-case letters, digits and dashes. The page never asks the live server and runs nothing.
+  function deployPrompt(kind, env) {
+    if (kind === 'status') return 'Please run /laneconductor:deploy status ' + env + ' and tell me what is live there, which version and since when, and whether the local copy, the last record and the live server agree. It only reads: change no file and deploy nothing.';
+    if (kind === 'deploy') return 'Please run /laneconductor:deploy ' + env + ': show me the environment, the version, the command and what shipped since the last deploy, and run nothing until I say yes naming the environment and the command.';
+    return 'Please run /laneconductor:deploy rollback ' + env + ': list the versions deployed, ask me which one I want, show me the exact command, and run nothing until I say yes naming the environment, the version and the command.';
+  }
+  function drawDeployButtons(host, envs) {
+    var names = (Array.isArray(envs) ? envs : []).filter(function (e) { return typeof e === 'string' && /^[a-z0-9][a-z0-9-]{0,30}$/.test(e); });
+    if (!names.length) return;
+    var box = el('div', 'notice plain');
+    box.appendChild(el('div', 'hint', 'Next step: copy a prompt and paste it into Claude. It runs the deploy command, shows what it will do, and changes nothing until you say yes.'));
+    names.forEach(function (env) {
+      var row = el('div', 'actrow'), note = el('span', 'copied'); note.setAttribute('role', 'status');
+      row.appendChild(el('span', null, env + ' '));
+      [['status', 'Copy status prompt', 'Copied the status prompt'], ['deploy', 'Copy deploy prompt', 'Copied the deploy prompt'], ['rollback', 'Copy rollback prompt', 'Copied the rollback prompt']].forEach(function (k) {
+        var text = deployPrompt(k[0], env), pcode = el('code', 'sr', text); pcode.setAttribute('aria-hidden', 'true');
+        var btn = el('button', 'copy', k[1]); btn.type = 'button';
+        btn.setAttribute('title', 'Copy a prompt that asks Claude to run deploy ' + (k[0] === 'deploy' ? '' : k[0] + ' ') + 'for ' + env + '; it changes nothing until you say yes');
+        btn.setAttribute('aria-label', 'Copy a prompt that asks Claude to run deploy ' + (k[0] === 'deploy' ? '' : k[0] + ' ') + 'for ' + env);
+        btn.addEventListener('click', function (e) { e.stopPropagation(); copyText(text, pcode, note, k[2]); });
+        row.appendChild(pcode); row.appendChild(btn);
+      });
+      row.appendChild(note); box.appendChild(row);
+    });
+    host.appendChild(box);
+  }
   function renderProjectDoc(doc, key) {
     var b = setBody();
     if (key === 'workflow') drawFlow(b);
+    if (key === 'deployment') drawDeployButtons(b, doc.deploys);
     if (doc.withheld) {
       var w = el('div', 'notice'); w.appendChild(el('div', null, 'withheld: ' + doc.withheld));
       w.appendChild(el('div', 'hint', 'This file is not published on this board; read it in the repository.')); b.appendChild(w);
