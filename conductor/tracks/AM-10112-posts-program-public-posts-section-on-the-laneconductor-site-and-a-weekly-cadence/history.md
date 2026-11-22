@@ -1,0 +1,1 @@
+- 2026-11-22 ✅ Post deployed on the owner's word from a clean copy of main 218ebde1 (the short-plan and recommendations screenshots, the corrected limits sentence); live pages and images equal the copy by sha256; record production-20261122T160826Z.md.
