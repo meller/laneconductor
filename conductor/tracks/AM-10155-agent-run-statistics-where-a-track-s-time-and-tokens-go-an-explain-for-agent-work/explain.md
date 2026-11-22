@@ -1,15 +1,40 @@
 # Agent run: AM-10155-agent-run-statistics-where-a-track-s-time-and-tokens-go-an-explain-for-agent-work
 
+## Short plan
+
+| Step | Where | Time | Written | Context at start | Expensive |
+| --- | --- | --- | --- | --- | --- |
+| plan | main session | 3m | 12,168 | 331,766 |  |
+| implement (2026-11-21 12:19) | sub-agent | 13h 15m (12h 50m human) | 131,942 | 378,337 |  |
+| review (2026-11-22 01:34) | main session | 11h 12m | 32,026 | 590,520 |  |
+| implement (2026-11-22 12:46) | sub-agent | 20m | 99,543 | 587,925 |  |
+| review (2026-11-22 13:06) | main session | 2m | 6,346 | 644,611 |  |
+| quality-gate (2026-11-22 13:08) | main session | 2m | 12,513 | 653,706 |  |
+| implement (2026-11-22 14:20) | sub-agent | 6m | 40,938 | 784,853 |  |
+| review (2026-11-22 14:26) | main session | 2m | 4,986 | 801,893 |  |
+| quality-gate (2026-11-22 14:28) | main session | 43s | 3,034 | 816,545 |  |
+| implement (2026-11-22 14:36) | sub-agent | 1h 04m (13m human) | 231,982 | 862,564 | expensive |
+
+> Approximate, tokens only: tracks that overlap in time can share messages, other activity on the computer and different machines blur the numbers. Time in brackets is waiting for a person. The full note is under Details.
+
+- Run the quality-gate run in a sub-agent or a fresh session: it began with 816,545 tokens of context, and 4 more lane runs began over 400,000. Change: how the lane is started (a sub-agent starts near 50,000 tokens).
+- Use a lower effort for Phase 8 and 12 more steps: effort was high on all 106 replies that record one in Phase 8, in mechanical work. Change: the effort setting of that work or of its sub-agent.
+- Set the lane to running when starting it: 4 of 10 lane runs have no claim commit, so their time is an upper bound. Change: the lane start (the Lane Status marker).
+
+## Details
+
+The sections below hold the numbers behind the short plan: the observations, the recommendations with their evidence, the tables per lane run and per phase, and the model use.
+
 ## Insight
 
 These are rule-based observations worked out by the script from the numbers below, not an opinion of a model. No prompt, message or file content is used.
 
-- Time: 25h 19m wall, 12h 29m agent, 12h 50m human, over 10 lane runs.
-- Work: 574 replies, 461,936 tokens written, 183,723,414 tokens read from cache (398 times the tokens written), 320,076 per reply on average.
-- Context: the first reply of the lane runs in the main session started with 649,159 tokens of context (median of 10 runs, highest 862,564); sub-agents started with a median of 15,545 tokens.
-- Sub-agents: 56% of replies and 48% of output, 5 runs.
-- Biggest lane by time: implement (13h 58m). Biggest lane by tokens written: implement (390,863).
-- Biggest phase by time: Phase 4: Use it (11h 47m). Biggest phase by tokens written: Phase 8: Recommendations for the next run (2026-11-22) (117,025).
+- Time: 26h 07m wall, 13h 04m agent, 13h 03m human, over 10 lane runs.
+- Work: 698 replies, 575,478 tokens written, 226,548,578 tokens read from cache (394 times the tokens written), 324,568 per reply on average.
+- Context: the first reply of the lane runs in the main session started with 649,159 tokens of context (median of 10 runs, highest 862,564); sub-agents started with a median of 15,618 tokens.
+- Sub-agents: 56% of replies and 51% of output, 7 runs.
+- Biggest lane by time: implement (14h 45m). Biggest lane by tokens written: implement (504,405).
+- Biggest phase by time: Phase 4: Use it (11h 47m). Biggest phase by tokens written: Phase 8: Recommendations for the next run (2026-11-22) (121,774).
 
 **What to look at**
 
@@ -40,7 +65,9 @@ These are rule-based suggestions worked out by the script from the numbers below
 - Phase 5: The post: use a lower effort for this mechanical work (85% of 26 tool calls were shell, read or file edits): thinking was 32% of the output tokens on the 34 replies that record it (limit 30%) and effort was high on all 34 replies that record an effort.
 - Phase 6: Corrections and finished tracks (2026-11-22): use a lower effort for this mechanical work (95% of 132 tool calls were shell, read or file edits): thinking was 34% of the output tokens on the 127 replies that record it (limit 30%) and effort was high on all 127 replies that record an effort.
 - Phase 7: The insight first (2026-11-22): use a lower effort for this mechanical work (94% of 54 tool calls were shell, read or file edits): effort was high on all 49 replies that record an effort.
-- Phase 8: Recommendations for the next run (2026-11-22): use a lower effort for this mechanical work (95% of 102 tool calls were shell, read or file edits): effort was high on all 102 replies that record an effort.
+- Phase 8: Recommendations for the next run (2026-11-22): use a lower effort for this mechanical work (95% of 106 tool calls were shell, read or file edits): effort was high on all 106 replies that record an effort.
+- Phase 9: A short plan first, and recommendations across tracks (2026-11-22): use a lower effort for this mechanical work (82% of 55 tool calls were shell, read or file edits): effort was high on all 57 replies that record an effort.
+- Phase 10: discuss the recommendations, and one window is not credited to many tracks (2026-11-22): use a lower effort for this mechanical work (97% of 67 tool calls were shell, read or file edits): thinking was 34% of the output tokens on the 55 replies that record it (limit 30%) and effort was high on all 55 replies that record an effort.
 - Claim the lane when starting it (set it to running): 4 of 10 lane runs have no claim commit (plan, review), so their time and tokens are inferred upper bounds.
 
 **Suggested setup for the next run**
@@ -50,12 +77,12 @@ These are rule-based suggestions worked out by the script from the numbers below
 - review: where to run: a sub-agent or a fresh session; model tier: sonnet (as before); effort: medium for the mechanical work (one level below high)
 - quality-gate: where to run: a sub-agent or a fresh session; model tier: sonnet (as before); effort: medium for the mechanical work (one level below high)
 
-Recommendation rules fired: 17
+Recommendation rules fired: 19
 
 > Generated by lc-explain.mjs from session transcripts and git; do not edit by hand (it is overwritten on each run). Numbers only: no prompt, message or file content is read into it.
 
-Generated: 2026-11-22T14:53:51.874Z
-Sources: 1 session file, 7 sub-agent files (sessions 413264fe); the lane and plan boundaries come from git history of this track's index.md and plan.md.
+Generated: 2026-11-22T15:41:17.535Z
+Sources: 1 session file, 9 sub-agent files (sessions 413264fe); the lane and plan boundaries come from git history of this track's index.md and plan.md.
 
 > Approximate: a message is attributed to a track by its time window and working directory or branch, so several tracks that overlap in time can share messages, the computer may have been doing other activity at the same time, and different execution machines run at different speeds. Read these as relative numbers, not exact ones. Human time counts only tasks marked (HUMAN) and the waiting status; a person who chats in the same session without either is counted as agent time, and the gaps of more than 30 minutes are shown as a note only.
 
@@ -72,7 +99,7 @@ Sources: 1 session file, 7 sub-agent files (sessions 413264fe); the lane and pla
 | implement | 2026-11-22 14:20 | 2026-11-22 14:26 | 6m | 6m | 0s | 49 | 40,938 | 106 | 106,579 | 11,774,445 | 54 | 76% of responses, 77% of output |
 | review (no claim commit) | 2026-11-22 14:26 | 2026-11-22 14:28 | 2m | 2m | 0s | 4 | 4,986 | 14 | 13,954 | 3,212,168 | 5 | 0% of responses, 0% of output |
 | quality-gate | 2026-11-22 14:28 | 2026-11-22 14:29 | 43s | 43s | 0s | 2 | 3,034 | 4 | 4,708 | 1,630,202 | 3 | 0% of responses, 0% of output |
-| implement (still running) | 2026-11-22 14:36 | 2026-11-22 14:53 | 17m | 17m | 0s | 104 | 118,440 | 226 | 230,862 | 37,660,728 | 104 | 68% of responses, 74% of output |
+| implement (still running) | 2026-11-22 14:36 | 2026-11-22 15:41 | 1h 04m | 52m | 13m | 228 | 231,982 | 504 | 450,320 | 80,485,892 | 237 | 64% of responses, 68% of output |
 
 "no claim commit" marks a lane that moved on without ever being set to running: its window runs from the moment the lane was next in line (queue, or the previous lane done) to the next state change, so it includes any wait in the queue and, in a session shared with other tracks, other tracks' messages. "still running" marks a lane whose status was never closed. Treat both as upper bounds; the Statistics tab keeps them in separate rows from claimed runs.
 
@@ -89,8 +116,10 @@ Tokens are shown apart: output is what the model wrote, fresh input is what it r
 | Phase 5: The post | 1h 08m | 5m | 1h 03m | 34 | 30,807 | 82 | 64,560 | 17,473,594 | 26 | 9% of responses |
 | Phase 6: Corrections and finished tracks (2026-11-22) | 20m | 20m | 0s | 127 | 99,543 | 296 | 228,286 | 34,161,171 | 132 | 70% of responses |
 | Phase 7: The insight first (2026-11-22) | 6m | 6m | 0s | 49 | 40,938 | 106 | 106,579 | 11,774,445 | 54 | 76% of responses |
-| Phase 8: Recommendations for the next run (2026-11-22) | 16m | 16m | 0s | 102 | 117,025 | 222 | 229,265 | 36,568,294 | 102 | 69% of responses |
-| After the last tick (wrap-up) | 36s | 36s | 0s | 2 | 1,415 | 4 | 1,597 | 1,092,434 | 2 | 50% of responses |
+| Phase 8: Recommendations for the next run (2026-11-22) | 17m | 17m | 0s | 106 | 121,774 | 230 | 234,009 | 38,754,759 | 106 | 68% of responses |
+| Phase 9: A short plan first, and recommendations across tracks (2026-11-22) | 31m | 18m | 13m | 57 | 44,835 | 132 | 109,545 | 24,031,625 | 55 | 49% of responses |
+| Phase 10: discuss the recommendations, and one window is not credited to many tracks (2026-11-22) | 10m | 10m | 0s | 55 | 57,980 | 118 | 89,257 | 14,758,508 | 67 | 78% of responses |
+| After the last tick (wrap-up) | 6m | 6m | 0s | 10 | 7,393 | 24 | 17,509 | 2,941,000 | 9 | 20% of responses |
 
 - Phase 1: Probe the data: replies by model claude-sonnet-5-5 34; thinking 423 of 4,300 output tokens (10%, recorded on 7 of 34 replies); effort high 34; path Agent x1, Bash x17, Write x1, Artifact x1, Bash x2, Write x1, Bash x4, Edit x1, ...
 - Phase 2: The script: replies by model claude-sonnet-5-5 43; thinking 2,377 of 22,268 output tokens (11%, recorded on 10 of 43 replies); effort high 43; path Bash x1, Write x1, Bash x1, Write x4, Bash x15, Write x1, Bash x20
@@ -99,8 +128,10 @@ Tokens are shown apart: output is what the model wrote, fresh input is what it r
 - Phase 5: The post: replies by model claude-sonnet-5-5 34; thinking 9,737 of 30,807 output tokens (32%, recorded on 34 of 34 replies); effort high 34; path Bash x2, SubagentHandback x1, Bash x6, Artifact x1, Bash x2, SendUserFile x1, Bash x8, SendUserFile x1, ...
 - Phase 6: Corrections and finished tracks (2026-11-22): replies by model claude-sonnet-5-5 127; thinking 34,166 of 99,543 output tokens (34%, recorded on 127 of 127 replies); effort high 127; path Agent x1, Bash x12, Artifact x1, Bash x8, Edit x1, Bash x10, Write x1, Bash x4, ...
 - Phase 7: The insight first (2026-11-22): replies by model claude-sonnet-5-5 49; thinking 8,616 of 40,938 output tokens (21%, recorded on 49 of 49 replies); effort high 49; path Agent x1, Bash x11, Artifact x1, Bash x1, Write x1, Bash x22, Write x1, Bash x11, ...
-- Phase 8: Recommendations for the next run (2026-11-22): replies by model claude-sonnet-5-5 102; thinking 34,767 of 117,025 output tokens (30%, recorded on 102 of 102 replies); effort high 102; path Agent x1, Bash x10, Write x1, Bash x2, Artifact x1, Bash x1, Write x1, Bash x7, ...
-- After the last tick (wrap-up): replies by model claude-sonnet-5-5 2; thinking 280 of 1,415 output tokens (20%, recorded on 2 of 2 replies); effort high 2; path Bash x2
+- Phase 8: Recommendations for the next run (2026-11-22): replies by model claude-sonnet-5-5 106; thinking 35,555 of 121,774 output tokens (29%, recorded on 106 of 106 replies); effort high 106; path Agent x1, Bash x10, Write x1, Bash x2, Artifact x1, Bash x1, Write x1, Bash x7, ...
+- Phase 9: A short plan first, and recommendations across tracks (2026-11-22): replies by model claude-sonnet-5-5 57; thinking 11,371 of 44,835 output tokens (25%, recorded on 57 of 57 replies); effort high 57; path Bash x4, Edit x1, Artifact x1, Bash x7, Artifact x1, Bash x3, Artifact x1, Bash x1, ...
+- Phase 10: discuss the recommendations, and one window is not credited to many tracks (2026-11-22): replies by model claude-sonnet-5-5 55; thinking 19,514 of 57,980 output tokens (34%, recorded on 55 of 55 replies); effort high 55; path Bash x8, SubagentHandback x1, Bash x8, SendMessage x1, Bash x6, Write x1, Bash x10, Write x1, ...
+- After the last tick (wrap-up): replies by model claude-sonnet-5-5 10; thinking 1,709 of 7,393 output tokens (23%, recorded on 10 of 10 replies); effort high 10; path Bash x1, SubagentHandback x1, Bash x1, Artifact x1, Bash x1, Artifact x1, Bash x3
 
 A phase runs from the previous plan tick (or the claim) to the tick of its last task; a `(HUMAN)` task is human time. Tasks ticked in the same commit share their stretch of time equally, because the commit does not say which took longer.
 
@@ -215,25 +246,32 @@ A phase runs from the previous plan tick (or the claim) to the tick of its last 
 
 ## Detail: implement run starting 2026-11-22 14:36
 
-- Tool calls by kind: Bash 83, Write 12, Artifact 4, Edit 3, Agent 1, Read 1
+- Tool calls by kind: Bash 188, Artifact 14, Write 14, Edit 12, Read 3, Agent 2, SendMessage 2, SubagentHandback 2
 - Files read more than once: 0 repeated reads
-- Context of the first response of the run: 862,564 tokens; 1 sub-agent run started with a median of 15,994 tokens of context
-- Replies by model: claude-sonnet-5-5 104
-- Thinking tokens: 35,047 of 118,440 output tokens on the 104 of 104 replies that record them (30%)
-- Effort levels seen: high 104
+- Context of the first response of the run: 862,564 tokens; 3 sub-agent runs started with a median of 16,110 tokens of context
+- Replies by model: claude-sonnet-5-5 228
+- Thinking tokens: 68,149 of 231,982 output tokens on the 228 of 228 replies that record them (29%)
+- Effort levels seen: high 228
 - Path (tool kinds in the order used): Agent x1, Bash x10, Write x1, Bash x2, Artifact x1, Bash x1, Write x1, Bash x7, ...
 - Gaps of more than 30 minutes between messages: 0 (a note only)
-- Slowest tool steps (call to result, so a permission wait is included): Bash 1m at 2026-11-22 14:47; Bash 45s at 2026-11-22 14:37; Bash 45s at 2026-11-22 14:51; Bash 44s at 2026-11-22 14:40; Bash 31s at 2026-11-22 14:48
+- Slowest tool steps (call to result, so a permission wait is included): Bash 1m at 2026-11-22 14:47; Bash 57s at 2026-11-22 15:30; Bash 46s at 2026-11-22 14:54; Bash 45s at 2026-11-22 14:37; Bash 45s at 2026-11-22 14:51
 
 ## Model use
 
-- Replies by model (all lane runs): claude-sonnet-5-5 574 (574 replies)
-- Thinking tokens: 148,646 of 460,924 output tokens on the 482 of 574 replies that record them (32%)
-- Effort levels seen: high 574
+- Replies by model (all lane runs): claude-sonnet-5-5 698 (698 replies)
+- Thinking tokens: 181,748 of 574,466 output tokens on the 606 of 698 replies that record them (32%)
+- Effort levels seen: high 698
 
 The model id, the thinking token count and the effort level are read from the numbers each reply records; "unknown" means the reply carries none, and a reply that does not record thinking tokens is not counted as zero. "synthetic" marks placeholder replies no model wrote.
 
 ## Outside every lane run
 
-Responses in the scanned sessions of this repository that fall outside every lane window of this track: 108 (92,438 output tokens). Left out as not this track: 0 on another track's branch or sub-agent, 0 in another folder.
+Responses in the scanned sessions of this repository that fall outside every lane window of this track: 108 (92,438 output tokens). Left out as not this track: 213 on another track's branch or sub-agent, 0 in another folder.
 
+## Recommend facts
+
+The numbers the board reads for its recommendations across tracks: rule ids and whole numbers only.
+
+```json recommend-facts
+{"v":1,"rules":[{"id":"where","lane":"quality-gate","n":816545,"tokens":28347155,"count":5},{"id":"lower-effort","lane":"implement","n":106,"tokens":217765915,"count":13},{"id":"claim","lane":null,"n":4,"tokens":24471649,"count":1}]}
+```
