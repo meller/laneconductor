@@ -360,7 +360,7 @@ finished tracks (track AM-10155) are packed, in number order, into shard files `
 in its shard, at most 100 shards), so hundreds of finished tracks need a handful of files; `board.json`
 names the shard of a finished track as `ds`, and the drawer loads it once. The same privacy scan, the
 `board.include_docs` and `board.include_conversation` settings apply, and a shard that holds a withheld
-document is sent again on every refresh. A finished track with no shard (documents off, a number shared
+document is hashed like any other and not sent again while unchanged (unlike a live document with a withheld marker). A finished track with no shard (documents off, a number shared
 by two folders) gets a note, and the drawer links to the track folder on GitHub when `origin` is a github.com
 remote (`gh` in `board.json`, https only, opens in a new tab). Track folders are resolved with the same
 helpers as the connector, and a number shared by two live folders gets no docs.

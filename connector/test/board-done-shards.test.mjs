@@ -97,19 +97,20 @@ test('unit: packShards cuts by track count and by size, in number order, and an 
   assert.deepEqual(packShards([]), []);
 });
 
-test('unit: the manifest knows a shard path, and a shard that holds a withheld document is never "unchanged"', () => {
+test('unit: the manifest knows a shard path, and a shard that holds a withheld placeholder is hashed like any other (an unchanged shard is not resent)', () => {
   const clean = JSON.stringify({ k: 1, docs: { 1: { n: 1, folder: 'a', plan: 'p' } } });
   const dirty = JSON.stringify({ k: 2, docs: { 3: { n: 3, folder: 'b', plan: 'p' }, 4: { n: 4, folder: 'c', withheld: { spec: 'possible secret or personal data (1 match)' } } } });
   assert.equal(carriesWithheld(clean), false);
-  assert.equal(carriesWithheld(dirty), true);
+  assert.equal(carriesWithheld(dirty), false, 'unlike a live docs file: a shard is about 1 MB, resending it on every refresh would defeat the partial publish, and it holds only the placeholder');
+  assert.equal(carriesWithheld(JSON.stringify({ n: 4, folder: 'c', withheld: { spec: 'x' } })), true, 'a live docs file still carries it');
   const m = buildManifest({ pageBytes: Buffer.from('x'), files: { 'board.json': '{}', 'docs-done/1.json': clean, 'docs-done/2.json': dirty } });
-  assert.deepEqual(Object.keys(m.files), ['board.json', 'docs-done/1.json']);
+  assert.deepEqual(Object.keys(m.files), ['board.json', 'docs-done/1.json', 'docs-done/2.json']);
   assert.deepEqual(parseManifest(JSON.stringify(m)), m, 'a manifest with a shard path is accepted, not rejected as foreign');
   const p = planPublish({ current: m, allFiles: ['board.json', 'docs-done/1.json', 'docs-done/2.json'], previous: m });
   assert.equal(p.mode, 'partial');
-  assert.deepEqual(p.changed, ['docs-done/2.json']);
+  assert.deepEqual(p.changed, []);
   const gone = planPublish({ current: m, allFiles: ['board.json'], previous: m });
-  assert.deepEqual(gone.removed, ['docs-done/1.json']);
+  assert.deepEqual(gone.removed, ['docs-done/1.json', 'docs-done/2.json']);
   assert.equal(gone.publish['docs-done/1.json'], null);
 });
 
@@ -118,7 +119,7 @@ test('TC-15: 300 finished tracks give a board far below the file limit, every fi
   const shards = shardFiles(run);
   assert.equal(shards.length, Math.ceil(300 / DONE_SHARD_TRACKS), '300 tracks of small documents: 15 shards of 20');
   assert.ok(run.out.files.length <= MAX_DOCS, `${run.out.files.length} files stay under the limit`);
-  assert.ok(run.out.files.length < 30, `board.json + 2 live docs + 15 shards = ${run.out.files.length}`);
+  assert.equal(run.out.files.length, 19, 'board.json, the workflow ctx file, 2 live docs and 15 shards');
   assert.ok(run.out.files.includes('docs/9001.json') && run.out.files.includes('docs/9002.json'));
   assert.ok(!run.out.files.some((f) => /^docs\/\d{1,3}\.json$/.test(f)), 'no one-file-per-finished-track');
   const data = readJson(path.join(run.site, 'board.json'));
@@ -219,6 +220,14 @@ test('TC-15: partial publish: an unchanged rerun resends no shard; one edited fi
   const one = board(repo, { now: T2, previous: prev });
   assert.deepEqual(one.out.changed, ['board.json', 'docs-done/2.json'], 'only the shard that holds track 25');
   assert.equal(one.out.publish['docs-done/2.json'], 'docs-done/2.json');
+  // A withheld document inside a shard: the shard is still unchanged on the next run.
+  writeFile(repo, `conductor/tracks/${folderOf(5)}/spec.md`, `# Spec 5\n\nthe key ${FAKES['Google API key']}\n`);
+  commitAll(repo);
+  const w1 = board(repo, { now: T2, previous: prev });
+  assert.deepEqual(w1.out.changed, ['board.json', 'docs-done/1.json', 'docs-done/2.json'], 'track 5 (shard 1) and the edit of track 25 (shard 2) since the first run');
+  const wprev = saved(w1);
+  const w2 = board(repo, { now: T2, previous: wprev });
+  assert.deepEqual(w2.out.changed, [], 'the shard that holds a placeholder is not sent again (same --now: board.json is identical too)');
   // Fewer finished tracks: the last shard is gone and is removed.
   for (let n = 41; n <= 45; n += 1) fs.rmSync(path.join(repo, `conductor/tracks/${folderOf(n)}`), { recursive: true });
   commitAll(repo);

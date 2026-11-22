@@ -20,8 +20,7 @@ export const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).diges
 export function carriesWithheld(text) {
   try {
     const doc = JSON.parse(text);
-    // A shard of finished-track documents (docs-done/<k>.json) carries a withheld marker when any document in it does.
-    if (doc && doc.docs && typeof doc.docs === 'object') return Object.values(doc.docs).some((d) => Boolean(d && d.withheld));
+    // A shard of finished-track documents (docs-done/<k>.json, { k, docs }) has no top-level marker on purpose: it is about 1 MB, so it is hashed and not resent while unchanged.
     return Boolean(doc && (doc.withheld || (typeof doc.md === 'string' && doc.md.includes('*withheld: '))));
   } catch { return false; }
 }
