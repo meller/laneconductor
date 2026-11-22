@@ -1,10 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: implement
-**Lane Status**: waiting
-**Waiting Reason**: Task 13: the owner approves and publishes the post "Pick Your Agent's Brain" (reviewed draft, numbers checked)
-**Progress**: 94%
-**Phase**: Built and checked: lc-explain.mjs, the Agent run and Statistics tabs, the Run statistics action (board add-on 1.10.13); the post "Pick Your Agent's Brain" is written with checked numbers (local draft, git-ignored). Left: Task 13 (the owner approves and publishes the post).
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Built, checked and published: lc-explain.mjs, the Agent run and Statistics tabs, the Run statistics action (board add-on 1.10.13), and the post "Stop guessing what your agent is doing" live at /posts/ (399bcd17, deployed 2026-11-22). Waits for review and the quality gate.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

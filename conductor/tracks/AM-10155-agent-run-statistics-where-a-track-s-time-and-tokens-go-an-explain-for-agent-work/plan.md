@@ -24,4 +24,4 @@
 
 ## Phase 5: The post
 - [x] Task 12: Fill "Pick Your Agent's Brain" with the real output, check every number, move it from draft to reviewed (REQ-9)
-- [ ] Task 13 (HUMAN): Approve and publish the post
+- [x] Task 13 (HUMAN): Approve and publish the post
