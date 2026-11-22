@@ -1,0 +1,1 @@
+- 2026-11-22 ⚠️ Closed as done:success at the owner's word, descoped: the branch-commit check (no commit on the run's branch) and the resting-state lint are not built (2 open tasks dropped); they can be filed as backlog tracks later. Progress stays 90 percent on purpose.

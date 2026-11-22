@@ -1,0 +1,1 @@
+- 2026-11-22 ⚠️ Closed as done:success at the owner's word. Open when closed: Human acceptance (setup in a copy of a real project, scripts/try-local.sh for real) not run in that form; a real setup in a scratch project worked on 2026-11-22 (no lc probe, no .laneconductor.json read). Progress stays 90 percent on purpose.

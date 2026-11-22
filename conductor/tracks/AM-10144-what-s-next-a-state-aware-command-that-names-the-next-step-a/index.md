@@ -1,9 +1,9 @@
 # Track AM-10144: What's next: a state-aware command that names the next step and explains it (onboarding as a tutorial)
 
-**Lane**: quality-gate
-**Lane Status**: waiting
+**Lane**: done
+**Lane Status**: success
 **Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Phases 1 to 6 (the next command) shipped on main and pushed with plugins 1.2.2 (516 connector tests, strict validate on all three plugins); Phase 8 partly done (blocked_by and ready_to_resume used when the connector is present). Open: Phase 7 real-session walk-through TC-31 to TC-42 on Fiti PLUG (owner).
+**Phase**: Closed by the owner 2026-11-22. Dropped: the Phase 7 walk-through (TC-31 to TC-42) in a real Fiti session and the other open tasks of Phases 7 and 8; /laneconductor:next ran correctly in a real session on 2026-11-22.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -28,4 +28,3 @@ Deliverable: command `next` in the command catalog (so the base, parallel and he
 **Summary**: A read-only command `next`, the universal front door: it reads where the project stands (files in git; the connector only adds valid.next and freshness), names the one next step with the exact command, one sentence on what and why, and teaches the lane model on the way (explain or short). With no conductor folder it offers three paths (continue an existing project, start a new one, look around); with no tracks it recommends the add-ons that fit, from the one catalog. Ships without the audit tracks 10135, 10136 and 10141, using git-only heuristics; the audit signals replace them later.
 **Part Of**: 10145
 **Verdict**: pass
-**Waiting Reason**: Phase 7 walk-through TC-31 to TC-42 in a real session on Fiti PLUG (owner); Phase 8 partly done.

@@ -1,9 +1,9 @@
 # Track AM-10143: create_track sees other branches; renumber and repair for duplicate track numbers
 
-**Lane**: quality-gate
-**Lane Status**: waiting
+**Lane**: done
+**Lane Status**: success
 **Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): allocation across branches, the duplicate-number warning and the repair-duplicates command. Open: the possibly_stale only-ahead noise (TC-13); owner decides to keep or drop it.
+**Phase**: Closed by the owner 2026-11-22. Dropped: the possibly_stale noise rule for a repo that is only ahead of upstream with no upstream (TC-13).
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -15,4 +15,3 @@ Scope: also scan `refs/heads/*` and `refs/remotes/*` trees for `conductor/tracks
 **Summary**: From the audit (findings D4, D5, severity medium). Number allocation (connector/src/tools/create-track.mjs:29-47) scans local and upstream directories under a lock but is blind to other worktrees' bra
 **Part Of**: 10145
 **Verdict**: pass
-**Waiting Reason**: Open: the possibly_stale only-ahead noise, TC-13; owner decision whether to keep or drop it.

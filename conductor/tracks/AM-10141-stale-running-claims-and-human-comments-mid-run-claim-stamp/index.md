@@ -1,9 +1,9 @@
 # Track AM-10141: Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning
 
-**Lane**: quality-gate
-**Lane Status**: waiting
+**Lane**: done
+**Lane Status**: success
 **Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): Run Started and Run By stamps on claim, stale_running after 6 hours, human_comment_mid_run warning. Open: the branch-commit check and the resting-state lint were skipped; owner decides to descope or build.
+**Phase**: Closed by the owner 2026-11-22 as descoped: the branch-commit check and the resting-state lint were skipped and are not built; they can return as backlog tracks.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -15,4 +15,3 @@ Scope: the claim writes `**Run Started**` (ISO) and `**Run By**`; a lint flags `
 **Summary**: From the audit (findings B2, A5, B5, severity high/medium). Nothing detects a stale `running` claim: there is no owner or time stamp and the summary code says it is not checked (connector/src/summary.
 **Part Of**: 10145
 **Verdict**: pass
-**Waiting Reason**: Owner decision: descope or build the branch-commit check and the resting-state lint (skipped).

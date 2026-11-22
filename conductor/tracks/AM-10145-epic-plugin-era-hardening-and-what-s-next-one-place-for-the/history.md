@@ -1,0 +1,1 @@
+- 2026-11-22 ⚠️ Closed as done:success at the owner's word. Left open when closed: TC-7 (check the board Epics block in a real browser) and the lint for a Part Of that names a missing track (3 open tasks). Progress stays 90 percent on purpose.

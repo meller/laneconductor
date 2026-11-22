@@ -1,9 +1,9 @@
 # Track AM-10133: Plugin-only setup: no lc CLI, no old scheme, setup offers the recommended plugins
 
-**Lane**: quality-gate
-**Lane Status**: waiting
+**Lane**: done
+**Lane Status**: success
 **Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): plugin-only setup, no lc CLI or old scheme, setup offers the recommended plugins; TC-8 and TC-28 done. Open: Phase 7 landing and wiki wording (owner go), Phase 8 real use (owner).
+**Phase**: Closed by the owner 2026-11-22. Done since parking: the landing and wiki wording (deployed 2026-11-22) and the real setup run in a scratch project with lc on PATH (no lc probe). Dropped when closed: the same run in the Fiti project (optional), Task 4 (a README note about a separate Remote tier, against the owner's no-announcement rule) and the other open tasks of Phase 7 and 8; the owner decided to keep lc and the old files on the machine.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -24,4 +24,3 @@ Out of scope: deleting the legacy daemon code or the `v1-legacy` tag; removing `
 **Summary**: The owner's decision (2026-11-18): the `lc` command line and the old scheme (daemon, database, `make install`, rc file, `lc` subcommands, `.laneconductor.json` as a control file) do not exist any more
 **Part Of**: 10145
 **Verdict**: pass
-**Waiting Reason**: Phase 7 landing and wiki wording (needs the owner go and the other session to commit landing), Phase 8 real use (owner).

@@ -1,9 +1,9 @@
 # Track AM-10130: Setup: add LaneConductor to an existing project (route setup to the existing-repo scaffold, drop the stale install text)
 
-**Lane**: quality-gate
-**Lane Status**: waiting
+**Lane**: done
+**Lane Status**: success
 **Progress**: 90%
-**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): setup adds LaneConductor to an existing project through the existing-repo scaffold, with no daemon-era install text. Open: human acceptance run of setup in a copy of a real project and of try-local.sh (owner).
+**Phase**: Closed by the owner 2026-11-22. Open when closed: the human acceptance (setup on a copy of a real project and scripts/try-local.sh for real) was not run in that form; a real /laneconductor:setup in a scratch project worked on 2026-11-22.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -20,4 +20,3 @@ Do (after track 10128 is merged, because it rewrites the same generated files):
 5. Tests: a fixture existing repository (package.json, a README, an npm test script) gets the conductor files with the detected stack and the real test command in quality-gate.md, a second run changes nothing, an existing README or package.json is never touched; a grep test proves no generated text in the base mentions `make install`, `.laneconductor`rc or a worker. Regenerate the plugins, run the tests, `--check` and strict validation.
 **Summary**: Found 2026-11-18 while answering the owner's question 'does setup support creating the LaneConductor structure for an existing project': `/laneconductor:new-project` already handles it (detects an exi
 **Verdict**: pass
-**Waiting Reason**: Human acceptance: run setup in a copy of a real project and scripts/try-local.sh for real (owner).

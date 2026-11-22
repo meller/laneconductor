@@ -1,0 +1,1 @@
+- 2026-11-22 ⚠️ Closed as done:success at the owner's word. Dropped when closed: the possibly_stale noise rule for a repo that is only ahead of upstream with no upstream (TC-13, 1 open task). Progress stays 90 percent on purpose.
