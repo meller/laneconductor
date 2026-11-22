@@ -25,7 +25,7 @@ const gitRoot = (repo) => {
 };
 
 function emptyBucket() {
-  return { responses: 0, tokens: ZERO(), tools: {}, sub: { responses: 0, output: 0 }, times: [], reads: new Map(), toolRuns: [], asks: [], firstMsg: null, subFirst: new Map() };
+  return { responses: 0, tokens: ZERO(), tools: {}, sub: { responses: 0, output: 0 }, times: [], reads: new Map(), toolRuns: [], asks: [], firstMsg: null, firstSub: null, subFirst: new Map() };
 }
 
 function addMessage(b, m, results) {
@@ -33,7 +33,8 @@ function addMessage(b, m, results) {
   b.tokens.output += m.usage.output; b.tokens.fresh += m.usage.fresh; b.tokens.cacheCreated += m.usage.cacheCreated; b.tokens.cacheRead += m.usage.cacheRead;
   if (m.sub) { b.sub.responses += 1; b.sub.output += m.usage.output; }
   b.times.push(m.ts);
-  if (!b.firstMsg || m.ts < b.firstMsg.ts) b.firstMsg = m;
+  // D10: the first response of the run is the first message of the main session; a sub-agent still replying from the previous lane must not count. The earliest sub-agent message is only the fallback.
+  if (m.sub) { if (!b.firstSub || m.ts < b.firstSub.ts) b.firstSub = m; } else if (!b.firstMsg || m.ts < b.firstMsg.ts) b.firstMsg = m;
   if (m.sub) { const k = m.agent ?? m.id; const cur = b.subFirst.get(k); if (!cur || m.ts < cur.ts) b.subFirst.set(k, m); }
   for (const t of m.tools) {
     b.tools[t.name] = (b.tools[t.name] ?? 0) + 1;
@@ -59,7 +60,7 @@ function finish(b) {
     tokens: b.tokens,
     tools: sortedTools(b.tools),
     sub: b.sub,
-    firstContext: b.firstMsg ? contextOf(b.firstMsg) : 0,
+    firstContext: (b.firstMsg ?? b.firstSub) ? contextOf(b.firstMsg ?? b.firstSub) : 0,
     subStarts: [...b.subFirst.values()].map(contextOf),
     repeatedReads: repeated,
     slowest: b.toolRuns.sort((a, c) => c.ms - a.ms).slice(0, SLOW_N),

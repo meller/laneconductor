@@ -248,3 +248,43 @@ test('TC-2: tasks ticked in one commit share their stretch of time equally, so a
   assert.deepEqual(intervals.map((i) => [i.n, i.end - i.start]), [[1, 30 * MIN], [2, 30 * MIN], [3, 30 * MIN], [null, 10 * MIN]]);
   assert.equal(humanMs, 30 * MIN);
 });
+
+// ---- TC-14 (D10): "the first response of the run" is the first message of the main session, not a sub-agent that was still replying.
+function tinyProjects(repo, { main = [], sub = [] }) {
+  const projects = tmp('lc-explain-first-');
+  const folder = path.join(projects, repo.replace(/[^A-Za-z0-9]/g, '-'));
+  const session = '22222222-aaaa-bbbb-cccc-000000000002';
+  fs.mkdirSync(path.join(folder, session, 'subagents'), { recursive: true });
+  const line = (o) => response({ session, cwd: repo, blocks: [{ type: 'text', text: 'ok' }], ...o });
+  fs.writeFileSync(path.join(folder, `${session}.jsonl`), jl(...main.flatMap((o) => line(o))));
+  if (sub.length) {
+    fs.writeFileSync(path.join(folder, session, 'subagents', 'agent-aa.jsonl'), jl(...sub.flatMap((o) => line({ branch: 'worktree-agent-aa', side: 'aa', ...o }))));
+    fs.writeFileSync(path.join(folder, session, 'subagents', 'agent-aa.meta.json'), JSON.stringify({ description: 'track-runner: implement track 777' }));
+  }
+  return projects;
+}
+
+test('TC-14: a sub-agent message before the first main message gives the main message context; totals do not move', async () => {
+  const repo = fixtureRepo();
+  const projects = tinyProjects(repo, {
+    sub: [{ ts: at('10:01'), usage: [7, 70, 700, 7000] }, { ts: at('10:02'), usage: [8, 80, 800, 8000] }], // still replying from the previous lane
+    main: [{ ts: at('10:10'), usage: [2, 20, 200, 2000] }, { ts: at('10:30'), usage: [3, 30, 300, 3000] }],
+  });
+  const impl = (await analyze(repo, projects)).runs.find((x) => x.lane === 'implement');
+  assert.equal(impl.firstContext, 2 + 200 + 2000, 'the first main message, not the earlier sub-agent one (7 + 700 + 7000)');
+  assert.equal(impl.responses, 4);
+  assert.deepEqual(impl.tokens, { output: 20 + 30 + 70 + 80, fresh: 2 + 3 + 7 + 8, cacheCreated: 200 + 300 + 700 + 800, cacheRead: 2000 + 3000 + 7000 + 8000 });
+  assert.deepEqual([impl.sub.responses, impl.sub.output], [2, 150]);
+  assert.deepEqual([...impl.subStarts], [7 + 700 + 7000], 'the sub-agent start figure is unchanged');
+});
+
+test('TC-14: with no main message in the window the first response falls back to the earliest sub-agent message', async () => {
+  const repo = fixtureRepo();
+  const projects = tinyProjects(repo, {
+    sub: [{ ts: at('10:05'), usage: [7, 70, 700, 7000] }, { ts: at('10:01'), usage: [4, 40, 400, 4000] }],
+    main: [{ ts: at('08:00'), usage: [9, 90, 900, 9000] }], // outside every lane window
+  });
+  const impl = (await analyze(repo, projects)).runs.find((x) => x.lane === 'implement');
+  assert.equal(impl.firstContext, 4 + 400 + 4000);
+  assert.equal(impl.responses, 2);
+});
