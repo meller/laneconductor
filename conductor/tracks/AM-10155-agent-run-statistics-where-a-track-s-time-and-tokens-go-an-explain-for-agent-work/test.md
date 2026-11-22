@@ -25,9 +25,9 @@
 - [x] TC-16 (D11): the footer text says that finished tracks are included in what sharing the board shares
 - [x] TC-17 (D12): the published post no longer contains the 646,000 to 958,000 and 95,000 to 770,000 claims, and every number left in it traces to a total
 
-- [ ] TC-18 (D13): a synthetic explain with a long main session, a human wait of most of the wall time, a lane with no claim commit, a repeated read, a gap over 30 minutes and a step of 5 minutes starts with `## Insight` and each of those rules appears; a quiet synthetic explain says nothing unusual; no prompt, message or file content appears in the insight
-- [ ] TC-19 (D14): statistics.md starts with its own `## Insight`, and reading the explain.md files back (with the new section) gives the same tables as before
-- [ ] TC-20 (D13): in the board page, the Agent run tab of a track with an explain opens on the insight (it is the first section of the rendered document)
+- [x] TC-18 (D13): a synthetic explain with a long main session, a human wait of most of the wall time, a lane with no claim commit, a repeated read, a gap over 30 minutes and a step of 5 minutes starts with `## Insight` and each of those rules appears; a quiet synthetic explain says nothing unusual; no prompt, message or file content appears in the insight
+- [x] TC-19 (D14): statistics.md starts with its own `## Insight`, and reading the explain.md files back (with the new section) gives the same tables as before
+- [x] TC-20 (D13): in the board page, the Agent run tab of a track with an explain opens on the insight (it is the first section of the rendered document)
 
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals
