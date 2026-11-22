@@ -174,9 +174,12 @@ export async function analyzeTrack({ repo, track, projectsDir, now = new Date().
       dst.sub.responses += src.sub.responses; dst.sub.output += src.sub.output;
       for (const [k, v] of Object.entries(src.tools)) dst.tools[k] = (dst.tools[k] ?? 0) + v;
       mergeUse(dst, src);
+      // Phase 9 (D19): the first reply of a phase, the same rule as a lane run (D10): the main session's first message, a sub-agent's only as the fallback.
+      if (src.firstMsg && (!dst.firstMsg || src.firstMsg.ts < dst.firstMsg.ts)) dst.firstMsg = src.firstMsg;
+      if (src.firstSub && (!dst.firstSub || src.firstSub.ts < dst.firstSub.ts)) dst.firstSub = src.firstSub;
     });
   });
-  const phases = [...phaseMap.values()].sort((a, b) => a.order - b.order).map((e) => ({ key: e.key, label: e.label, tasks: e.tasks, wallMs: e.wallMs, humanMs: e.humanMs, agentMs: e.wallMs - e.humanMs, responses: e.bucket.responses, tokens: e.bucket.tokens, tools: sortedTools(e.bucket.tools), sub: e.bucket.sub, models: sortedTools(e.bucket.models), efforts: sortedTools(e.bucket.efforts), thinking: e.bucket.thinking, path: pathOfSeq(e.bucket.seq) }));
+  const phases = [...phaseMap.values()].sort((a, b) => a.order - b.order).map((e) => ({ key: e.key, label: e.label, tasks: e.tasks, wallMs: e.wallMs, humanMs: e.humanMs, agentMs: e.wallMs - e.humanMs, responses: e.bucket.responses, tokens: e.bucket.tokens, tools: sortedTools(e.bucket.tools), sub: e.bucket.sub, firstContext: (e.bucket.firstMsg ?? e.bucket.firstSub) ? contextOf(e.bucket.firstMsg ?? e.bucket.firstSub) : 0, models: sortedTools(e.bucket.models), efforts: sortedTools(e.bucket.efforts), thinking: e.bucket.thinking, path: pathOfSeq(e.bucket.seq) }));
   // The "after" row is only worth a row when something happened in it.
   const shown = phases.filter((p) => p.key !== 'after' || p.wallMs > 0 || p.responses > 0);
 
@@ -321,6 +324,9 @@ const RECO_LABEL = 'These are rule-based suggestions worked out by the script fr
 const TIER_NAME = ['unknown', 'haiku', 'sonnet', 'opus'];
 const EFFORT_ORDER = ['low', 'medium', 'high'];
 
+const totalTokens = (t) => t.output + t.fresh + t.cacheCreated + t.cacheRead;
+/** A short name of a unit for the short plan: a lane run, or "Phase 3" (never the long phase title). */
+const unitName = (u) => (u.key === undefined ? `${u.lane} run` : /^Phase \d+$/.test(u.key) ? u.key : u.key === 'after' ? 'the wrap-up' : 'ticked tasks outside the plan');
 const mechanicalOf = (tools) => { const t = total(tools); const m = MECHANICAL_TOOLS.reduce((s, k) => s + (tools[k] ?? 0), 0); return { t, m, yes: t >= MIN_TOOL_CALLS && m * 100 >= MECHANICAL_SHARE * t }; };
 const thinkingPct = (t) => (t.output ? Math.round((100 * t.tokens) / t.output) : 0);
 const dominantModel = (models) => {
@@ -349,9 +355,9 @@ function unitsOf(r) {
  */
 export function recommend(r) {
   const items = [];
-  const add = (rule, lane, text) => items.push({ rule, lane, text });
+  const add = (rule, lane, text, extra) => items.push({ rule, lane, text, ...extra });
   for (const x of r.runs) {
-    if (longMainSession(x)) add('where', x.lane, `Run the ${x.lane} run starting ${stamp(x.start)} in a sub-agent or a fresh session: it began with ${n(x.firstContext)} tokens of context (limit ${n(LONG_CONTEXT)}) and ${pctOf(x.sub.responses, x.responses)}% of its replies came from sub-agents (limit ${LOW_SUB_SHARE}%); a sub-agent starts near 50,000 tokens.`);
+    if (longMainSession(x)) add('where', x.lane, `Run the ${x.lane} run starting ${stamp(x.start)} in a sub-agent or a fresh session: it began with ${n(x.firstContext)} tokens of context (limit ${n(LONG_CONTEXT)}) and ${pctOf(x.sub.responses, x.responses)}% of its replies came from sub-agents (limit ${LOW_SUB_SHARE}%); a sub-agent starts near 50,000 tokens.`, { unit: `${x.lane} run`, n: x.firstContext, tokens: totalTokens(x.tokens) });
   }
   const lighter = new Set(); const larger = new Set(); const lowerEffort = new Set();
   const units = unitsOf(r);
@@ -367,11 +373,11 @@ export function recommend(r) {
     const muchThinking = th.recorded > 0 && th.output > 0 && th.tokens * 100 >= THINKING_SHARE * th.output;
     if (mech.yes && smallReplies && tier === 3) {
       lighter.add(u.lane);
-      add('lighter-model', u.lane, `${u.name}: use a model one tier down (sonnet) for this work or its sub-agent: ${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits (limit ${MECHANICAL_SHARE}%) and replies were small (${n(avgOut)} tokens written per reply, limit ${n(SMALL_REPLY_OUTPUT)}), yet ${n(dom[1])} of ${n(u.responses)} replies ran on ${dom[0]}.`);
+      add('lighter-model', u.lane, `${u.name}: use a model one tier down (sonnet) for this work or its sub-agent: ${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits (limit ${MECHANICAL_SHARE}%) and replies were small (${n(avgOut)} tokens written per reply, limit ${n(SMALL_REPLY_OUTPUT)}), yet ${n(dom[1])} of ${n(u.responses)} replies ran on ${dom[0]}.`, { unit: unitName(u), n: pctOf(mech.m, mech.t), tokens: totalTokens(u.tokens), calls: mech.t });
     }
     if (!mech.yes && tier === 1 && (bigReplies || muchThinking)) {
       larger.add(u.lane);
-      add('larger-model', u.lane, `${u.name}: keep or use a larger model (sonnet or above) for this work: ${bigReplies ? `replies were big (${n(avgOut)} tokens written per reply, limit ${n(BIG_REPLY_OUTPUT)})` : `thinking was ${thinkingPct(th)}% of the output on the replies that record it (limit ${THINKING_SHARE}%)`} and it ran on ${dom[0]} (${n(dom[1])} of ${n(u.responses)} replies).`);
+      add('larger-model', u.lane, `${u.name}: keep or use a larger model (sonnet or above) for this work: ${bigReplies ? `replies were big (${n(avgOut)} tokens written per reply, limit ${n(BIG_REPLY_OUTPUT)})` : `thinking was ${thinkingPct(th)}% of the output on the replies that record it (limit ${THINKING_SHARE}%)`} and it ran on ${dom[0]} (${n(dom[1])} of ${n(u.responses)} replies).`, { unit: unitName(u), n: bigReplies ? avgOut : thinkingPct(th), tokens: totalTokens(u.tokens), big: bigReplies });
     }
     if (mech.yes) {
       const known = Object.entries(u.efforts).filter(([k]) => k !== 'unknown').reduce((s, [, v]) => s + v, 0);
@@ -381,14 +387,14 @@ export function recommend(r) {
         const why = [];
         if (muchThinking) why.push(`thinking was ${thinkingPct(th)}% of the output tokens on the ${n(th.recorded)} replies that record it (limit ${THINKING_SHARE}%)`);
         if (allHigh) why.push(`effort was high on all ${n(known)} replies that record an effort`);
-        add('lower-effort', u.lane, `${u.name}: use a lower effort for this mechanical work (${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits): ${why.join(' and ')}.`);
+        add('lower-effort', u.lane, `${u.name}: use a lower effort for this mechanical work (${pctOf(mech.m, mech.t)}% of ${n(mech.t)} tool calls were shell, read or file edits): ${why.join(' and ')}.`, { unit: unitName(u), n: muchThinking ? thinkingPct(th) : known, tokens: totalTokens(u.tokens), thinking: muchThinking });
       }
     }
   }
   const slow = r.runs.flatMap((x) => x.slowest).sort((a, c) => c.ms - a.ms)[0];
-  if (slow && slow.ms >= SLOW_STEP_MS) add('allow-command', null, `Check whether the ${slow.tool} command that took ${fmtMs(slow.ms)} at ${stamp(slow.at)} (limit ${fmtMs(SLOW_STEP_MS)}) can be allowed in the permission settings so it does not wait for a click; a permission wait is included in the step time, so this is a suggestion to check.`);
+  if (slow && slow.ms >= SLOW_STEP_MS) add('allow-command', null, `Check whether the ${slow.tool} command that took ${fmtMs(slow.ms)} at ${stamp(slow.at)} (limit ${fmtMs(SLOW_STEP_MS)}) can be allowed in the permission settings so it does not wait for a click; a permission wait is included in the step time, so this is a suggestion to check.`, { unit: slow.tool, n: slow.ms, tokens: 0, ms: slow.ms });
   const unclaimed = r.runs.filter((x) => !x.claimed);
-  if (unclaimed.length) add('claim', null, `Claim the lane when starting it (set it to running): ${n(unclaimed.length)} of ${n(r.runs.length)} lane runs have no claim commit (${[...new Set(unclaimed.map((x) => x.lane))].join(', ')}), so their time and tokens are inferred upper bounds.`);
+  if (unclaimed.length) add('claim', null, `Claim the lane when starting it (set it to running): ${n(unclaimed.length)} of ${n(r.runs.length)} lane runs have no claim commit (${[...new Set(unclaimed.map((x) => x.lane))].join(', ')}), so their time and tokens are inferred upper bounds.`, { unit: 'lane runs', n: unclaimed.length, tokens: unclaimed.reduce((s, x) => s + totalTokens(x.tokens), 0), of: r.runs.length });
 
   const setup = [];
   for (const lane of [...new Set(r.runs.map((x) => x.lane))]) {
@@ -424,10 +430,113 @@ export function renderRecommendations(r) {
   return L;
 }
 
+// ---- The short plan (decisions D19, D20): a view over the numbers above, like an SQL EXPLAIN: one small table of steps, the expensive step marked,
+// at most three fix lines. Tokens only; numbers, lane names, "Phase N" and tool names only.
+
+/** The most fix lines under the short plan table (D19). */
+export const FIX_LINES_MAX = 3;
+/** The rules in the order their fixes are listed (D16): where to run, which model, which effort, waiting, claims. */
+export const RULE_IDS = ['where', 'lighter-model', 'larger-model', 'lower-effort', 'allow-command', 'claim'];
+export const PLAN_HEAD = '| Step | Where | Time | Written | Context at start | Expensive |';
+const PLAN_NOTE = '> Approximate, tokens only: tracks that overlap in time can share messages, other activity on the computer and different machines blur the numbers. Time in brackets is waiting for a person. The full note is under Details.';
+
+/** The rows of the short plan: one per lane run, or per phase when the track has a single lane run (one lane run with no phases is one row). */
+function planRows(r) {
+  const byPhase = r.runs.length === 1 && r.phases.length > 0;
+  const src = byPhase
+    ? r.phases.map((p) => ({ step: p.label, x: p }))
+    : r.runs.map((x) => ({ step: r.runs.filter((o) => o.lane === x.lane).length > 1 ? `${x.lane} (${stamp(x.start)})` : x.lane, x }));
+  const rows = src.map(({ step, x }) => ({
+    step,
+    where: x.responses ? (x.sub.responses * 2 > x.responses ? 'sub-agent' : 'main session') : '-',
+    time: `${fmtMs(x.wallMs)}${x.humanMs > 0 ? ` (${fmtMs(x.humanMs)} human)` : ''}`,
+    written: n(x.tokens.output),
+    context: x.responses && x.firstContext > 0 ? n(x.firstContext) : '-',
+    ctx: x.responses ? x.firstContext : 0,
+    wallMs: x.wallMs,
+    expensive: false,
+  }));
+  if (rows.length > 1) {
+    let best = rows[0];
+    for (const row of rows) if (row.ctx > best.ctx || (row.ctx === best.ctx && row.wallMs > best.wallMs)) best = row;
+    best.expensive = true;
+  }
+  return rows;
+}
+
+const unitsText = (g) => (g.length === 1 ? g[0].unit : g.length <= 3 ? g.map((i) => i.unit).join(', ') : `${g.length} steps`);
+const topOf = (g) => g.reduce((b, i) => (i.n > b.n ? i : b), g[0]);
+/** The fix of one rule as { text, at }: one sentence with its number, and where to change it. `g` is every item the rule produced. */
+function fixOf(id, g) {
+  const top = topOf(g);
+  const more = g.length > 1 ? `, and ${g.length - 1} more lane run${g.length === 2 ? '' : 's'} began over ${n(LONG_CONTEXT)}` : '';
+  switch (id) {
+    case 'where': return { text: `Run the ${top.unit} in a sub-agent or a fresh session: it began with ${n(top.n)} tokens of context${more}.`, at: 'how the lane is started (a sub-agent starts near 50,000 tokens)' };
+    case 'lighter-model': return { text: `Use a model one tier down for ${unitsText(g)}: ${top.n}% of ${n(top.calls)} tool calls were shell, read or file edits and replies were small.`, at: 'the model of that work or of its sub-agent' };
+    case 'larger-model': return { text: `Keep a larger model for ${unitsText(g)}: ${top.big ? `replies averaged ${n(top.n)} tokens written` : `thinking was ${top.n}% of the output`} on the smallest model.`, at: 'the model of that work or of its sub-agent' };
+    case 'lower-effort': return { text: `Use a lower effort for ${unitsText(g)}: ${top.thinking ? `thinking was ${top.n}% of the output` : `effort was high on all ${n(top.n)} replies that record one`} in mechanical work.`, at: 'the effort setting of that work or of its sub-agent' };
+    case 'allow-command': return { text: `Allow the ${top.unit} command that took ${fmtMs(top.ms)}, if it is safe: a wait for a click is included in that time.`, at: 'the permission settings (allowed commands)' };
+    default: return { text: `Set the lane to running when starting it: ${n(top.n)} of ${n(top.of)} lane runs have no claim commit, so their time is an upper bound.`, at: 'the lane start (the Lane Status marker)' };
+  }
+}
+
+/** The rules that fired for a track, one entry per rule id in RULE_IDS order: { id, items } (items are the firings). */
+function firedGroups(r) {
+  const { items } = recommend(r);
+  return RULE_IDS.map((id) => ({ id, items: items.filter((i) => i.rule === id) })).filter((g) => g.items.length);
+}
+
+/** The `## Short plan` section of one track (lines, with a trailing blank). */
+export function shortPlan(r) {
+  const L = ['## Short plan', ''];
+  if (!r.runs.length) { L.push('- No lane run found in the history of this track, so there is nothing to plan yet.', ''); return L; }
+  L.push(PLAN_HEAD, sep(PLAN_HEAD));
+  for (const row of planRows(r)) L.push(`| ${row.step} | ${row.where} | ${row.time} | ${row.written} | ${row.context} | ${row.expensive ? 'expensive' : ''} |`);
+  L.push('', PLAN_NOTE, '');
+  const groups = firedGroups(r).slice(0, FIX_LINES_MAX);
+  if (!groups.length) L.push('- No change suggested: none of the rules fired.');
+  else for (const g of groups) { const f = fixOf(g.id, g.items); L.push(`- ${f.text} Change: ${f.at}.`); }
+  L.push('');
+  return L;
+}
+
+// ---- The facts block (D23): one fenced json block, named recommend-facts, with the rule ids that fired and their numbers. The board reads it, not the prose. ----
+const FACTS_FENCE = 'json recommend-facts';
+const laneOk = (lane) => (typeof lane === 'string' && /^[a-z0-9][a-z0-9-]{0,29}$/.test(lane) ? lane : 'other');
+
+/** { v: 1, rules: [{ id, lane, n, tokens, count }] }: ids, a lane name (or null), whole numbers. No text from any track file or transcript. */
+export function recommendFacts(r) {
+  return {
+    v: 1,
+    rules: firedGroups(r).map((g) => {
+      const top = topOf(g.items);
+      return { id: g.id, lane: g.id === 'allow-command' || g.id === 'claim' ? null : laneOk(top.lane), n: Math.round(top.n), tokens: Math.round(g.items.reduce((s, i) => s + i.tokens, 0)), count: g.items.length };
+    }),
+  };
+}
+
+const wholeNumber = (v) => Number.isInteger(v) && v >= 0;
+/** Reads the recommend-facts block of an explain.md back; null when the file has none (not measured), it is not valid JSON or its version is unknown. Malformed entries are dropped. */
+export function parseRecommendFacts(text) {
+  const m = new RegExp(`^\`\`\`${FACTS_FENCE}\\n([\\s\\S]*?)\\n\`\`\`$`, 'm').exec(String(text));
+  if (!m) return null;
+  let j;
+  try { j = JSON.parse(m[1]); } catch { return null; }
+  if (!j || j.v !== 1 || !Array.isArray(j.rules)) return null;
+  const rules = j.rules
+    .filter((x) => x && RULE_IDS.includes(x.id) && (x.lane === null || (typeof x.lane === 'string' && /^[a-z0-9-]{1,30}$/.test(x.lane))) && wholeNumber(x.n) && wholeNumber(x.tokens) && wholeNumber(x.count))
+    .map((x) => ({ id: x.id, lane: x.lane, n: x.n, tokens: x.tokens, count: x.count }));
+  return { v: 1, rules };
+}
+
+function renderFacts(r) {
+  return ['## Recommend facts', '', 'The numbers the board reads for its recommendations across tracks: rule ids and whole numbers only.', '', `\`\`\`${FACTS_FENCE}`, JSON.stringify(recommendFacts(r)), '```', ''];
+}
+
 /** The markdown of explain.md (the same text is printed). `now` is the generated time; it is the only line that differs between two runs on the same data. */
 export function renderExplain(r, { now = r.generatedAt } = {}) {
   const L = [];
-  L.push(`# Agent run: ${r.track.folder}`, '', ...renderInsight(r), ...renderRecommendations(r), '> Generated by lc-explain.mjs from session transcripts and git; do not edit by hand (it is overwritten on each run). Numbers only: no prompt, message or file content is read into it.', '');
+  L.push(`# Agent run: ${r.track.folder}`, '', ...shortPlan(r), '## Details', '', 'The sections below hold the numbers behind the short plan: the observations, the recommendations with their evidence, the tables per lane run and per phase, and the model use.', '', ...renderInsight(r), ...renderRecommendations(r), '> Generated by lc-explain.mjs from session transcripts and git; do not edit by hand (it is overwritten on each run). Numbers only: no prompt, message or file content is read into it.', '');
   L.push(`Generated: ${now}`);
   const s = r.sources;
   const pl = (k, one, many) => `${k} ${k === 1 ? one : many}`;
@@ -475,7 +584,8 @@ export function renderExplain(r, { now = r.generatedAt } = {}) {
   }
   if (r.runs.length) L.push(...renderModelUse(r));
   L.push('## Outside every lane run', '', `Responses in the scanned sessions of this repository that fall outside every lane window of this track: ${n(r.none.responses)} (${n(r.none.output)} output tokens). Left out as not this track: ${n(r.skipped.otherTrack)} on another track's branch or sub-agent, ${n(r.skipped.outsideRepo)} in another folder.`, '');
-  return `${L.join('\n')}`;
+  L.push(...renderFacts(r));
+  return `${L.join('\n').replace(/\n+$/, '')}`;
 }
 
 // ---- The project statistics: one row per track, built from every track's explain.md (decision D1). ----

@@ -37,6 +37,7 @@ import { parseMarkers } from '../src/markers.mjs';
 import { outcomeCandidate } from '../src/owner-steps.mjs';
 import { parseKpis } from '../src/kpis.mjs';
 import { gatherFacts, classifyFacts, nextCard } from '../src/next.mjs';
+import { rankFromExplains } from '../src/explain-rank.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
 import { MANIFEST_FILE, VERSION_FILE, buildManifest, parseManifest, planPublish, sha256 } from '../src/board-manifest.mjs';
@@ -98,6 +99,7 @@ if (siteDir) {
   let ghUrl = null;
   let projectDocs = [];
   let flow = null;
+  let rec = null;
   const ctxDir = path.join(dir, 'ctx');
   for (const f of await fs.readdir(ctxDir).catch(() => [])) if (/^[a-z-]+\.json$/.test(f)) await fs.rm(path.join(ctxDir, f));
   if (includeDocs) {
@@ -113,6 +115,14 @@ if (siteDir) {
       for (const t of board.tracks) if (!t.archived && t.lane === 'done' && (await readText(path.join(tracksDir, t.folder, 'explain.md'))) !== null) have.add(t.folder);
       texts['statistics.md'] = markUnrecordedStatistics(texts['statistics.md'], board.tracks, have);
     }
+    // Track AM-10155 (D21 to D24): the Agent recommendations drawer, worked out from the facts block of each explain.md (finished tracks included). A file with a secret match is not read.
+    const explains = [];
+    for (const t of board.tracks) {
+      if (t.archived) continue;
+      const text = await readText(path.join(tracksDir, t.folder, 'explain.md'));
+      if (text !== null) explains.push({ number: t.number, text: scanText(text).length ? '' : text });
+    }
+    rec = rankFromExplains(explains);
     flow = workflowFlow(wf);
     if (flow && scanText(JSON.stringify(flow)).length) { process.stderr.write('board: withheld the workflow drawing: possible secret or personal data in lane names; not published\n'); flow = null; }
     // Track AM-10156: the deploy records (conductor/deploys/<env>-<UTC timestamp>.md) make the Deployment tab show what is live and the history.
@@ -182,7 +192,7 @@ if (siteDir) {
       if (r.status === 0 && r.stdout.trim()) { commit = r.stdout.trim(); break; }
     }
   } catch { /* no git: the board has no commit and the page shows the age only */ }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, doneShards, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, commit }))}\n`, 'utf8');
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, doneShards, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow, next, rec, commit }))}\n`, 'utf8');
   // The manifest: a hash of the exact bytes of the page and of every data file, written last so it describes what is on disk.
   const pageBytes = await fs.readFile(page);
   const bytes = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await fs.readFile(path.join(dir, f))])));

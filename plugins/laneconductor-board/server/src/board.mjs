@@ -236,11 +236,14 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   next (only when the next step could be worked out): the What's next panel, { s state id, head, cmd (the exact command, or null when there is nothing to run),
  *           what, why, n track number or null, others [{ n, cmd, w }] (at most 5, ranked), primer [six bullets] }; see src/next.mjs `nextCard`.
  *           Titles and commands only, never document text; it stays when `board.include_docs` is false
+ *   rec (only with project_docs allowed, i.e. `board.include_docs` not false) the Agent recommendations drawer (track AM-10155, D21 to D24), worked out when the board was built by
+ *           src/explain-rank.mjs from the facts block of the explain.md of the last 10 tracks that have one: { state few | quiet | ok, message, measured, not_measured, min, tracks [numbers looked at, newest first],
+ *           actions [{ id, title, count, text, copy }] (at most 3) }. Numbers and fixed texts only, never document text
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
  * @param {{ lanes?: string[], docFolders?: Iterable<string>, doneShards?: Map<string, number> | null, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null, commit?: string | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], doneShards = null, docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null, commit = null } = {}) {
+export function boardPageData(board, { docFolders = [], doneShards = null, docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null, next = null, rec = null, commit = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
@@ -272,6 +275,7 @@ export function boardPageData(board, { docFolders = [], doneShards = null, docsD
     ...(projectDocs.length ? { project_docs: projectDocs.map(({ k, t, f }) => ({ k, t, f })) } : {}),
     ...(projectDocs.length && wf ? { wf } : {}),
     ...(next ? { next } : {}),
+    ...(rec ? { rec: { state: rec.state, message: rec.message, measured: rec.measured, not_measured: rec.notMeasured, min: rec.min, tracks: rec.tracks, actions: rec.actions.map(({ id, title, count, text, copy }) => ({ id, title, count, text, copy })) } } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
 }
