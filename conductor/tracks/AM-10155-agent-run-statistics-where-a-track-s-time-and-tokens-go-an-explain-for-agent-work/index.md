@@ -1,10 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: implement
-**Lane Status**: waiting
-**Waiting Reason**: Task 31: the owner reads the recommendations of two real tracks and says which are useful; thresholds and wording are then adjusted
-**Progress**: 97%
-**Phase**: Phase 8 built and pushed 2026-11-22 (board add-on 1.10.17): Recommendations, the per-phase Path and the cross-track view; explain.md of 10146, 10154 and 10155 regenerated. Left: Task 31, the owner reads two real recommendations (HUMAN).
+**Lane Status**: running
+**Progress**: 80%
+**Phase**: Phase 9 in progress (2026-11-22): a short plan first and recommendations across tracks; tasks 33 to 40. Task 31 (HUMAN) still open.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

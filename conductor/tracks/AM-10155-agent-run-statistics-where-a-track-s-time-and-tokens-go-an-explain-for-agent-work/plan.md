@@ -52,3 +52,13 @@
 - [ ] Task 31 (HUMAN): the owner reads the recommendations of two real tracks, says which are useful, and the thresholds and wording are adjusted
 - [x] Task 32: regenerate this project's explain files and refresh the boards, on the owner's word
 
+## Phase 9: A short plan first, and recommendations across tracks (2026-11-22)
+- [ ] Task 33 (test first): `lc-explain.mjs` writes a short plan at the top of `explain.md`: one table (Step, Where, Time, Written, Context at start, expensive marker) and at most three fix lines with their numbers; the existing sections are unchanged and keep their numbers (D19, D20)
+- [ ] Task 34 (test first): `explain.md` carries a fenced `json` block `recommend-facts` with the rule ids that fired and their numbers, and nothing else (no content; REQ-4) (D23)
+- [ ] Task 35 (test first): the cross-track ranking: window of 10, at least 3 tracks per action, ranked by tracks affected then tokens, "Not enough tracks" and "No change suggested" cases, tracks without the block counted as not measured (D21, D22)
+- [ ] Task 36: the Agent run tab shows the short plan first with the rest folded under "Details"; the compact table style from phase 6 applies (D19)
+- [ ] Task 37: the board's "Agent recommendations" button and drawer: at most three actions, one number each, a Copy button, the list of tracks looked at, the empty and not-enough states (D21, D22, D24)
+- [ ] Task 38: board add-on 1.10.18 (or the next free version), `build-plugin --check`, tests, strict validation; base and parallel plugins unchanged (REQ-7)
+- [ ] Task 39: regenerate this project's explain files and refresh the board, on the owner's word
+- [ ] Task 40 (HUMAN): the owner reads the short plan of one track and the recommendations drawer and says whether it is clear enough to act on
+
