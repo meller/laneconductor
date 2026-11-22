@@ -1,7 +1,7 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Phase 6 done 2026-11-22 (board add-on 1.10.14): the first-response context fix, finished tracks on the board in shards, the post corrected and deployed. Waits for review and the quality gate.
 **Track Kind**: feature
