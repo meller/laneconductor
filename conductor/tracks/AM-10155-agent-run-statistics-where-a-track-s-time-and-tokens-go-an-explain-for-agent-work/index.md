@@ -1,9 +1,9 @@
 # Track AM-10155: Agent run statistics: where a track's time and tokens go (an explain for agent work)
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Quality gate passed 2026-11-22 (959 tests, strict validation, independent recompute of 10154 matches exactly, live post and board data checked). The code is already on main. Not clicked through in a real browser: the owner opens a finished track on the board to see it.
+**Phase**: Shipped 2026-11-22: lc-explain, the Agent run and Statistics tabs and finished tracks on the board, board add-on 1.10.15 are on main (merge mode direct; last commit 093527f6). Quality gate passed, merge recorded.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal

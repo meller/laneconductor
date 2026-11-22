@@ -1,9 +1,9 @@
 # Track AM-10154: Skill pack for analytics, monitoring and logging: the monitoring and logging skills
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Built and deployed 2026-11-21: pack 0.2.0 with three skills (301b9c85); site text live and equal to main. Waits for review and the quality gate.
+**Phase**: Shipped 2026-11-22: the skills cloud-monitoring-as-code and structured-logs-for-alerts and the pack 0.2.0 are on main (merge mode direct; last commit 301b9c85). Quality gate passed, merge recorded.
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
