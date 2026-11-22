@@ -1,8 +1,9 @@
 # Track AM-10156: Deployment in the plugin: what is live, a deploy history and rollback, brought from the earlier version
 
-**Lane**: review
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
+**Verdict**: pass
 **Phase**: All 11 tasks done 2026-11-22: records, status, history, rollback, the Deployment tab, base 1.9.17 pushed, this site deployed with a record and version.json; ready for review.
 **Track Kind**: feature
 **Type**: dev
