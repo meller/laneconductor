@@ -21,4 +21,4 @@ fi
 cd "$dir"
 commit=$(git rev-parse HEAD)
 printf '{"version":"%s","commit":"%s","time":"%s"}\n' "${commit:0:8}" "$commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > landing/version.json
-firebase deploy --only hosting --project laneconductor-site
+(cd landing && firebase deploy --only hosting --project laneconductor-site)
