@@ -63,7 +63,7 @@
 - [ ] Task 40 (HUMAN): the owner reads the short plan of one track and the recommendations drawer and says whether it is clear enough to act on
 
 ## Phase 10: discuss the recommendations, and one window is not credited to many tracks (2026-11-22)
-- [ ] Task 41 (test first): a lane window that is not a claimed running window and overlaps another track's window in the same lane is `not measured (shared window)`: two tracks with one overlapping unclaimed window are both not measured, a single track's window is unchanged, a claimed running window is unchanged; the shared run is left out of totals, statistics and the token rules; run on AM-10130 and AM-10154 with `--no-write` (D26)
-- [ ] Task 42 (test first): the Statistics tab has a **Discuss actions from stats** button at the top that copies a plain prompt (read statistics.md and its Recommendations, say which apply, discuss each, change nothing without a yes; no private path or name) (D25)
-- [ ] Task 43 (test first): the Agent recommendations drawer has a **Discuss all** copy button with the same kind of prompt over the actions shown (D25)
-- [ ] Task 44: board add-on 1.10.20, `build-plugin`, `--check`, tests, strict validation; base and parallel plugins unchanged (REQ-7)
+- [x] Task 41 (test first): a lane window that is not a claimed running window and overlaps another track's window in the same lane is `not measured (shared window)`: two tracks with one overlapping unclaimed window are both not measured, a single track's window is unchanged, a claimed running window is unchanged; the shared run is left out of totals, statistics and the token rules; run on AM-10130 and AM-10154 with `--no-write` (D26)
+- [x] Task 42 (test first): the Statistics tab has a **Discuss actions from stats** button at the top that copies a plain prompt (read statistics.md and its Recommendations, say which apply, discuss each, change nothing without a yes; no private path or name) (D25)
+- [x] Task 43 (test first): the Agent recommendations drawer has a **Discuss all** copy button with the same kind of prompt over the actions shown (D25)
+- [x] Task 44: board add-on 1.10.20, `build-plugin`, `--check`, tests, strict validation; base and parallel plugins unchanged (REQ-7)

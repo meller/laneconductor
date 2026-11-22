@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveTrack } from './tracks.mjs';
-import { readRuns, readPlan, intervalsOfRun } from './explain-boundaries.mjs';
+import { readRuns, readAllRuns, readPlan, intervalsOfRun } from './explain-boundaries.mjs';
 import { collectMessages } from './explain-transcripts.mjs';
 
 // ---- The thresholds of the insight and of the recommendations (decisions D13, D16): constants, to be tuned on more tracks. ----
@@ -138,15 +138,31 @@ export async function analyzeTrack({ repo, track, projectsDir, now = new Date().
   const sinceMs = runs.length ? Math.min(...runs.map((r) => r.start)) : nowMs;
   const found = runs.length ? await collectMessages({ projectsDir, roots, root: rootReal, track: number, sinceMs }) : { messages: [], results: new Map(), skipped: { otherTrack: 0, outsideRepo: 0 }, sessions: [], mainFiles: 0, subFiles: 0 };
 
+  // D26: a window that never ran (the lane status was never `running` in it) and overlaps another track's window in the same lane is shared: its replies cannot be
+  // told apart, so none is credited here. A waiting-only window (human wait, no agent work by D4) has its replies in ANY overlapping window of that lane; an unclaimed
+  // window (inferred agent time) only when the other window is agent time too (unclaimed or running). So of two overlapping windows exactly one can keep the replies:
+  // the unclaimed one beside a waiting-only one.
+  let others = null;
+  const sharedWindow = (run) => {
+    if (run.ran) return false;
+    if (others === null) {
+      const names = fs.readdirSync(tracksDir, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('_') && d.name !== folder).map((d) => d.name);
+      const indexOf = (f) => { try { return fs.readFileSync(path.join(tracksDir, f, 'index.md'), 'utf8'); } catch { return ''; } };
+      others = readAllRuns(repo, names, indexOf, nowMs, workflow).flatMap((x) => x.runs);
+    }
+    const waitingOnly = run.claimed;
+    return others.some((o) => o.lane === run.lane && o.start < run.end && o.end > run.start && (waitingOnly || !o.claimed || o.ran));
+  };
   const perRun = runs.map((run) => {
     const ivs = intervalsOfRun(run, tasks, ticks, { withTasks: run.lane === 'implement' });
-    return { run, ...ivs, bucket: emptyBucket(), ivBuckets: ivs.intervals.map(() => emptyBucket()) };
+    return { run, ...ivs, shared: sharedWindow(run), sharedReplies: 0, bucket: emptyBucket(), ivBuckets: ivs.intervals.map(() => emptyBucket()) };
   });
   const none = { responses: 0, output: 0 };
   for (const m of found.messages) {
     const idx = perRun.findIndex((p) => m.ts >= p.run.start && m.ts < p.run.end);
     if (idx < 0) { none.responses += 1; none.output += m.usage.output; continue; }
     const p = perRun[idx];
+    if (p.shared) { p.sharedReplies += 1; continue; }
     addMessage(p.bucket, m, found.results);
     const j = p.intervals.findIndex((iv) => m.ts >= iv.start && m.ts < iv.end);
     addMessage(p.ivBuckets[j < 0 ? p.intervals.length - 1 : j], m, found.results);
@@ -155,7 +171,7 @@ export async function analyzeTrack({ repo, track, projectsDir, now = new Date().
   const outRuns = perRun.map((p) => {
     const f = finish(p.bucket);
     const wallMs = p.run.end - p.run.start;
-    return { lane: p.run.lane, start: iso(p.run.start), end: iso(p.run.end), claimed: p.run.claimed, open: p.run.open, endState: p.run.endState, wallMs, humanMs: p.humanMs, agentMs: wallMs - p.humanMs, ...f };
+    return { lane: p.run.lane, start: iso(p.run.start), end: iso(p.run.end), claimed: p.run.claimed, shared: p.shared, sharedReplies: p.sharedReplies, open: p.run.open, endState: p.run.endState, wallMs, humanMs: p.humanMs, agentMs: wallMs - p.humanMs, ...f };
   });
 
   // Phases: the implement runs' intervals, summed by the phase of the task that ended each one.
@@ -216,6 +232,8 @@ const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '0%');
 const sum = (rows, k) => rows.reduce((s, r) => s + r[k], 0);
 const toolCount = (tools) => Object.values(tools).reduce((s, v) => s + v, 0);
 
+/** The Responses cell of a lane run whose window is shared with other tracks (D26); the other token cells hold a dash, so every reader of the table reads zero. */
+export const SHARED_CELL = 'not measured (shared window)';
 export const RUN_HEAD = '| Lane | Start (UTC) | End (UTC) | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls | Sub-agent share |';
 export const PHASE_HEAD = '| Phase | Wall | Agent | Human | Responses | Output | Fresh input | Cache created | Cache read | Tool calls | Sub-agent share |';
 const sep = (head) => `|${head.split('|').slice(1, -1).map(() => ' --- |').join('')}`;
@@ -230,7 +248,7 @@ const pctOf = (a, b) => (b ? Math.round((100 * a) / b) : 0);
 const biggest = (rows, key) => rows.reduce((best, r) => (r[key] > best[key] ? r : best), rows[0]);
 
 /** The shared test of the insight and of the recommendations: a lane run that began in a long main session with few sub-agent replies. */
-export const longMainSession = (x) => Boolean(x.responses) && x.firstContext >= LONG_CONTEXT && pctOf(x.sub.responses, x.responses) < LOW_SUB_SHARE;
+export const longMainSession = (x) => !x.shared && Boolean(x.responses) && x.firstContext >= LONG_CONTEXT && pctOf(x.sub.responses, x.responses) < LOW_SUB_SHARE;
 
 /** The `## Insight` section of one track (lines, no trailing blank). */
 export function renderInsight(r) {
@@ -271,6 +289,8 @@ export function renderInsight(r) {
   }
   L.push('', '**What to look at**', '');
   const look = [];
+  const sharedRuns = runs.filter((x) => x.shared);
+  if (sharedRuns.length) look.push(`- ${plural(sharedRuns.length, 'lane run shares', 'lane runs share')} ${sharedRuns.length === 1 ? 'its' : 'their'} window with other tracks in the same lane (${sharedRuns.map((x) => x.lane).join(', ')}): ${n(sum(sharedRuns, 'sharedReplies'))} replies are not credited to this track, so ${sharedRuns.length === 1 ? 'its' : 'their'} tokens are ${SHARED_CELL}.`);
   for (const x of runs) {
     const share = pctOf(x.sub.responses, x.responses);
     if (longMainSession(x)) look.push(`- The ${x.lane} run starting ${stamp(x.start)} began with ${n(x.firstContext)} tokens of context in the main session and only ${share}% of its replies came from sub-agents: a sub-agent or a fresh session may do the long work with less context.`);
@@ -344,7 +364,7 @@ const dominantEffort = (efforts) => {
 function unitsOf(r) {
   const units = [];
   const hasPhases = r.phases.length > 0;
-  for (const x of r.runs) if (!(x.lane === 'implement' && hasPhases)) units.push({ lane: x.lane, name: `${x.lane} run starting ${stamp(x.start)}`, ...x, output: x.tokens.output });
+  for (const x of r.runs) if (!x.shared && !(x.lane === 'implement' && hasPhases)) units.push({ lane: x.lane, name: `${x.lane} run starting ${stamp(x.start)}`, ...x, output: x.tokens.output });
   for (const p of r.phases) units.push({ lane: 'implement', name: p.label, ...p, output: p.tokens.output });
   return units;
 }
@@ -450,18 +470,20 @@ function planRows(r) {
     : r.runs.map((x) => ({ step: r.runs.filter((o) => o.lane === x.lane).length > 1 ? `${x.lane} (${stamp(x.start)})` : x.lane, x }));
   const rows = src.map(({ step, x }) => ({
     step,
-    where: x.responses ? (x.sub.responses * 2 > x.responses ? 'sub-agent' : 'main session') : '-',
+    where: x.responses && !x.shared ? (x.sub.responses * 2 > x.responses ? 'sub-agent' : 'main session') : '-',
     time: `${fmtMs(x.wallMs)}${x.humanMs > 0 ? ` (${fmtMs(x.humanMs)} human)` : ''}`,
-    written: n(x.tokens.output),
-    context: x.responses && x.firstContext > 0 ? n(x.firstContext) : '-',
-    ctx: x.responses ? x.firstContext : 0,
+    written: x.shared ? 'not measured' : n(x.tokens.output),
+    context: x.responses && !x.shared && x.firstContext > 0 ? n(x.firstContext) : '-',
+    ctx: x.responses && !x.shared ? x.firstContext : 0,
+    shared: Boolean(x.shared),
     wallMs: x.wallMs,
     expensive: false,
   }));
   if (rows.length > 1) {
-    let best = rows[0];
-    for (const row of rows) if (row.ctx > best.ctx || (row.ctx === best.ctx && row.wallMs > best.wallMs)) best = row;
-    best.expensive = true;
+    const cand = rows.filter((row) => !row.shared);
+    let best = cand[0];
+    for (const row of cand) if (row.ctx > best.ctx || (row.ctx === best.ctx && row.wallMs > best.wallMs)) best = row;
+    if (best && cand.length > 1) best.expensive = true;
   }
   return rows;
 }
@@ -551,9 +573,11 @@ export function renderExplain(r, { now = r.generatedAt } = {}) {
     L.push(RUN_HEAD, sep(RUN_HEAD));
     for (const x of r.runs) {
       const share = x.responses ? `${pct(x.sub.responses, x.responses)} of responses, ${pct(x.sub.output, x.tokens.output)} of output` : '0%';
-      const lane = `${x.lane}${x.claimed ? '' : ' (no claim commit)'}${x.open ? ' (still running)' : ''}`;
+      const lane = `${x.lane}${x.claimed ? '' : ' (no claim commit)'}${x.open ? ' (still running)' : ''}${x.shared ? ' (shared window)' : ''}`;
+      if (x.shared) { L.push(`| ${lane} | ${stamp(x.start)} | ${stamp(x.end)} | ${fmtMs(x.wallMs)} | ${fmtMs(x.agentMs)} | ${fmtMs(x.humanMs)} | ${SHARED_CELL} | - | - | - | - | - | - |`); continue; }
       L.push(`| ${lane} | ${stamp(x.start)} | ${stamp(x.end)} | ${fmtMs(x.wallMs)} | ${fmtMs(x.agentMs)} | ${fmtMs(x.humanMs)} | ${n(x.responses)} | ${n(x.tokens.output)} | ${n(x.tokens.fresh)} | ${n(x.tokens.cacheCreated)} | ${n(x.tokens.cacheRead)} | ${n(toolCount(x.tools))} | ${share} |`);
     }
+    if (r.runs.some((x) => x.shared)) L.push('', `"shared window" marks a lane run that was not claimed as running and whose window overlaps another track's window in the same lane: the replies of that window cannot be told apart, so none is credited to this track (${n(sum(r.runs.filter((x) => x.shared), 'sharedReplies'))} replies left out). Its time is shown; its tokens are ${SHARED_CELL} and are left out of every total.`);
     if (r.runs.some((x) => !x.claimed || x.open)) L.push('', '"no claim commit" marks a lane that moved on without ever being set to running: its window runs from the moment the lane was next in line (queue, or the previous lane done) to the next state change, so it includes any wait in the queue and, in a session shared with other tracks, other tracks\' messages. "still running" marks a lane whose status was never closed. Treat both as upper bounds; the Statistics tab keeps them in separate rows from claimed runs.');
     L.push('', 'Tokens are shown apart: output is what the model wrote, fresh input is what it read without the cache, cache created is context stored for reuse, cache read is stored context read again (large and cheap). A response is one model reply; its tokens are counted once even though the transcript writes one line per content block.', '');
   }
@@ -569,7 +593,7 @@ export function renderExplain(r, { now = r.generatedAt } = {}) {
   }
   for (const x of r.runs) {
     const tools = Object.entries(x.tools);
-    if (!tools.length && !x.slowest.length && !x.responses) continue;
+    if (x.shared || (!tools.length && !x.slowest.length && !x.responses)) continue;
     L.push(`## Detail: ${x.lane} run starting ${stamp(x.start)}`, '');
     L.push(`- Tool calls by kind: ${tools.length ? tools.slice(0, 12).map(([k, v]) => `${k} ${v}`).join(', ') + (tools.length > 12 ? `, and ${tools.length - 12} more kinds` : '') : 'none'}`);
     L.push(`- Files read more than once: ${x.repeatedReads} repeated read${x.repeatedReads === 1 ? '' : 's'}`);

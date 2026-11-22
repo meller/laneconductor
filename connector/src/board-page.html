@@ -1389,6 +1389,7 @@ td .act { border-top: 0; padding-top: 0; }
     var b = setBody();
     if (key === 'workflow') drawFlow(b);
     if (key === 'deployment') drawDeployButtons(b, doc.deploys);
+    if (key === 'statistics') discussButton(b, STATS_DISCUSS, 'Discuss actions from stats', 'Copy a prompt that asks Claude to read the statistics recommendations and discuss them with you');
     if (doc.withheld) {
       var w = el('div', 'notice'); w.appendChild(el('div', null, 'withheld: ' + doc.withheld));
       w.appendChild(el('div', 'hint', 'This file is not published on this board; read it in the repository.')); b.appendChild(w);
@@ -1565,6 +1566,16 @@ td .act { border-top: 0; padding-top: 0; }
         .map(function (a) { return { title: a.title, text: a.text, copy: a.copy }; }),
     };
   })();
+  // D25: a Discuss button only copies a plain prompt (no model call, nothing is sent): the agent says which actions apply, discusses each, and changes nothing without a yes.
+  var DISCUSS_TAIL = 'Please say which of the recommended actions apply to this project, and discuss each one with me before changing anything. Do not change any file, setting or lane text until I say yes to that specific action.';
+  var STATS_DISCUSS = 'Please read conductor/statistics.md, especially its Recommendations section. ' + DISCUSS_TAIL;
+  function discussButton(host, prompt, label, title) {
+    var row = el('div', 'act'), inner = el('div', 'actrow'), note = el('span', 'copied'), code = el('code', 'sr', prompt);
+    note.setAttribute('role', 'status'); code.setAttribute('aria-hidden', 'true');
+    var bt = el('button', 'copy', label); bt.type = 'button'; bt.setAttribute('title', title); bt.setAttribute('aria-label', title);
+    bt.addEventListener('click', function (e) { e.stopPropagation(); copyText(prompt, code, note, 'Copied the prompt'); });
+    inner.appendChild(code); inner.appendChild(bt); inner.appendChild(note); row.appendChild(inner); host.appendChild(row); bodyLinks.push(bt);
+  }
   function drawRec(b) {
     var box = el('div', 'rc'), ids = RC.tracks.map(function (n) { var t = trackByNumber(n); return t ? idOf(t) : 'Track ' + n; });
     if (RC.state === 'ok') {
@@ -1577,6 +1588,8 @@ td .act { border-top: 0; padding-top: 0; }
         cb.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.copy, code, note); });
         row.appendChild(code); row.appendChild(cb); row.appendChild(note); li.appendChild(row); list.appendChild(li); bodyLinks.push(cb);
       });
+      var all = RC.actions.map(function (a, i) { return (i + 1) + '. ' + a.copy; }).join(' ');
+      discussButton(box, 'Here are the actions the Agent recommendations of this board suggest from the last ' + RC.tracks.length + ' tracks: ' + all + ' ' + DISCUSS_TAIL, 'Discuss all', 'Copy a prompt that lists these actions and asks Claude to discuss them with you');
       box.appendChild(list);
     } else {
       var n = el('div', 'notice plain'); n.appendChild(el('div', null, RC.message));

@@ -253,3 +253,85 @@ test('TC-30: a rec that is malformed in board.json never breaks the page (no but
   assert.ok(ids['d-body'].textContent.includes('<b>Title</b>'), 'text only, never markup');
   ids['d-close'].onclick();
 });
+
+// ---- TC-32, TC-33 (D25): Discuss buttons only copy a plain prompt ----
+const PRIVATE = /\/home\/|\/Users\/|[A-Za-z]:\\|meller|@|sk-ant/;
+const discussNeedles = (prompt) => {
+  assert.match(prompt, /conductor\/statistics\.md/, 'names the file');
+  assert.match(prompt, /Recommendations/, 'and the section');
+  assert.match(prompt, /which of the recommended actions apply to this project/i);
+  assert.match(prompt, /discuss each/i);
+  assert.match(prompt, /until I say yes/i, 'nothing is applied without a yes');
+  assert.ok(!PRIVATE.test(prompt), 'no private path, name or address');
+  assert.ok(!prompt.includes('/laneconductor:'), 'a plain prompt, no command of ours');
+};
+
+test('TC-32: the Statistics tab has a "Discuss actions from stats" button at the top that copies a plain prompt and sends nothing', async () => {
+  const repo = fixture([[901, 'implement', 'running', claim]]);
+  writeFile(repo, 'conductor/statistics.md', '# Agent run statistics\n\n## Recommendations\n\n- Lane runs with no claim commit: 1 of 1.\n');
+  const { dir } = site(repo);
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  let fetched = [];
+  const base = stub(dir);
+  const spy = async (u) => { fetched.push(u); return base(u); };
+  try {
+    const ids = await runPage(spy);
+    ids['proj-btn'].handlers.click();
+    await flush();
+    ids['d-tabs'].children.find((b) => b._text === 'Statistics').onclick();
+    await flush();
+    const body = ids['d-body'];
+    const btns = all(body, (x) => x.tag === 'button' && x._text === 'Discuss actions from stats');
+    assert.equal(btns.length, 1);
+    assert.ok(all(body.children[0], (x) => x === btns[0]).length === 1, 'the button is the first thing in the tab, above the document');
+    fetched = [];
+    btns[0].handlers.click({ stopPropagation() {} });
+    assert.equal(written.length, 1);
+    discussNeedles(written[0]);
+    assert.deepEqual(fetched, [], 'copying calls nothing: no fetch, no model');
+    await flush();
+    assert.match(all(body, cls('copied'))[0].textContent, /Copied/);
+    ids['d-close'].onclick();
+  } finally { unstub(); }
+});
+
+test('TC-32: other Project tabs have no Discuss button', async () => {
+  const repo = fixture([[901, 'implement', 'running', claim]]);
+  writeFile(repo, 'conductor/statistics.md', '# Agent run statistics\n');
+  writeFile(repo, 'conductor/product.md', '# Product\n');
+  const { dir } = site(repo);
+  const ids = await runPage(stub(dir));
+  ids['proj-btn'].handlers.click();
+  await flush();
+  assert.equal(all(ids['d-body'], (x) => x.tag === 'button' && /Discuss/.test(x._text)).length, 0);
+  ids['d-close'].onclick();
+});
+
+test('TC-33: the Agent recommendations drawer has a "Discuss all" button that copies a prompt over the actions shown; the other states have none', async () => {
+  const { dir } = ten();
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  try {
+    const ids = await runPage(stub(dir));
+    ids['rec-btn'].handlers.click();
+    const btns = all(ids['d-body'], (x) => x.tag === 'button' && x._text === 'Discuss all');
+    assert.equal(btns.length, 1);
+    btns[0].handlers.click({ stopPropagation() {} });
+    assert.equal(written.length, 1);
+    const prompt = written[0];
+    assert.match(prompt, /claim commit/, 'it carries the shown actions');
+    assert.match(prompt, /sub-agent or a fresh session/);
+    assert.match(prompt, /which of the recommended actions apply to this project/i);
+    assert.match(prompt, /discuss each/i);
+    assert.match(prompt, /until I say yes/i);
+    assert.ok(!PRIVATE.test(prompt));
+    assert.equal(all(ids['d-body'], (x) => x.tag === 'button' && x._text === 'Copy').length, 2, 'the Copy of each action is still there');
+    ids['d-close'].onclick();
+  } finally { unstub(); }
+  const few = site(fixture([[901, 'implement', 'running', claim]]));
+  const ids2 = await runPage(stub(few.dir));
+  ids2['rec-btn'].handlers.click();
+  assert.equal(all(ids2['d-body'], (x) => x.tag === 'button' && /Discuss/.test(x._text)).length, 0);
+  ids2['d-close'].onclick();
+});

@@ -76,7 +76,7 @@ export function laneFlow(workflowText) {
 
 /**
  * Cuts the state timeline into lane runs.
- * A run is { lane, start, end, claimed, open, endState, waiting: [[from, to]] }.
+ * A run is { lane, start, end, claimed, ran, open, endState, waiting: [[from, to]] }; `ran` is true when the lane status was `running` in it (a claimed running window, D26).
  * A claimed run starts at `Lane Status: running` and ends at the next state that is not running or waiting in the same lane.
  * Many tracks move on with no claim commit; then the lane whose turn it was (`queue` of a lane, or the lane after a `success`, the
  * "pending" lane) is taken to have run from the moment it became pending to the next state change: `claimed: false`, so the table says
@@ -93,16 +93,16 @@ export function lanesFromStates(states, now, flow = laneFlow(null)) {
   for (const s of states) {
     if (cur && s.lane === cur.lane && WORKING.has(s.status)) {
       if (s.status === 'waiting' && wFrom === null) wFrom = s.t;
-      if (s.status === 'running') closeWaiting(s.t);
+      if (s.status === 'running') { closeWaiting(s.t); cur.ran = true; }
       continue;
     }
     if (cur) finish(s.t, `${s.lane}:${s.status}`);
     else if (pending && !(WORKING.has(s.status) && s.lane === pending.lane) && !(s.status === 'queue' && s.lane === pending.lane)) {
-      if (known(pending.lane) && s.t > pending.t) runs.push({ lane: pending.lane, start: pending.t, end: s.t, claimed: false, open: false, endState: `${s.lane}:${s.status}`, waiting: [] });
+      if (known(pending.lane) && s.t > pending.t) runs.push({ lane: pending.lane, start: pending.t, end: s.t, claimed: false, ran: false, open: false, endState: `${s.lane}:${s.status}`, waiting: [] });
     }
     pending = null;
     if (WORKING.has(s.status)) {
-      cur = { lane: s.lane, start: s.t, end: null, claimed: true, open: false, endState: null, waiting: [] };
+      cur = { lane: s.lane, start: s.t, end: null, claimed: true, ran: s.status === 'running', open: false, endState: null, waiting: [] };
       wFrom = s.status === 'waiting' ? s.t : null;
     } else if (s.status === 'queue') pending = { lane: s.lane, t: s.t };
     else if (s.status === 'success' || s.status === 'failure') { const nx = s.status === 'success' ? flow.next(s.lane) : s.lane; if (nx) pending = { lane: nx, t: s.t }; }
@@ -189,6 +189,35 @@ export function readRuns(repo, folder, indexText, now, workflowText = null) {
   const last = states[states.length - 1];
   if (cur.lane && cur.status && (!last || last.lane !== cur.lane || last.status !== cur.status)) states.push({ t: now, lane: cur.lane, status: cur.status });
   return lanesFromStates(states, now, laneFlow(workflowText));
+}
+
+/**
+ * The lane runs of every track in `folders` in ONE git pass over the history of all index.md files (D26 needs every other track's windows, and one
+ * `git log` per track would take half a minute). Same result as `readRuns` per folder. `indexOf(folder)` gives the working copy text.
+ * @returns {{ folder: string, runs: object[] }[]}
+ */
+export function readAllRuns(repo, folders, indexOf, now, workflowText = null) {
+  const out = gitOut(repo, ['log', '--all', '--no-color', '--unified=0', '--format=%x01%H%x09%cI', '--', 'conductor/tracks/*/index.md']);
+  const byFolder = new Map(folders.map((f) => [f, []]));
+  for (const block of out.split('\x01').slice(1)) {
+    const lines = block.split('\n');
+    const t = Date.parse(lines[0].split('\t')[1]);
+    if (Number.isNaN(t)) continue;
+    let target = null;
+    for (const l of lines.slice(1)) {
+      const d = /^diff --git a\/conductor\/tracks\/([^/]+)\/index\.md /.exec(l);
+      if (d) { target = byFolder.has(d[1]) ? { t, added: [] } : null; if (target) byFolder.get(d[1]).push(target); continue; }
+      if (target && l.startsWith('+') && !l.startsWith('+++')) target.added.push(l);
+    }
+  }
+  const flow = laneFlow(workflowText);
+  return folders.map((folder) => {
+    const states = statesFromCommits(byFolder.get(folder).sort((a, b) => a.t - b.t));
+    const cur = markersOf(indexOf(folder));
+    const last = states[states.length - 1];
+    if (cur.lane && cur.status && (!last || last.lane !== cur.lane || last.status !== cur.status)) states.push({ t: now, lane: cur.lane, status: cur.status });
+    return { folder, runs: lanesFromStates(states, now, flow) };
+  });
 }
 
 /** The plan's tasks (from the working copy) and when each was ticked (from git). */
