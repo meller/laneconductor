@@ -186,10 +186,14 @@ const reasonOf = (hits) => `possible secret or personal data (${pluralMatches(hi
 
 /**
  * The tab list and the ctx files of the project definition.
- * @param {{ texts: Record<string, string|null|undefined>, hasFlow?: boolean }} a `texts`: file text by path relative to conductor/ (`product.md`, `code_styleguides/javascript.md`); `hasFlow`: workflow.json gave lanes to draw (the Workflow tab exists even with no workflow.md)
+ * @param {{ texts: Record<string, string|null|undefined>, hasFlow?: boolean, deploys?: { md: string, envs: string[] } | null }} a
+ *   `texts`: file text by path relative to conductor/ (`product.md`, `code_styleguides/javascript.md`); `hasFlow`: workflow.json gave lanes to
+ *   draw (the Workflow tab exists even with no workflow.md); `deploys` (track AM-10156): the deploy records as Markdown and their environment
+ *   names (deploysForBoard in deploys.mjs, scanned record by record). With it the Deployment tab exists even with no deployment-stack.md, shows
+ *   the records first, and the tab doc gets `deploys` (the environment names, for the Copy buttons).
  * @returns {{ tabs: { k: string, t: string, f: string }[], ctx: { name: string, doc: object }[], withheld: { file: string, matches: number, lines: number[] }[] }}
  */
-export function buildProjectDocs({ texts = {}, hasFlow = false } = {}) {
+export function buildProjectDocs({ texts = {}, hasFlow = false, deploys = null } = {}) {
   const tabs = [];
   const ctx = [];
   const withheld = [];
@@ -197,7 +201,8 @@ export function buildProjectDocs({ texts = {}, hasFlow = false } = {}) {
     const names = [...tab.files];
     if (tab.dir) names.push(...Object.keys(texts).filter((n) => n.startsWith(`${tab.dir}/`) && /\.md$/i.test(n)).sort().slice(0, MAX_STYLEGUIDES));
     const real = names.filter((n) => typeof texts[n] === 'string' && !isPlaceholderOnly(texts[n]));
-    if (!real.length && !(tab.k === 'workflow' && hasFlow)) continue;
+    const recs = tab.k === 'deployment' && deploys && deploys.md ? deploys : null;
+    if (!real.length && !(tab.k === 'workflow' && hasFlow) && !recs) continue;
     const parts = real.map((n) => {
       const hits = scanText(texts[n]);
       if (hits.length) withheld.push({ file: n, matches: hits.length, lines: [...new Set(hits.map((h) => h.line))].slice(0, 10) });
@@ -213,6 +218,12 @@ export function buildProjectDocs({ texts = {}, hasFlow = false } = {}) {
       doc.md = capText(parts.map((p) => `## ${p.n.replace(/^.*\//, '')}\n\n${p.hits.length ? `*withheld: ${reasonOf(p.hits)}; read it in the repository.*` : p.text.trim()}\n`).join('\n'));
     } else {
       doc.md = ''; // the Workflow tab with only a drawing
+    }
+    if (recs) {
+      // The records come first (what is live); a stack file that was withheld is named after them, never hiding them.
+      doc.md = `${recs.md}${doc.withheld ? `\n*withheld: ${doc.withheld}; read deployment-stack.md in the repository.*\n` : doc.md ? `\n${doc.md}` : ''}`;
+      delete doc.withheld;
+      doc.deploys = recs.envs;
     }
     tabs.push({ k: tab.k, t: tab.t, f: `ctx/${tab.k}.json` });
     ctx.push({ name: `ctx/${tab.k}.json`, doc });

@@ -1703,3 +1703,50 @@ test('detail: a table of four or more columns with short cells is drawn compact 
   const css = fs.readFileSync(PAGE, 'utf8');
   assert.match(css, /\.md \.mdtable\.compact th, \.md \.mdtable\.compact td \{[^}]*white-space: nowrap/);
 });
+
+// ---- Track AM-10156: the Deployment tab shows the live version and history (markdown from the build) and a Copy button per next step
+test('Deployment tab: the live version and history are drawn, and each environment has Copy buttons for status, deploy and rollback with plain-text prompts', async () => {
+  const md = '# Deploys\n\n## prod (production)\n\nLive: version 1.1.0, deployed 2026-11-21T10:00:00Z, success, commit bbbbbbb, approved by ana.\n\n| Time | Version | Commit | Result | Approved by | Live |\n| --- | --- | --- | --- | --- | --- |\n| 2026-11-21T10:00:00Z | 1.1.0 | bbbbbbb | success | ana | live |\n| 2026-11-20T10:00:00Z | 1.0.0 | aaaaaaa | success | ana |  |\n\n## staging\n\nLive: nothing is recorded as live (no successful deploy).\n';
+  const data = { ...(await (await serve(dataFor())()).json()), project_docs: [{ k: 'deployment', t: 'Deployment', f: 'ctx/deployment.json' }] };
+  const written = [];
+  stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
+  try {
+    const ids = await runPage(ctxStub(data, { 'ctx/deployment.json': { md, deploys: ['prod', 'staging', '../x', 'A b', 5] } }));
+    projBtn(ids).handlers.click();
+    await flush();
+    const body = ids['d-body'];
+    assert.ok(body.textContent.includes('Live: version 1.1.0'), 'the live version');
+    assert.ok(body.textContent.includes('1.0.0') && body.textContent.includes('aaaaaaa'), 'the history');
+    assert.equal(all(body, (x) => x.tag === 'table').length, 1, 'the history is a table');
+    const btns = all(body, cls('copy'));
+    assert.deepEqual(btns.map((b) => b._text), ['Copy status prompt', 'Copy deploy prompt', 'Copy rollback prompt', 'Copy status prompt', 'Copy deploy prompt', 'Copy rollback prompt'], 'three per environment; an environment name that is not safe gets none');
+    assert.equal(btns[0].attrs['aria-label'], 'Copy a prompt that asks Claude to run deploy status for prod');
+    const click = (b) => b.handlers.click(fakeEv('x'));
+    click(btns[0]); click(btns[1]); click(btns[2]); click(btns[5]);
+    assert.equal(written.length, 4);
+    assert.match(written[0], /^Please run \/laneconductor:deploy status prod /);
+    assert.match(written[0], /It only reads: change no file and deploy nothing\.$/);
+    assert.match(written[1], /^Please run \/laneconductor:deploy prod: /);
+    assert.match(written[1], /run nothing until I say yes naming the environment and the command\.$/);
+    assert.match(written[2], /^Please run \/laneconductor:deploy rollback prod: list the versions deployed, ask me which one/);
+    assert.match(written[2], /run nothing until I say yes naming the environment, the version and the command\.$/);
+    assert.match(written[3], /deploy rollback staging:/);
+    for (const w of written) assert.ok(!/1\.1\.0|bbbbbbb|\bana\b|\/home\/|\/Users\//.test(w), 'no version, commit, name or path from a record in a prompt');
+    await flush();
+    assert.equal(all(body, cls('copied'))[0].textContent, 'Copied the rollback prompt', 'the note of the last prompt copied in that row');
+  } finally { unstub(); }
+});
+
+test('Deployment tab: other tabs have no deploy buttons, and a ctx file with no deploys list shows the text only', async () => {
+  const data = { ...(await (await serve(dataFor())()).json()), project_docs: [{ k: 'deployment', t: 'Deployment', f: 'ctx/deployment.json' }, { k: 'kpis', t: 'KPIs', f: 'ctx/kpis.json' }] };
+  const ids = await runPage(ctxStub(data, { 'ctx/deployment.json': { md: '# Deployment\n\nShips from main.\n' } }));
+  projBtn(ids).handlers.click();
+  await flush();
+  assert.equal(all(ids['d-body'], cls('copy')).length, 0);
+  assert.ok(ids['d-body'].textContent.includes('Ships from main.'));
+  tabBy(ids, 'KPIs').onclick();
+  await flush();
+  assert.equal(all(ids['d-body'], cls('copy')).length, 0);
+  const html = fs.readFileSync(PAGE, 'utf8');
+  assert.ok(!/\bprompt\(/.test(html), 'the page never calls prompt(');
+});
