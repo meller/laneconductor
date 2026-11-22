@@ -440,11 +440,13 @@ export const RULE_IDS = ['where', 'lighter-model', 'larger-model', 'lower-effort
 export const PLAN_HEAD = '| Step | Where | Time | Written | Context at start | Expensive |';
 const PLAN_NOTE = '> Approximate, tokens only: tracks that overlap in time can share messages, other activity on the computer and different machines blur the numbers. Time in brackets is waiting for a person. The full note is under Details.';
 
+/** A Step label longer than this is cut: the board draws a table whose cells are all short as a compact one (no wrapping, D19). */
+const STEP_MAX = 36;
 /** The rows of the short plan: one per lane run, or per phase when the track has a single lane run (one lane run with no phases is one row). */
 function planRows(r) {
   const byPhase = r.runs.length === 1 && r.phases.length > 0;
   const src = byPhase
-    ? r.phases.map((p) => ({ step: p.label, x: p }))
+    ? r.phases.map((p) => ({ step: p.label.length > STEP_MAX ? `${p.label.slice(0, STEP_MAX - 3).trimEnd()}...` : p.label, x: p }))
     : r.runs.map((x) => ({ step: r.runs.filter((o) => o.lane === x.lane).length > 1 ? `${x.lane} (${stamp(x.start)})` : x.lane, x }));
   const rows = src.map(({ step, x }) => ({
     step,
@@ -464,7 +466,8 @@ function planRows(r) {
   return rows;
 }
 
-const unitsText = (g) => (g.length === 1 ? g[0].unit : g.length <= 3 ? g.map((i) => i.unit).join(', ') : `${g.length} steps`);
+/** The unit a fix is about: the one with the largest number, and how many more of the same kind there are. The numbers in a fix line are the top unit's, so only it is named. */
+const subjectOf = (g) => { const t = topOf(g); return g.length === 1 ? t.unit : `${t.unit} and ${g.length - 1} more ${g.length === 2 ? 'step' : 'steps'}`; };
 const topOf = (g) => g.reduce((b, i) => (i.n > b.n ? i : b), g[0]);
 /** The fix of one rule as { text, at }: one sentence with its number, and where to change it. `g` is every item the rule produced. */
 function fixOf(id, g) {
@@ -472,9 +475,9 @@ function fixOf(id, g) {
   const more = g.length > 1 ? `, and ${g.length - 1} more lane run${g.length === 2 ? '' : 's'} began over ${n(LONG_CONTEXT)}` : '';
   switch (id) {
     case 'where': return { text: `Run the ${top.unit} in a sub-agent or a fresh session: it began with ${n(top.n)} tokens of context${more}.`, at: 'how the lane is started (a sub-agent starts near 50,000 tokens)' };
-    case 'lighter-model': return { text: `Use a model one tier down for ${unitsText(g)}: ${top.n}% of ${n(top.calls)} tool calls were shell, read or file edits and replies were small.`, at: 'the model of that work or of its sub-agent' };
-    case 'larger-model': return { text: `Keep a larger model for ${unitsText(g)}: ${top.big ? `replies averaged ${n(top.n)} tokens written` : `thinking was ${top.n}% of the output`} on the smallest model.`, at: 'the model of that work or of its sub-agent' };
-    case 'lower-effort': return { text: `Use a lower effort for ${unitsText(g)}: ${top.thinking ? `thinking was ${top.n}% of the output` : `effort was high on all ${n(top.n)} replies that record one`} in mechanical work.`, at: 'the effort setting of that work or of its sub-agent' };
+    case 'lighter-model': return { text: `Use a model one tier down for ${subjectOf(g)}: ${top.n}% of ${n(top.calls)} tool calls${g.length > 1 ? ` in ${top.unit}` : ''} were shell, read or file edits and replies were small.`, at: 'the model of that work or of its sub-agent' };
+    case 'larger-model': return { text: `Keep a larger model for ${subjectOf(g)}: ${top.big ? `replies averaged ${n(top.n)} tokens written` : `thinking was ${top.n}% of the output`}${g.length > 1 ? ` in ${top.unit}` : ''} on the smallest model.`, at: 'the model of that work or of its sub-agent' };
+    case 'lower-effort': return { text: `Use a lower effort for ${subjectOf(g)}: ${top.thinking ? `thinking was ${top.n}% of the output` : `effort was high on all ${n(top.n)} replies that record one`}${g.length > 1 ? ` in ${top.unit}` : ''}, in mechanical work.`, at: 'the effort setting of that work or of its sub-agent' };
     case 'allow-command': return { text: `Allow the ${top.unit} command that took ${fmtMs(top.ms)}, if it is safe: a wait for a click is included in that time.`, at: 'the permission settings (allowed commands)' };
     default: return { text: `Set the lane to running when starting it: ${n(top.n)} of ${n(top.of)} lane runs have no claim commit, so their time is an upper bound.`, at: 'the lane start (the Lane Status marker)' };
   }

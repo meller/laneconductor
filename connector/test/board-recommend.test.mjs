@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { makeRepo, writeFile, rm, INDEX } from './helpers/repo.mjs';
+import { renderExplain } from '../src/explain.mjs';
 import { runPage, flush, restorePage, stubGlobal, unstub, all, cls, PAGE } from './helpers/page-dom.mjs';
 
 const BOARD = new URL('../bin/lc-board.mjs', import.meta.url).pathname;
@@ -141,6 +142,28 @@ test('TC-30: the Agent run tab opens on the short plan: the table, the fix line 
   toggle.handlers.click({ stopPropagation() {} });
   assert.equal(details.hidden, true);
   assert.match(toggle._text, /Show details/);
+  ids['d-close'].onclick();
+});
+
+test('TC-30: the short plan table of a real explain.md is drawn compact (no wrapping), even with a long phase title, and the Insight is folded', async () => {
+  const run = { lane: 'implement', start: '2026-11-20T10:00:00.000Z', end: '2026-11-20T11:00:00.000Z', claimed: true, open: false, endState: 'success', wallMs: 3600000, humanMs: 600000, agentMs: 3000000, responses: 20, tokens: { output: 2000, fresh: 20, cacheCreated: 4000, cacheRead: 600000 }, tools: { Read: 4, Bash: 3 }, sub: { responses: 0, output: 0 }, firstContext: 100000, subStarts: [], repeatedReads: 0, slowest: [], gapsOver30: 0, asks: { count: 0, ms: 0 }, models: { m: 20 }, efforts: { medium: 20 }, thinking: { tokens: 0, recorded: 0, output: 0 }, path: '' };
+  const ph = (k, label) => ({ label, key: `Phase ${k}`, tasks: 1, wallMs: 1800000, humanMs: 0, agentMs: 1800000, responses: 10, tokens: { output: 1000, fresh: 1, cacheCreated: 1, cacheRead: 1 }, tools: { Read: 4 }, sub: { responses: 0, output: 0 }, firstContext: 40000 * k, models: { m: 10 }, efforts: { medium: 10 }, thinking: { tokens: 0, recorded: 0, output: 0 }, path: '' });
+  const text = renderExplain({ track: { number: 901, folder: 'AM-901-t901' }, generatedAt: NOW, runs: [run], phases: [ph(1, 'Phase 1: A very long phase title that would make the table cell wrap on a narrow screen'), ph(2, 'Phase 2: Short')], none: { responses: 0, output: 0 }, skipped: { otherTrack: 0, outsideRepo: 0 }, sources: { mainFiles: 1, subFiles: 0, sessions: [] } }, { now: NOW });
+  const repo = fixture([[901, 'implement', 'running', undefined]]);
+  writeFile(repo, 'conductor/tracks/AM-901-t901/explain.md', text);
+  const { dir } = site(repo);
+  const ids = await runPage(stub(dir));
+  const cards = ids.lanes.children.flatMap((l) => l.children[1]?.children ?? []);
+  cards.find((c) => c.textContent.includes('Track 901')).handlers.click();
+  await flush();
+  ids['d-tabs'].children.find((b) => b._text === 'Agent run').onclick();
+  await flush();
+  const body = ids['d-body'];
+  const details = all(body, (x) => x.attrs && x.attrs.id === 'ex-details')[0];
+  const planTables = all(body, cls('mdtable')).filter((t) => !all(details, (y) => y === t).length);
+  assert.equal(planTables.length, 1, 'one table outside the folded part: the short plan');
+  assert.match(planTables[0].className, /compact/);
+  assert.ok(all(details, cls('mdtable')).length >= 2, 'the lane and phase tables are inside the fold');
   ids['d-close'].onclick();
 });
 

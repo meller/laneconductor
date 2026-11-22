@@ -102,7 +102,32 @@ test('TC-27: one fix line per rule even when a rule fires on several phases', ()
   const fixes = fixesOf(planOf(renderExplain(result([run()], phases), { now: NOW })));
   assert.equal(fixes.length, 1);
   assert.match(fixes[0], /lower effort/i);
-  assert.match(fixes[0], /4 /, 'the count of phases it applies to');
+  assert.match(fixes[0], /Phase 1 and 3 more steps/, 'the first phase named, the rest counted');
+});
+
+test('TC-27: a fix line over several steps names only the step whose numbers it prints (the largest), never a list with one step\'s number', () => {
+  const mech = { tools: { Bash: 9, Read: 1 } };
+  const phases = [
+    phase({ label: 'Phase 1: One', key: 'Phase 1', responses: 6, efforts: { high: 6 }, ...mech }),
+    phase({ label: 'Phase 2: Two', key: 'Phase 2', responses: 16, efforts: { high: 16 }, ...mech }),
+    phase({ label: 'Phase 3: Three', key: 'Phase 3', responses: 10, efforts: { high: 10 }, ...mech }),
+  ];
+  const fixes = fixesOf(planOf(renderExplain(result([run()], phases), { now: NOW })));
+  assert.equal(fixes.length, 1);
+  assert.match(fixes[0], /for Phase 2 and 2 more steps: effort was high on all 16 replies that record one in Phase 2/);
+  assert.ok(!/Phase 1|Phase 3|all 6 |all 10 /.test(fixes[0]), 'no other step is named and no other step\'s number is printed');
+  // the lighter-model fix has the same shape: one percentage and one call count, belonging to the step it names
+  const opus = (label, key, calls, mechCalls) => phase({ label, key, responses: 10, models: { [OPUS]: 10 }, tools: { Bash: mechCalls, Task: calls - mechCalls }, tokens: { output: 500, fresh: 1, cacheCreated: 1, cacheRead: 1 } });
+  const lighter = fixesOf(planOf(renderExplain(result([run()], [opus('Phase 1: A', 'Phase 1', 10, 8), opus('Phase 2: B', 'Phase 2', 20, 20)]), { now: NOW }))).find((f) => /one tier down/.test(f));
+  assert.match(lighter, /Phase 2 and 1 more step: 100% of 20 tool calls in Phase 2 were/);
+});
+
+test('TC-27: a long phase title is cut in the Step column so every cell stays short', () => {
+  const long = phase({ label: 'Phase 1: A very long phase title that would make the table cell wrap on a narrow screen', key: 'Phase 1' });
+  const rows = rowsOf(planOf(renderExplain(result([run()], [long, phase({ label: 'Phase 2: Short', key: 'Phase 2' })]), { now: NOW })));
+  assert.ok(rows[1][0].length <= 36 && rows[1][0].endsWith('...'), rows[1][0]);
+  assert.ok(rows.every((r) => r.every((c) => c.length <= 40)), 'no cell over 40 characters (the page draws such a table compact)');
+  assert.equal(rows[2][0], 'Phase 2: Short');
 });
 
 test('TC-27: the approximation note sits under the table and the short plan stays short', () => {
