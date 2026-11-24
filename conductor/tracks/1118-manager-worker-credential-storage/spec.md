@@ -195,7 +195,7 @@ compatible:
 ```jsonc
 // ~/.laneconductor/manager-config.json   (mode 0600)
 {
-  "projectsDir": "/home/meller/Projects",   // existing, unchanged
+  "projectsDir": "~/Projects",   // existing, unchanged
   "collectors": [                            // new
     {
       "url": "http://localhost:8091",

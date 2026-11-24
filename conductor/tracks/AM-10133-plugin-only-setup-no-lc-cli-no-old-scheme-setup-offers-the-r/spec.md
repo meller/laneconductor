@@ -88,7 +88,7 @@ A person who installs the plugins and runs `/laneconductor:setup` meets a produc
 ## Out of scope
 
 - Deleting daemon, worker, database, `ui/`, `cloud/` code or the tag `v1-legacy`; removing `bin/lc.mjs`.
-- Changing `/usr/local/bin/lc` (a symlink to `/home/meller/Code/laneconductor/bin/lc.mjs`, created 2026-03-03) or `~/.laneconductorrc` on this machine: the owner is told they exist.
+- Changing `/usr/local/bin/lc` (a symlink to `<repo>/bin/lc.mjs`, created 2026-03-03) or `~/.laneconductorrc` on this machine: the owner is told they exist.
 - Building the Remote tier or its plugin; Jira.
 - Renaming the `lc-*.mjs` script files, the MCP server key `lc` or the tool prefix (D3).
 - Writing the skill advisor's catalog entries (track 10124).

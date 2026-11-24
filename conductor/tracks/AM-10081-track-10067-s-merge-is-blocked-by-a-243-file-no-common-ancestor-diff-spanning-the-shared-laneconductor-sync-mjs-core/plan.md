@@ -88,7 +88,7 @@ as an ordinary merge with a real ancestor (`fa25857d`).
   worker processes and kill any that appear; this suite has leaked real
   workers against the primary checkout before.
 - [ ] **Task 1.9**: Confirm the primary checkout was never touched:
-  `git -C /home/meller/Code/laneconductor status --short` shows no
+  `git -C <repo> status --short` shows no
   unmerged paths.
 - [ ] **Task 1.10**: Commit on `track-10081` as
   `Merge track-10067 into track-10081 (Track TU-10067: intelligent manager supervision)`,
@@ -199,7 +199,7 @@ primary checkout at any point.
   with `ps aux | grep laneconductor.sync.mjs` that none survived — this
   repository has a documented history of leaked workers running at
   170–200% CPU against the primary checkout. Then restart the primary
-  worker and API server from `/home/meller/Code/laneconductor` and confirm
+  worker and API server from `<repo>` and confirm
   they are healthy. This is AC-14.
 
 **Impact**: Every user-observable claim in this track is backed by a
@@ -252,7 +252,7 @@ staged.
 - [ ] **Task 5.1**: Confirm 10067's content is on `main` — AC-2's
   path-scoped diff must be empty. Do not proceed on the existence of a
   merge commit alone.
-- [ ] **Task 5.2**: Remove `/home/meller/Code/laneconductor/.worktrees/10067`.
+- [ ] **Task 5.2**: Remove `<repo>/.worktrees/10067`.
 - [ ] **Task 5.3**: Remove the orphaned `/tmp/scratch-merge-10067`
   worktree left by the earlier failed attempt, and run
   `git worktree prune`. Note: `/tmp/10065-merge-base-check` is also

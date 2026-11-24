@@ -30,7 +30,7 @@ the suites do today, and asserts the worker's serving root is the sandbox. It mu
           `sync.mjs:175-186`) — assert it names the sandbox
     - [ ] Bounded SIGTERM→SIGKILL teardown in `finally`, plus `git worktree remove --force`
 - [ ] Task 1.2: Run it, confirm it **fails**, and record the actual observed provenance line
-      (expected: `⚠️  Serving from /home/meller/Code/laneconductor — this is NOT the primary
+      (expected: `⚠️  Serving from <repo> — this is NOT the primary
       checkout`, i.e. the real primary) in this file under Phase 1 findings
 - [ ] Task 1.3: Add a companion assertion that the *primary-checkout* path already passes
       today, pinning the asymmetry described in `spec.md`

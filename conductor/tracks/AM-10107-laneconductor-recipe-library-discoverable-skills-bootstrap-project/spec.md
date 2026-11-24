@@ -30,7 +30,7 @@ Three rules shape everything below:
 |---|------|--------|
 | V1 | Documented SKILL.md frontmatter includes `name` (defaults to the directory name), `description`, `when_to_use` (appended to `description`; the two together are cut at **1,536 characters** in the skill listing), `paths` (globs that limit automatic activation) and `metadata`: "Free-form YAML map for your own key-value data ... read by your own tooling from `SKILL.md`. Claude Code doesn't act on its contents, and drops a value that isn't a map. Don't reuse frontmatter field names such as `paths` as keys." | https://code.claude.com/docs/en/skills (fetched this session) |
 | V2 | "Every skill in the skill listing adds to your context on every turn, whether or not Claude ever uses it." Skills live at `~/.claude/skills/<name>/SKILL.md`, `.claude/skills/<name>/SKILL.md` or in a plugin. | same page |
-| V3 | `/home/meller/Code/laneconductor-meta` has **no git remote** (`git remote -v` is empty), one commit (`1bed62e`), and **tracks** `conductor/.worker.tokens.json`, `conductor/.sync.pid` and worker logs (`git ls-files`). Pushing it to GitHub as is would publish a token file in history. | local `git` (values not read or echoed) |
+| V3 | `<repo>-meta` has **no git remote** (`git remote -v` is empty), one commit (`1bed62e`), and **tracks** `conductor/.worker.tokens.json`, `conductor/.sync.pid` and worker logs (`git ls-files`). Pushing it to GitHub as is would publish a token file in history. | local `git` (values not read or echoed) |
 | V4 | `.gitignore:58` in this repo ignores `conductor/tracks/**/conversation.md` (10106 decision D5). | local file |
 | V5 | Five sibling repos target `laneconductor-site` in `.firebaserc`: dual-reader, livingwork, humanities-explorer, the_hero_journey, chesstrainer. otralingo (`otralingo`) and macrodash (`makrodash`) do **not**, although `dual-reader/conductor/deployment-stack.md:7` says they do. | the repos' `.firebaserc` files |
 | V6 | `humanities-explorer`'s origin is `github.com/meller/humanities-exploror` (typo), so a folder name does not reliably equal the GitHub repo name. | `git remote get-url origin` |
@@ -38,7 +38,7 @@ Three rules shape everything below:
 ## Seed recipes: reference implementations
 
 Each path was confirmed with `ls`/`grep` on 2026-11-15. Commits are each repo's `HEAD` that day.
-Every path is relative to `/home/meller/Code/`.
+Every path is relative to `<code>/`.
 
 | # | Recipe (name) | Status | Reference (path, commit) | What it proves |
 |---|---|---|---|---|
@@ -92,7 +92,7 @@ Every path is relative to `/home/meller/Code/`.
 
 ### Library home
 - REQ-5: The library is one git repo (decision D1; recommended: a dedicated repo at
-  `/home/meller/Code/lc-recipes`, private GitHub remote `meller/lc-recipes` created and pushed by the
+  `<code>/lc-recipes`, private GitHub remote `meller/lc-recipes` created and pushed by the
   human). Layout: `recipes/<name>/...`, `conductor/advice-log/YYYY-MM.jsonl`, `README.md`. The
   connector reads it through 10106's `StateStore` (`LocalGitStore` locally, `GitHubStore` remotely),
   configured as `--recipes <path|owner/name>`.

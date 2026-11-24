@@ -4,7 +4,7 @@
 The Sync Worker already has partial multi-CLI support — `buildCliArgs()` handles `claude` and `gemini` explicitly, and `spawnCli()` manages process lifecycle. However:
 
 1. **Codex and Amp fall through to an untested generic path** — no verified invocation format
-2. **Skill path is hardcoded**: `const skillPath = '/home/meller/Code/laneconductor/.claude/skills/...'` — breaks on any other machine
+2. **Skill path is hardcoded**: `const skillPath = '<repo>/.claude/skills/...'` — breaks on any other machine
 3. **Exhaustion detection** only fires for `claude` and `gemini` patterns; Codex/Amp errors are silently swallowed
 4. **`setup collection`** model discovery uses `npx @google/gemini-cli` but has no counterpart for Codex or Amp
 5. **Context injection** (how the skill definition is passed to the agent) is Claude-specific — other CLIs need equivalent context delivery
@@ -44,7 +44,7 @@ amp run --yes --model {model} "{context}{prompt}"
 
 **Current (broken on other machines):**
 ```js
-const skillPath = `/home/meller/Code/laneconductor/.claude/skills/${skill}/SKILL.md`;
+const skillPath = `<repo>/.claude/skills/${skill}/SKILL.md`;
 ```
 
 **Fixed:**
@@ -109,7 +109,7 @@ Each CLI needs the skill context delivered differently:
 ## Acceptance Criteria
 - [ ] Setting `primary.cli = "codex"` in `.laneconductor.json` causes the sync worker to spawn `codex` when auto-actioning tracks
 - [ ] Setting `primary.cli = "amp"` similarly spawns `amp`
-- [ ] Skill path in log output matches actual file location on any machine (not `/home/meller/...`)
+- [ ] Skill path in log output matches actual file location on any machine (not `~/...`)
 - [ ] Codex quota errors are logged as `[exhaustion] Codex exhausted` and posted to `/provider-status`
 - [ ] Amp rate limit errors are logged and posted similarly
 - [ ] `setup collection` presents discovered Codex/Amp models instead of requiring manual entry

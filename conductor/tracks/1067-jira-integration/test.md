@@ -152,7 +152,7 @@ echo "Tracks after Worker 1: $TRACK_COUNT"
 # Expected: 1
 
 # 5. Start second worker (in different terminal)
-# cd /home/meller/Code/laneconductor
+# cd <repo>
 # LC_SKIP_GIT_LOCK=1 timeout 120 node conductor/laneconductor.sync.mjs --mode sync+poll
 
 # 6. Wait 60 more seconds for second worker's first poll

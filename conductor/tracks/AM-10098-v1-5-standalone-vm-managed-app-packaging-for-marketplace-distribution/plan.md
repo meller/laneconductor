@@ -68,7 +68,7 @@ the vendor or handing a stranger process execution on the host.
 
 ## Phase 2: Path portability, hub-readiness, and run ledger integration
 
-**Problem**: Service units and install paths hardcode `/home/meller`, the hub configuration does
+**Problem**: Service units and install paths hardcode `~`, the hub configuration does
 not ship pre-wired, and the run ledger schema from AM-10100 must be included.
 **Solution**: Configurable install prefixes, templated units, disabled-by-default hub collector
 settings, and run ledger persistence.

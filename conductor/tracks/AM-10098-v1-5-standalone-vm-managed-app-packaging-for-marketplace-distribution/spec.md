@@ -173,7 +173,7 @@ roadmap gate**. REQ-13, REQ-1, REQ-2 and REQ-7 are hard blockers.
   Serve `ui/dist` via Express static middleware with direct API routing.
 
 - **REQ-4 — Path-portable services.**
-  Replace hardcoded `/home/meller/Code/laneconductor` and paths in `conductor/systemd/` with
+  Replace hardcoded `<repo>` and paths in `conductor/systemd/` with
   templated units over a configurable install prefix.
 
 - **REQ-5 — Non-interactive provisioning.**

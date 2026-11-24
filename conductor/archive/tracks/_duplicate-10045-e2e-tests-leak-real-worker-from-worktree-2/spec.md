@@ -40,14 +40,14 @@ return dirname(gitCommonDir);                  // → the PRIMARY checkout
 For a sandbox inside a **linked worktree**, `--git-dir` is `<primary>/.git/worktrees/<name>`
 while `--git-common-dir` is `<primary>/.git`. They differ, so the resolver returns the
 **primary checkout**, `shouldChdir` is true, and the worker calls
-`process.chdir('/home/meller/Code/laneconductor')` before reading any config.
+`process.chdir('<repo>')` before reading any config.
 
 Verified directly against this repo (resolver only, no worker spawned):
 
 | Sandbox location | `resolvePrimaryRepoRoot()` returns | `shouldChdir` |
 |---|---|---|
 | `<primary>/.test-tmp-probe` | `<primary>/.test-tmp-probe` | **false** — isolation holds |
-| `<worktree>/.test-tmp-probe` | `/home/meller/Code/laneconductor` | **true** — escapes to production |
+| `<worktree>/.test-tmp-probe` | `<repo>` | **true** — escapes to production |
 
 This asymmetry is the entire bug: **the suites are isolated when run from the primary
 checkout and silently non-isolated when run from a worktree.** Every lane action's own

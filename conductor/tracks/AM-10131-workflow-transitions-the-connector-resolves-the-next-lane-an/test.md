@@ -36,7 +36,7 @@ Fixtures: (A) otralingo's real older-format workflow.json copied into the test f
 
 ## Real-world check (read-only, run by the implementer and shown in the report)
 
-- [x] TC-13 (REQ-1, REQ-5): run the resolver and `get_track` from the built add-on against the REAL otralingo repository (`/home/meller/Code/otralingo`, read only: no write tool is called) for track AM-1291 and one planning track: show their `valid.next` and `valid.lanes`; the values match TC-1 (a manual run, no test file)
+- [x] TC-13 (REQ-1, REQ-5): run the resolver and `get_track` from the built add-on against the REAL otralingo repository (`<code>/otralingo`, read only: no write tool is called) for track AM-1291 and one planning track: show their `valid.next` and `valid.lanes`; the values match TC-1 (a manual run, no test file)
 - [x] TC-14 (HUMAN; REQ-6): in the otralingo session, after updating, finish a real in-progress track with `outcome: success` and see it in review:queue on the board. Done 2026-11-18 with the owner's agreement on a dummy track instead of a real one: a scratch repository holding a copy of otralingo's own workflow.json (planning, in-progress, review), the installed 1.9.0 connector over stdio, create_track, a move to in-progress:running, then update_track with `outcome: success` returned the transition in-progress to review:queue, and the board built for that repository showed the card in the review column.
 
 ## Regression

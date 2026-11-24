@@ -128,7 +128,7 @@ bug, but worth recording): `laneconductor.sync.mjs` has a safety net (track 1102
 redirects a worker launched from a non-git scratch directory to the nearest enclosing "primary"
 git checkout — correct in production, but my test's tmp sandbox (never `git init`'d, since it
 tests the auto-launch loop directly rather than going through `runCreateProject`) sat inside this
-very worktree, so the redirect pointed it at `/home/meller/Code/laneconductor`'s real, live
+very worktree, so the redirect pointed it at `<repo>`'s real, live
 collector/DB for one run before I set the documented `LC_SKIP_CWD_NORMALIZATION=1` test-only
 escape hatch (already used elsewhere for exactly this "dogfooded worktree" scenario). Confirmed
 this is pre-existing and not something Phase 3 introduced: the untouched `local-fs-e2e.test.mjs`

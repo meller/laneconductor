@@ -194,11 +194,11 @@ Phase 4's notes), and safe to run by hand once verified quiescent:
 
 ```bash
 # This repository's worktrees (after confirming no active locks in .conductor/locks/):
-node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/laneconductor --worktrees --fix
+node conductor/scripts/clean-nested-claude.mjs <repo> --worktrees --fix
 
 # Each other affected project (run from within, or point --baseline at its own primary .claude):
-node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/livingwork --fix
-node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/otralingo --fix
+node conductor/scripts/clean-nested-claude.mjs <code>/livingwork --fix
+node conductor/scripts/clean-nested-claude.mjs <code>/otralingo --fix
 ```
 
 This is a genuine scope deferral, not a stub: nothing in `spec.md`'s

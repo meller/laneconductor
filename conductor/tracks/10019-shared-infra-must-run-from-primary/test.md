@@ -52,7 +52,7 @@ the real function, assert on real paths.
 - [x] TC-2.5 (integration, real process, done live rather than as an
       automated test): `LC_SKIP_WORKER_LOCK=1 node conductor/laneconductor.sync.mjs
       --sync-only --worker-number 9999` from inside this worktree — logged
-      the redirect notice, then "Serving from /home/meller/Code/laneconductor
+      the redirect notice, then "Serving from <repo>
       (primary checkout)", and registered with the DB using the primary's
       `repo_path`.
 - [x] TC-2.6 (AC-1, live): with real live workers already holding worker
@@ -83,7 +83,7 @@ the real function, assert on real paths.
 ### Phase 3 — provenance (live, all four)
 
 - [x] TC-3.1/3.2 (AC-6): confirmed live in the TC-2.5 run above — the
-      redirect line, followed by "Serving from /home/meller/Code/laneconductor
+      redirect line, followed by "Serving from <repo>
       (primary checkout)" (both `console.log` and structured `logger.info`).
 - [x] TC-3.3: `ui/server/index.mjs`'s `listen()` callback logs the same
       shape of line via `logger.info` — verified by code inspection

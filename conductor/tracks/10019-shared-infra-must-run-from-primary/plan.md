@@ -117,8 +117,8 @@ is not the primary.
       served) via both `console.log` and `logger.info` — verified live
       both ways: from a non-git sandbox ("primary status unknown") and
       from inside this worktree ("Launched from .../.worktrees/10019 ...
-      running from /home/meller/Code/laneconductor instead" followed by
-      "Serving from /home/meller/Code/laneconductor (primary checkout)").
+      running from <repo> instead" followed by
+      "Serving from <repo> (primary checkout)").
 - [x] Task 3.2 (REQ-6): API server (`ui/server/index.mjs`) logs the same
       shape of line in its `listen()` callback, via `logger.info`.
 - [x] Task 3.3 (REQ-6): `lc ui start` (`bin/lc.mjs`) and the Makefile's

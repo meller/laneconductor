@@ -3,7 +3,7 @@
 Spec: `spec.md` (format, example recipe, tool contracts, seed reference table with FOUND/NOT FOUND).
 Tests: `test.md`.
 
-**Where things go.** Recipes live in the library repo (D1, assumed `/home/meller/Code/lc-recipes`).
+**Where things go.** Recipes live in the library repo (D1, assumed `<code>/lc-recipes`).
 Code goes in 10106's `connector/` folder: `connector/src/recipes/` (format checker, secret scanner,
 reference resolver, ranking, rendering) and `connector/src/tools/` (the four tools). Tests use
 `node:test` under `connector/test/`, each fixture repo with its own `git init` (track 10082 hazard).
@@ -25,7 +25,7 @@ implement starts.
 ### D1: Where the library lives
 | Option | Tradeoff |
 |---|---|
-| a. **Dedicated repo `/home/meller/Code/lc-recipes`**, private GitHub remote `meller/lc-recipes` created and pushed by the human (recommended) | Clean history with nothing but recipes and their log; the 10106 GitHub App can be installed on it alone; a recipe commit never mixes with project state. Cost: one more repo to create. |
+| a. **Dedicated repo `<code>/lc-recipes`**, private GitHub remote `meller/lc-recipes` created and pushed by the human (recommended) | Clean history with nothing but recipes and their log; the 10106 GitHub App can be installed on it alone; a recipe commit never mixes with project state. Cost: one more repo to create. |
 | b. `laneconductor-meta/recipes/` | Exists already, but it has no remote, one commit, and tracks `conductor/.worker.tokens.json` and worker logs (spec V3). Publishing it needs a history scrub first, and it mixes recipes with legacy worker state that is being retired. |
 | c. `laneconductor/recipes/` in this repo | Ships with the connector, nothing to create. But it puts one user's project ids, bucket and secret names into the product repo that anyone using LaneConductor clones, and recipe churn lands in product history. |
 
@@ -66,7 +66,7 @@ what Claude does.
 paired baseline in test.md. If the recipe does not beat plain Claude, stop and rethink before
 building anything.
 
-- [ ] Task 1: Create the library repo per D1 (`git init -b main` in `/home/meller/Code/lc-recipes`, `README.md` stating the format rules from spec REQ-1..6). No remote; the human adds it.
+- [ ] Task 1: Create the library repo per D1 (`git init -b main` in `<code>/lc-recipes`, `README.md` stating the format rules from spec REQ-1..6). No remote; the human adds it.
 - [ ] Task 2: Write `recipes/shared-gcp-firebase-site/SKILL.md` and `files/.firebaserc.tmpl`, `files/firebase.json.tmpl` from the spec example; re-check every reference path at its cited commit with `git -C <repo> cat-file -e <commit>:<path>`
 - [ ] Task 3: Check the codebase pitfall ("a shared `default` codebase across repos treats the other repo's functions as removed") against the Firebase Functions docs on codebases; keep, correct or delete it, and note the source
 - [ ] Task 4: Check the format by hand: `description` + `when_to_use` <= 1,536 characters, `metadata` is a map, no reused field names, no secret patterns (spec REQ-12), body sections in order
@@ -161,7 +161,7 @@ without anyone reminding Claude.
 **Problem**: The track succeeds only if "create a new project for me" really works end to end.
 **Solution**: Run the scenarios in test.md "Acceptance" against a scratch directory.
 
-- [ ] Task 1: Scratch dir `/home/meller/Code/lc-bootstrap-check` (own `git init`), Claude Code with only the stdio connector, fresh session, the AC-1 prompt; check the files
+- [ ] Task 1: Scratch dir `<code>/lc-bootstrap-check` (own `git init`), Claude Code with only the stdio connector, fresh session, the AC-1 prompt; check the files
 - [ ] Task 2: The human runs the checklist commands; then `make db-local`, then `make deploy` (by the human) publishes the placeholder page
 - [ ] Task 3: AC-5: record 5 outcomes on a test recipe in a scratch library (3 deviated) and check the flag in `health_report` and `find_recipe`
 - [ ] Task 4: AC-6: grep every response and log line of the run for the REQ-12 patterns (expected: none)

@@ -27,7 +27,7 @@ exist. **That is not what caused this incident.** The worker that emitted all
 560 failures printed its own startup provenance as:
 
 ```
-[LaneConductor] Serving from /home/meller/Code/laneconductor (primary checkout).
+[LaneConductor] Serving from <repo> (primary checkout).
 ```
 
 It was in the primary checkout, where `.env` exists and where

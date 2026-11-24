@@ -42,7 +42,7 @@ The worker starts, and track 10019's cwd normalization (`sync.mjs:158`) calls
 `resolvePrimaryRepoRoot(TMP)`. For a sandbox inside a **linked worktree**, `--git-dir`
 (`<primary>/.git/worktrees/<n>`) differs from `--git-common-dir` (`<primary>/.git`), so the
 resolver returns the **primary checkout** and the worker calls
-`process.chdir('/home/meller/Code/laneconductor')` — *before any config is read*. The sandbox
+`process.chdir('<repo>')` — *before any config is read*. The sandbox
 `.laneconductor.json` is therefore never loaded at all; the worker reads the real config, the
 real `conductor/tracks/`, syncs to the real Collector on 8091, claims real queued tracks, and
 spawns real `claude` agents. Verified directly against this repo:
@@ -50,7 +50,7 @@ spawns real `claude` agents. Verified directly against this repo:
 | Sandbox location | resolver returns | chdir? |
 |---|---|---|
 | `<primary>/.test-tmp-probe` | itself | **no** — isolation holds |
-| `<worktree>/.test-tmp-probe` | `/home/meller/Code/laneconductor` | **yes** — escapes to production |
+| `<worktree>/.test-tmp-probe` | `<repo>` | **yes** — escapes to production |
 
 That asymmetry is the whole bug: the suites are isolated from the primary checkout and
 silently non-isolated from a worktree. **51 test files** spawn a worker this way; 47 do not set

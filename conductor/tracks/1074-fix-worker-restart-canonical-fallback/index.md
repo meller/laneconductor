@@ -14,7 +14,7 @@
 Found live in the `coachai` project: the worker had been silently failing to sync (collector API was down) for most of a session. After bringing the collector back up, `lc worker restart` was used to pick up the fix — it killed the existing worker, then crashed:
 
 ```
-Error: Cannot find module '/home/meller/Code/coachai/conductor/laneconductor.sync.mjs'
+Error: Cannot find module '<code>/coachai/conductor/laneconductor.sync.mjs'
 ```
 
 Root cause: `bin/lc.mjs`'s `restart` command (~line 1372) builds `syncScript` with a single hardcoded path:

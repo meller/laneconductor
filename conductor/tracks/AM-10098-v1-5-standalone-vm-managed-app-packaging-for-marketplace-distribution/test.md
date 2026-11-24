@@ -62,7 +62,7 @@ cd ui && npx playwright test
 
 ### Phase 2: Path portability, hub-readiness, and run ledger (REQ-4, REQ-9, REQ-14, REQ-15)
 - [ ] TC-2.1: generate the three systemd units against a prefix that is not
-      `/home/meller/Code/laneconductor` — expected: `systemd-analyze verify` clean, and all
+      `<repo>` — expected: `systemd-analyze verify` clean, and all
       three start, on a machine where that path does not exist.
 - [ ] TC-2.2: with the agent CLI installed somewhere other than `~/.local/bin`, a worker
       dispatch spawns it successfully — expected: no `spawn claude ENOENT`.

@@ -34,7 +34,7 @@ node conductor/tests/helpers/audit-sandbox-isolation.mjs   # expect 25/25 protec
 ```bash
 ps aux | grep laneconductor.sync.mjs | grep -v grep      # expect only the standing worker
 for p in $(pgrep -f laneconductor.sync.mjs); do echo "$p $(readlink /proc/$p/cwd)"; done
-git -C /home/meller/Code/laneconductor diff --stat conductor/workflow.json   # expect empty
+git -C <repo> diff --stat conductor/workflow.json   # expect empty
 ```
 
 ## Measured Baseline (2026-09-17, before any fix)
@@ -345,7 +345,7 @@ originally planned; see notes.
 - [ ] TC-11.8 (item m): **Not a test — an author decision, as originally
       noted.** Confirmed during this implement pass that the primary
       checkout's uncommitted `--force-run` implementation is still present
-      and unresolved (`git status` on `/home/meller/Code/laneconductor`
+      and unresolved (`git status` on `<repo>`
       still shows `bin/lc.mjs`, `conductor/claim-scope.mjs`,
       `conductor/laneconductor.sync.mjs` modified). Deliberately untouched.
 

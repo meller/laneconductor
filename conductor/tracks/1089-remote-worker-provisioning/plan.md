@@ -142,7 +142,7 @@ deleted rather than kept as a second parallel mechanism.
 
 **Verified live in the browser**, not just by tests: provisioned a worker
 for the real `macrodash` project via the UI → `Status: done`, "Started
-worker #1 for "macrodash" at /home/meller/Code/macrodash", real PID, and
+worker #1 for "macrodash" at <code>/macrodash", real PID, and
 the new worker appeared registered in the workers list.
 
 - [ ] **Known gap, not fixed**: the modal's CLI/Model pickers don't affect

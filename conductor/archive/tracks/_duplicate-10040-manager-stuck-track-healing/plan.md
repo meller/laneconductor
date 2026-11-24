@@ -236,7 +236,7 @@ total (10036, 10038, 10039, 10040).
           a materially fuller `test.md`, 396 vs 15 lines) — removed via `git rm -r`.
     - [ ] **Scope note, flagged rather than silently expanded or silently dropped**: two more
           `_duplicate-*` folders exist, but on the **primary checkout's own working directory**
-          (`/home/meller/Code/laneconductor/conductor/tracks/_duplicate-10039-...` and a second copy
+          (`<repo>/conductor/tracks/_duplicate-10039-...` and a second copy
           of `_duplicate-10040-...`), not inside this track's own worktree. This session runs
           isolated to `.worktrees/10040/` per `**Workspace**: branch` — reaching into the primary
           checkout's filesystem from here would cross exactly the isolation boundary Phase 2's

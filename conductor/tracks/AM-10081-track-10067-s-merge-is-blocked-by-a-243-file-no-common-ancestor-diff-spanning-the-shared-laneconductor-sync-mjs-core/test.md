@@ -73,7 +73,7 @@ ps aux | grep '[l]aneconductor.sync.mjs'
       output.
 - [ ] **TC-8**: `cd ui && npm test` on the merged branch — expected: all
       pass, no regressions in the API server route tests.
-- [ ] **TC-8b**: `git -C /home/meller/Code/laneconductor status --short`
+- [ ] **TC-8b**: `git -C <repo> status --short`
       after Phase 1 — expected: no unmerged paths, no unexpected
       modifications. The primary checkout must be untouched (AC-13).
 
@@ -137,7 +137,7 @@ that was running before the merge is a false pass.
 - [ ] **TC-22b**: After stopping the worktree-run processes,
       `ps aux | grep '[l]aneconductor.sync.mjs'` — expected: none of them
       survived, and the primary worker and API server are running again
-      from `/home/meller/Code/laneconductor`. (AC-14)
+      from `<repo>`. (AC-14)
 
 ### Phase 4: Landing on main
 

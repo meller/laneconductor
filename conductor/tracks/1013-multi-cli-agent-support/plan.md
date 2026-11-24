@@ -51,7 +51,7 @@
 
 ## Phase 3: Dynamic Skill Path Resolution
 
-**Problem**: `skillPath` is hardcoded to `/home/meller/Code/laneconductor/...`. Breaks on any other machine.
+**Problem**: `skillPath` is hardcoded to `<repo>/...`. Breaks on any other machine.
 **Solution**: Read from `~/.laneconductorrc` (already written by `make install`).
 
 - [ ] Task 1: Add `resolveSkillPath(skill)` helper function in `laneconductor.sync.mjs`

@@ -217,7 +217,7 @@ state-driven reconciliation pass.
           worktree) — which also has a `conductor/` directory, so
           `bin/lc.mjs`'s `findProjectRoot()` (walk up from cwd looking for
           a project marker) resolved to `.worktrees/1112` itself, NOT the
-          true primary checkout at `/home/meller/Code/laneconductor`. Every
+          true primary checkout at `<repo>`. Every
           `repoRoot`-scoped guarantee in this file — the resync that keeps
           the primary's `git status` byte-identical, "never touches the
           shared checkout" — silently applied to the wrong directory: the
@@ -270,7 +270,7 @@ deleted.
 > **Correction (same investigation, found immediately after)**: this
 > paragraph originally also claimed "the primary checkout's dirty-file
 > count stayed at exactly 104 across both merges" as live-verified proof of
-> REQ-7/AC-6. That check was run against `/home/meller/Code/laneconductor`
+> REQ-7/AC-6. That check was run against `<repo>`
 > directly and DID read 104 before and after — but, per the bug logged
 > above, the actual merge's `repoRoot` had silently resolved to
 > `.worktrees/1112` instead (this session's own cwd), so that 104-count

@@ -219,7 +219,7 @@ detail panel (previously silent) — now lets the user pick a provider.
       actually presented before the worker starts.
       Not done during implement: the only API/UI dev servers reachable on
       the standard ports in this environment belong to the main checkout
-      (`/home/meller/Code/laneconductor/ui`), not this worktree — they're a
+      (`<repo>/ui`), not this worktree — they're a
       separate, live dev session that shouldn't be restarted or repointed
       just to test this track's code. `npm run build` was run clean against
       every changed component (Phases 1, 3, 4) as the available substitute;
@@ -266,7 +266,7 @@ machine, and asked whether this track should be merged with track 1099
       the `track-10011` branch/worktree
       (`.worktrees/10011`). The live LaneConductor worker + UI the human
       is checking against is the **main checkout**
-      (`/home/meller/Code/laneconductor`), which runs off `main` and has
+      (`<repo>`), which runs off `main` and has
       never received any of this track's code — not Phase 1's registry,
       not Phase 2/6's Gemini fallback, nothing. "Still not seeing gemini
       models" is expected: there is nothing to see yet, because nothing

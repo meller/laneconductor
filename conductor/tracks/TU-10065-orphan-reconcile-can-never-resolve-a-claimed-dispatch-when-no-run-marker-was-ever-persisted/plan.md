@@ -163,7 +163,7 @@ conservative by construction.
       other 33 were investigated rather than literally re-run against the
       merge-base — a byte-for-byte merge-base run is not viable right now: the
       only scratch checkout available (`/tmp/10065-merge-base-check`) lives
-      outside `/home/meller/Code/laneconductor`, so Node's node_modules
+      outside `<repo>`, so Node's node_modules
       resolution (which this worktree only satisfies by walking up to the
       primary checkout's `node_modules` — there is no local one, confirmed via
       `require.resolve`) fails there outright (`ERR_MODULE_NOT_FOUND:

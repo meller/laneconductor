@@ -159,7 +159,7 @@ the session's.
 ### Cleanup
 
 - **REQ-11**: Once 10067's content is confirmed present on `main`, remove
-  its worktree (`/home/meller/Code/laneconductor/.worktrees/10067`) and
+  its worktree (`<repo>/.worktrees/10067`) and
   delete the `track-10067` branch, matching how 10066 was cleaned up.
 - **REQ-12**: Remove the orphaned scratch worktree at
   `/tmp/scratch-merge-10067` left behind by a prior failed merge attempt.
@@ -211,8 +211,8 @@ stub or by a log line.
 ### Workspace
 
 - [ ] **AC-13**: No phase of this track leaves the primary checkout
-      (`/home/meller/Code/laneconductor`) in a conflicted or half-merged
-      state. `git -C /home/meller/Code/laneconductor status --short` is
+      (`<repo>`) in a conflicted or half-merged
+      state. `git -C <repo> status --short` is
       checked before and after each phase and shows no unmerged paths and
       no unexpected modifications.
 - [ ] **AC-14**: After the live-verification phase, the primary worker and

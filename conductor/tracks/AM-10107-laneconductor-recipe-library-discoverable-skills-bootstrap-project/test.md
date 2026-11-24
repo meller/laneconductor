@@ -3,7 +3,7 @@
 ## Test Commands
 ```bash
 # Format, secret and reference checks over the library (Phase 2+)
-node connector/bin/lc-recipe-check.mjs /home/meller/Code/lc-recipes
+node connector/bin/lc-recipe-check.mjs <code>/lc-recipes
 
 # Unit and tool-contract tests (node:test, zero network; every fixture repo is a temp dir with its own `git init -b main`)
 cd connector && node --test test/recipes-*.test.mjs
@@ -12,7 +12,7 @@ cd connector && node --test test/recipes-*.test.mjs
 cd connector && node --test test/recipes-format.test.mjs
 
 # A reference exists at its cited commit (by hand, Phase 1)
-git -C /home/meller/Code/dual-reader cat-file -e f55fd89:.firebaserc && echo ok
+git -C <code>/dual-reader cat-file -e f55fd89:.firebaserc && echo ok
 
 # Afterwards (memory: leaked-process incidents on tracks 10073/10080): no stray processes
 ps aux | grep -E "lc-connector|lc-recipe-check" | grep -v grep   # expected: empty
@@ -28,7 +28,7 @@ checkout (track 10082 hazard).
 - [ ] TC-1.2: `description` + `when_to_use` length <= 1,536 (`wc -c` on the two values); `metadata` is a YAML map; no key under `metadata` equals a frontmatter field name - expected: all true
 - [ ] TC-1.3: `grep -nE` with every REQ-12 pattern over the recipe folder - expected: no match
 - [ ] TC-1.4: AC-3: the folder copied to `~/.claude/skills/shared-gcp-firebase-site/` shows in a fresh Claude Code session's skill list with no frontmatter warning; the copy is then removed - expected: listed, then gone
-- [ ] TC-1.5: Baseline setup: a scratch dir `/home/meller/Code/lc-recipe-baseline` with its own `git init`, no CLAUDE.md, no connector, no sibling repos mentioned. Prompt, identical in every run: "Set up hosting and an API deploy config for a new web app called pinecone (a Vite SPA plus an Express API on Cloud Functions, Postgres in prod). Don't deploy; write the config files and tell me exactly which commands I need to run." - expected: setup recorded in `baseline.md`
+- [ ] TC-1.5: Baseline setup: a scratch dir `<code>/lc-recipe-baseline` with its own `git init`, no CLAUDE.md, no connector, no sibling repos mentioned. Prompt, identical in every run: "Set up hosting and an API deploy config for a new web app called pinecone (a Vite SPA plus an Express API on Cloud Functions, Postgres in prod). Don't deploy; write the config files and tell me exactly which commands I need to run." - expected: setup recorded in `baseline.md`
 - [ ] TC-1.6: Run A (plain Claude): 3 fresh sessions with the prompt only - expected: the produced files and reply saved per run
 - [ ] TC-1.7: Run B (recipe): 3 fresh sessions with the prompt plus "Use this recipe:" followed by the recipe's SKILL.md text - expected: the produced files and reply saved per run
 - [ ] TC-1.8: Score every run on the 7-point rubric (one point each, judged from files and reply): R1 uses project `laneconductor-site`, no new GCP project; R2 hosting target `pinecone` mapped to site `pinecone-laneconductor`; R3 Functions `codebase: "pinecone"`; R4 every deploy command scoped with `--only hosting:pinecone,functions:pinecone:<fn>`; R5 rewrite written `/api/**`, not `/api**`; R6 health check under `/api/...`, not a bare `/healthz`; R7 no credential handled by Claude (sign-in, secret creation and deploy are listed for the user, no value in any file) - expected: **recipe beats plain Claude** when the median of B is at least the median of A + 2 and every B run scores R7. Otherwise the gate in plan.md Phase 1 Task 7 applies.
@@ -50,7 +50,7 @@ checkout (track 10082 hazard).
 - [ ] TC-2.13: `lc-recipe-check` exits 0 on the Phase 1 recipe and 1 on a fixture with any error
 
 ### Phase 3: Seed recipes
-- [ ] TC-3.1: `lc-recipe-check /home/meller/Code/lc-recipes` - expected: exit 0, 9 recipes (7 seed + `new-project` + `extract-recipe`)
+- [ ] TC-3.1: `lc-recipe-check <code>/lc-recipes` - expected: exit 0, 9 recipes (7 seed + `new-project` + `extract-recipe`)
 - [ ] TC-3.2: Every seed recipe has `verified` set and at least one reference whose freshness is `fresh` - expected: true
 - [ ] TC-3.3: `isolated-test-database` has a `## Unproven` section covering the per-worktree DB - expected: present
 - [ ] TC-3.4: Review checklist by the human: no recipe explains generic library usage that public docs cover; each states at least one choice specific to this user - expected: human ticks it in `conversation.md`
@@ -93,7 +93,7 @@ checkout (track 10082 hazard).
 - [ ] TC-7.6: `lanes/merge.md` contains the extract pointer and the skill still loads (SKILL.md routing unchanged) - expected: true
 
 ## Acceptance (Phase 8, human-assisted)
-- [ ] TC-8.1 (AC-1): In `/home/meller/Code/lc-bootstrap-check` with only the stdio connector, a fresh session given "create a new project for me called pinecone: a Vite web app with an Express API and Postgres" - expected: Claude calls `find_recipe` then `bootstrap_project` with no further prompting; the files in AC-1 exist; the reply lists the user-run checklist
+- [ ] TC-8.1 (AC-1): In `<code>/lc-bootstrap-check` with only the stdio connector, a fresh session given "create a new project for me called pinecone: a Vite web app with an Express API and Postgres" - expected: Claude calls `find_recipe` then `bootstrap_project` with no further prompting; the files in AC-1 exist; the reply lists the user-run checklist
 - [ ] TC-8.2 (AC-1): After the human runs the checklist, `make help` lists the targets, `make db-local` creates the local `pinecone` DB, and `make deploy` (run by the human) serves a page at `https://pinecone-laneconductor.web.app`
 - [ ] TC-8.3 (AC-6): `grep -rnE` with the REQ-12 patterns over the scratch dir, the session's tool outputs and the library's advice log - expected: no match
 - [ ] TC-8.4 (AC-5): the scratch-library flag check from Phase 8 Task 3 - expected: flag visible in both tools
