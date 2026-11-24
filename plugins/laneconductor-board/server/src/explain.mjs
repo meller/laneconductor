@@ -81,7 +81,8 @@ function addMessage(b, m, results) {
   addUse(b, m);
   // D10: the first response of the run is the first message of the main session; a sub-agent still replying from the previous lane must not count. The earliest sub-agent message is only the fallback.
   if (m.sub) { if (!b.firstSub || m.ts < b.firstSub.ts) b.firstSub = m; } else if (!b.firstMsg || m.ts < b.firstMsg.ts) b.firstMsg = m;
-  if (m.sub) { const k = m.agent ?? m.id; const cur = b.subFirst.get(k); if (!cur || m.ts < cur.ts) b.subFirst.set(k, m); }
+  // D30: the start of a sub-agent is ITS first reply (read from its own file, before any window cut), not its first reply inside this window.
+  if (m.sub) { const k = m.agent ?? m.id; const cur = b.subFirst.get(k); if (!cur || m.ts < cur.ts) b.subFirst.set(k, { ts: m.ts, ctx: m.startContext ?? contextOf(m) }); }
   for (const t of m.tools) {
     b.tools[t.name] = (b.tools[t.name] ?? 0) + 1;
     if (t.fileKey) b.reads.set(t.fileKey, (b.reads.get(t.fileKey) ?? 0) + 1);
@@ -107,7 +108,7 @@ function finish(b) {
     tools: sortedTools(b.tools),
     sub: b.sub,
     firstContext: (b.firstMsg ?? b.firstSub) ? contextOf(b.firstMsg ?? b.firstSub) : 0,
-    subStarts: [...b.subFirst.values()].map(contextOf),
+    subStarts: [...b.subFirst.values()].map((v) => v.ctx),
     repeatedReads: repeated,
     slowest: b.toolRuns.sort((a, c) => c.ms - a.ms).slice(0, SLOW_N),
     gapsOver30: gaps,
@@ -191,12 +192,18 @@ export async function analyzeTrack({ repo, track, projectsDir, now = new Date().
       dst.sub.responses += src.sub.responses; dst.sub.output += src.sub.output;
       for (const [k, v] of Object.entries(src.tools)) dst.tools[k] = (dst.tools[k] ?? 0) + v;
       mergeUse(dst, src);
+      for (const [k, v] of src.subFirst) { const cur = dst.subFirst.get(k); if (!cur || v.ts < cur.ts) dst.subFirst.set(k, v); }
       // Phase 9 (D19): the first reply of a phase, the same rule as a lane run (D10): the main session's first message, a sub-agent's only as the fallback.
       if (src.firstMsg && (!dst.firstMsg || src.firstMsg.ts < dst.firstMsg.ts)) dst.firstMsg = src.firstMsg;
       if (src.firstSub && (!dst.firstSub || src.firstSub.ts < dst.firstSub.ts)) dst.firstSub = src.firstSub;
     });
   });
-  const phases = [...phaseMap.values()].sort((a, b) => a.order - b.order).map((e) => ({ key: e.key, label: e.label, tasks: e.tasks, wallMs: e.wallMs, humanMs: e.humanMs, agentMs: e.wallMs - e.humanMs, responses: e.bucket.responses, tokens: e.bucket.tokens, tools: sortedTools(e.bucket.tools), sub: e.bucket.sub, firstContext: (e.bucket.firstMsg ?? e.bucket.firstSub) ? contextOf(e.bucket.firstMsg ?? e.bucket.firstSub) : 0, models: sortedTools(e.bucket.models), efforts: sortedTools(e.bucket.efforts), thinking: e.bucket.thinking, path: pathOfSeq(e.bucket.seq) }));
+  const firstOf = (b) => ((b.firstMsg ?? b.firstSub) ? contextOf(b.firstMsg ?? b.firstSub) : 0);
+  const phases = [...phaseMap.values()].sort((a, b) => a.order - b.order).map((e) => ({
+    key: e.key, label: e.label, tasks: e.tasks, wallMs: e.wallMs, humanMs: e.humanMs, agentMs: e.wallMs - e.humanMs, responses: e.bucket.responses, tokens: e.bucket.tokens,
+    tools: sortedTools(e.bucket.tools), sub: e.bucket.sub, firstContext: firstOf(e.bucket), subStarts: [...e.bucket.subFirst.values()].map((v) => v.ctx),
+    models: sortedTools(e.bucket.models), efforts: sortedTools(e.bucket.efforts), thinking: e.bucket.thinking, path: pathOfSeq(e.bucket.seq),
+  }));
   // The "after" row is only worth a row when something happened in it.
   const shown = phases.filter((p) => p.key !== 'after' || p.wallMs > 0 || p.responses > 0);
 
@@ -461,6 +468,19 @@ export const RULE_IDS = ['where', 'lighter-model', 'larger-model', 'lower-effort
 export const PLAN_HEAD = '| Step | Where | Time | Written | Context at start | Expensive |';
 const PLAN_NOTE = '> Approximate, tokens only: tracks that overlap in time can share messages, other activity on the computer and different machines blur the numbers. Time in brackets is waiting for a person. The full note is under Details.';
 
+/** A lane run or phase whose replies came mostly from sub-agents (the Where column). */
+const isSubRun = (x) => x.responses > 0 && x.sub.responses * 2 > x.responses;
+/**
+ * The Context at start of a row (D30): for a row run mostly by sub-agents, the median of the sub-agents' own first-reply contexts (they start near 55,000);
+ * otherwise the first reply of the main session (D10). 0 when the row has no replies of its own or is a shared window. A sub-agent row with no known sub-agent start
+ * (hand-made results) keeps the first-reply figure.
+ */
+const startContextOf = (x) => {
+  if (!x.responses || x.shared) return 0;
+  const starts = (x.subStarts ?? []).filter((v) => v > 0);
+  return isSubRun(x) && starts.length ? median(starts) : x.firstContext;
+};
+
 /** A Step label longer than this is cut: the board draws a table whose cells are all short as a compact one (no wrapping, D19). */
 const STEP_MAX = 36;
 /** The rows of the short plan: one per lane run, or per phase when the track has a single lane run (one lane run with no phases is one row). */
@@ -471,11 +491,11 @@ function planRows(r) {
     : r.runs.map((x) => ({ step: r.runs.filter((o) => o.lane === x.lane).length > 1 ? `${x.lane} (${stamp(x.start)})` : x.lane, x }));
   const rows = src.map(({ step, x }) => ({
     step,
-    where: x.responses && !x.shared ? (x.sub.responses * 2 > x.responses ? 'sub-agent' : 'main session') : '-',
+    where: x.responses && !x.shared ? (isSubRun(x) ? 'sub-agent' : 'main session') : '-',
     time: `${fmtMs(x.wallMs)}${x.humanMs > 0 ? ` (${fmtMs(x.humanMs)} human)` : ''}`,
     written: x.shared ? 'not measured' : n(x.tokens.output),
-    context: x.responses && !x.shared && x.firstContext > 0 ? n(x.firstContext) : '-',
-    ctx: x.responses && !x.shared ? x.firstContext : 0,
+    context: startContextOf(x) > 0 ? n(startContextOf(x)) : '-',
+    ctx: startContextOf(x),
     shared: Boolean(x.shared),
     wallMs: x.wallMs,
     expensive: false,
@@ -555,8 +575,32 @@ export function parseRecommendFacts(text) {
   return { v: 1, rules };
 }
 
+// ---- D29: the lane-facts block, beside the recommend-facts one (which is unchanged): where each lane run ran and the context it started with, for the project lines of the statistics. ----
+const LANE_FENCE = 'json lane-facts';
+
+/** { v: 1, runs: [{ where: 'sub-agent' | 'main', context }] }: one entry per lane run with replies of its own (a shared window has none); `context` is the Context at start of the short plan (0 when unknown). Whole numbers and two words only. */
+export function laneFacts(r) {
+  return { v: 1, runs: r.runs.filter((x) => !x.shared && x.responses > 0).map((x) => ({ where: isSubRun(x) ? 'sub-agent' : 'main', context: Math.round(startContextOf(x)) })) };
+}
+
+/** Reads the lane-facts block of an explain.md back; null when the file has none (an older file: not measured), it is not valid JSON or its version is unknown. Malformed entries are dropped. */
+export function parseLaneFacts(text) {
+  const m = new RegExp(`^\`\`\`${LANE_FENCE}\\n([\\s\\S]*?)\\n\`\`\`$`, 'm').exec(String(text));
+  if (!m) return null;
+  let j;
+  try { j = JSON.parse(m[1]); } catch { return null; }
+  if (!j || j.v !== 1 || !Array.isArray(j.runs)) return null;
+  return { v: 1, runs: j.runs.filter((x) => x && (x.where === 'sub-agent' || x.where === 'main') && wholeNumber(x.context)).map((x) => ({ where: x.where, context: x.context })) };
+}
+
 function renderFacts(r) {
-  return ['## Recommend facts', '', 'The numbers the board reads for its recommendations across tracks: rule ids and whole numbers only.', '', `\`\`\`${FACTS_FENCE}`, JSON.stringify(recommendFacts(r)), '```', ''];
+  return [
+    '## Recommend facts', '',
+    'The numbers the board reads for its recommendations across tracks: rule ids and whole numbers only.',
+    'The second block says where each lane run ran and its context at start, for the project statistics.', '',
+    `\`\`\`${FACTS_FENCE}`, JSON.stringify(recommendFacts(r)), '```', '',
+    `\`\`\`${LANE_FENCE}`, JSON.stringify(laneFacts(r)), '```', '',
+  ];
 }
 
 /** The markdown of explain.md (the same text is printed). `now` is the generated time; it is the only line that differs between two runs on the same data. */
@@ -700,6 +744,7 @@ function descriptiveLines(parsed) {
   const runs = parsed.flatMap((p) => p.runs);
   const unclaimed = runs.filter((r) => r.lane.includes('(no claim commit)')).length;
   L.push(`- Lane runs with no claim commit: ${n(unclaimed)} of ${n(runs.length)} (${pct(unclaimed, runs.length)}): claim the lane when starting it so its time is measured, not inferred.`);
+  L.push(...laneLines(parsed));
   const withRules = parsed.filter((p) => p.extras.rulesFired !== null);
   const fired = withRules.filter((p) => p.extras.rulesFired > 0).sort((a, b) => b.extras.rulesFired - a.extras.rulesFired || a.folder.localeCompare(b.folder, undefined, { numeric: true }));
   if (!withRules.length) L.push('- No track has recommendations yet: regenerate the explain.md files.');
@@ -709,8 +754,28 @@ function descriptiveLines(parsed) {
 }
 
 /**
+ * The two project-level lines of the Insight (D29), read from the lane-facts block of every explain.md: where the lane runs ran, and how long the main-session runs' context was at start.
+ * No threshold decides whether a line shows: it is a count. A track whose explain.md has no such block is not counted, and the line says how many.
+ */
+function laneLines(parsed) {
+  const counted = parsed.filter((p) => p.lanes !== null);
+  const notCounted = parsed.length - counted.length;
+  const long = `Main-session lane runs that started with ${n(LONG_CONTEXT)} tokens of context or more`;
+  if (!counted.length) return [`- Lane runs by where they ran: not measured yet (${n(notCounted)} ${notCounted === 1 ? 'track has' : 'tracks have'} an older explain.md without these numbers): regenerate the explain.md files.`, `- ${long}: not measured yet.`];
+  const runs = counted.flatMap((p) => p.lanes.runs);
+  const sub = runs.filter((x) => x.where === 'sub-agent');
+  const main = runs.filter((x) => x.where === 'main');
+  const medianText = (xs) => { const known = xs.filter((x) => x.context > 0).map((x) => x.context); return known.length ? n(median(known)) : 'none'; };
+  const note = notCounted ? `; ${n(notCounted)} of ${n(parsed.length)} tracks not counted (an older explain.md without these numbers)` : '';
+  return [
+    `- Lane runs by where they ran: ${n(sub.length)} in a sub-agent, ${n(main.length)} in the main session (${pctOf(sub.length, runs.length)} percent in a sub-agent)${note}.`,
+    `- ${long}: ${n(main.filter((x) => x.context >= LONG_CONTEXT).length)} of ${n(main.length)}; median context at start: ${medianText(main)} in the main session, ${medianText(sub)} in a sub-agent.`,
+  ];
+}
+
+/**
  * The `## Recommendations` of statistics.md across tracks (D27): the same function as the board's Agent recommendations drawer (rankedStatisticsLines in explain-rank.mjs),
- * so at most three ranked actions over the last 10 tracks, each with its count, or the drawer's message when there are too few tracks or nothing to suggest.
+ * so the ranked actions (D28: every one that fired, with its level, at most five) over the last 10 tracks, each with its count, or the drawer's message when there are too few tracks or nothing to suggest.
  */
 function renderStatisticsRecommendations(items) {
   return ['## Recommendations', '', 'These are the actions the Agent recommendations of the board show, ranked by the script from the explain.md of the newest tracks, not an opinion of a model. Numbers only: no dollars.', '', ...rankedStatisticsLines(items)];
@@ -720,7 +785,7 @@ function renderStatisticsRecommendations(items) {
  * The text of conductor/statistics.md from every track's explain.md: `items` is [{ folder, text }]. Finished tracks are included.
  */
 export function renderStatistics(items, { now }) {
-  const parsed = items.map((it) => ({ folder: it.folder, ...parseExplain(it.text), extras: parseExplainExtras(it.text) })).sort((a, b) => a.folder.localeCompare(b.folder, undefined, { numeric: true }));
+  const parsed = items.map((it) => ({ folder: it.folder, ...parseExplain(it.text), extras: parseExplainExtras(it.text), lanes: parseLaneFacts(it.text) })).sort((a, b) => a.folder.localeCompare(b.folder, undefined, { numeric: true }));
   const L = ['# Agent run statistics', '', ...renderStatisticsInsight(parsed), ...renderStatisticsRecommendations(items), '> Generated by lc-explain.mjs from every track\'s explain.md; do not edit by hand. Numbers only.', '', `Generated: ${now}`, `Tracks with an explain.md: ${parsed.length}`, '', `> ${APPROX_NOTE}`, ''];
   L.push('## Tracks', '');
   if (!parsed.length) L.push('No track has an explain.md yet. Run `node lc-explain.mjs --repo . --track <number>`.', '');
