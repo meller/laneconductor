@@ -16,7 +16,7 @@
 ### Phase 2: Tests, docs, validation
 - [x] TC-4 (REQ-6): the command text says numbers only, no prompt, message or file content
 - [x] TC-5 (REQ-7): the base plugin has no script, package file or MCP server after the build; strict validation passes; the build check passes
-- [x] TC-6 (REQ-8): `docs/plugin-map.md` and the base README list the command
+- [x] TC-6 (REQ-8): `docs/plugin-map.md` lists the command; the base README lists no command by name, so it needs no line and claims no release
 
 ### Phase 3: Real use (owner)
 - [ ] TC-7: the command on track 10154 shows the same short plan as the script

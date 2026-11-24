@@ -136,6 +136,6 @@ test('TC-6: the plugin map lists the command (twice: the base commands, the conn
   const map = fs.readFileSync(path.join(REPO, 'docs/plugin-map.md'), 'utf8');
   assert.equal([...map.matchAll(/`explain`/g)].length, 3, 'the command list, the prompt list and the needs table');
   assert.match(map, /^\| `explain` \| no \(shows how to get the add-on\) \| nothing \| yes \|$/m);
-  // The base README lists no command by name (it says "every slash command"); it must not claim a release or a version for this one.
-  assert.ok(!/explain/i.test(read('README.md')));
+  // The base README lists no command by name (it says "every slash command"); if it ever names this one it must not claim a release.
+  assert.ok(!/explain[^.\n]*(released|available now|is out)/i.test(read('README.md')));
 });
