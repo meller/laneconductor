@@ -139,3 +139,11 @@ scratch/delete_prod_*.*
 
 # written into the deploy copy by scripts/deploy-site.sh (the live version, not committed)
 landing/version.json
+
+# Private or generated, never committed (repository audit, 2026-11-25): browser snapshots from the launch work, the runtime advice log
+# (metadata only), the conversation files of tracks (dialogue, may be private, kept local) and the old competitor notes (now in the owner's private doc)
+.playwright-mcp/
+conductor/advice-log/
+conductor/tracks/*/conversation.md
+conductor/archive/tracks/*/conversation.md
+conductor/competitors.md
