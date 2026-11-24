@@ -102,10 +102,10 @@ test('TC-6 a new project with no remote on main and no settings file: the state 
 test('TC-12 helpText and helpData carry no lc command-line wording; the JSON field is needs_board_script', () => {
   assert.deepEqual(noLcHits(helpText()), []);
   assert.doesNotMatch(helpText(), /command-line tool/);
-  assert.match(helpText(), /Needs the board add-on's script: board \(only to refresh\)./);
+  assert.match(helpText(), /Needs the board add-on's script: board \(only to refresh\), explain./);
   const cmds = helpData().commands;
   assert.ok(cmds.every((c) => 'needs_board_script' in c && !('needs_lc' in c)));
-  assert.deepEqual(cmds.filter((c) => c.needs_board_script).map((c) => c.name), ['board']);
+  assert.deepEqual(cmds.filter((c) => c.needs_board_script).map((c) => c.name), ['board', 'explain']);
 });
 
 test('TC-13 the board script prints board: (not lc board:) on stderr, and --check says how to rebuild with node', () => {

@@ -6,12 +6,12 @@ What each LaneConductor plugin provides, and which commands depend on which add-
 
 | | `laneconductor` (base) | `laneconductor-parallel` (add-on) | `laneconductor-board` (add-on) |
 | :--- | :--- | :--- | :--- |
-| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the base commands detect the add-ons) | none (the base commands detect the add-ons) |
+| Slash commands | all of them, as `/laneconductor:<name>` (`board`, `brainstorm`, `bug`, `comment`, `deploy`, `explain`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`, `plan`, `quality-gate`, `repair-duplicates`, `review`, `review-plan`, `run`, `setup`, `status`, `suggest-skills`, `workflow`) | none (the base commands detect the add-ons) | none (the base commands detect the add-ons) |
 | Hooks | none | none | `PostToolUse`, `Stop` |
 | Skills | `laneconductor` | none | none |
 | Agents | `plan-reviewer` | `track-runner` (isolation: worktree) | none |
 | MCP tools | none | `append_conversation`, `create_track`, `get_context`, `get_track`, `health_report`, `help`, `list_tracks`, `report_outcome`, `update_track`; named `mcp__plugin_laneconductor-parallel_lc__<tool>` | none |
-| MCP prompts | none | `next`, `suggest-skills`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `setup`, `deploy` (the command catalog, served by the connector) | none |
+| MCP prompts | none | `next`, `suggest-skills`, `help`, `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `repair-duplicates`, `workflow`, `new-project`, `board`, `explain`, `setup`, `deploy` (the command catalog, served by the connector) | none |
 | Scripts | none | `server/bin/lc-connector.mjs`, `server/bin/lc-scaffold.mjs` | `server/bin/lc-board.mjs`, `server/bin/lc-explain.mjs` |
 | Files | Markdown, JSON and one PNG only (what the directory portal accepts) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) | Markdown, JSON, PNG and the program files above (not accepted by the directory portal) |
 | Installs code | no | yes: an MCP server (a Node.js program) and a scaffold script | yes: a script (a Node.js program, no packages) and its page |
@@ -44,6 +44,7 @@ The base is the plugin prepared for Anthropic's directory; the add-ons are insta
 | `workflow` | yes | nothing | no |
 | `new-project` | yes | its scaffold script | no |
 | `board` | yes | nothing | only to refresh |
+| `explain` | no (shows how to get the add-on) | nothing | yes |
 | `setup` | yes | nothing | no |
 | `deploy` | yes | nothing | no |
 

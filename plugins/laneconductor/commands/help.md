@@ -33,12 +33,13 @@ Create and manage
 
 Board
 - board [refresh]: Open the project board, or refresh it with the argument refresh. Example: "open the board"
+- explain [track number | statistics]: Explain where an agent run's time and tokens went for one track, or give a project summary of the tracks already explained (the argument statistics), like an SQL EXPLAIN. Example: "explain track 10106"
 
 Setup and deploy
 - new-project [name or idea]: Start a project: a short brainstorm, the conductor scaffold and the first tracks (runs when you name it, or reply go to a next card). Example: "start a new project: a habit tracker"
 - setup [scaffold]: Add LaneConductor to this project: read what is there, write the conductor/ files and file the plan as tracks (runs when you name it, or reply go to a next card). Example: "add LaneConductor to this project"
 - deploy [status | history | rollback | setup]: Set up, run, check or roll back deployment for this project (runs only because you named it). Example: "deploy this project"
 
-Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh); without it it says so and shows how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.
+Works on its own: every command edits the track files directly. Needs the laneconductor-board add-on: board (only to refresh), explain; without it it says so and shows how to get it. With the laneconductor-parallel add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.
 
 In Claude Code, type a command as `/laneconductor:<name>`, for example `/laneconductor:plan 10106`; typing `/laneconductor:` lists them all.

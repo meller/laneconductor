@@ -212,7 +212,7 @@ test('TC-8, TC-29: the generated next command is read only: it carries the argum
 test('TC-9, TC-10: the parallel add-on offers next as a prompt, and the plugin map lists it for the base and the add-on; the build is current', () => {
   const map = read(path.join(REPO, 'docs/plugin-map.md'));
   assert.match(map, /`next`, `suggest-skills`, `help`, `plan`/, 'MCP prompts');
-  assert.match(map, /\(`board`, `brainstorm`, `bug`, `comment`, `deploy`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`/);
+  assert.match(map, /\(`board`, `brainstorm`, `bug`, `comment`, `deploy`, `explain`, `feature`, `help`, `implement`, `merge`, `move`, `new`, `new-project`, `next`/);
   assert.deepEqual(diffAgainstDisk(REPO), []);
 });
 

@@ -63,7 +63,7 @@ test('the shipped skill and help say the same: board opens, board refresh rebuil
   assert.match(skill, /`board refresh` rebuilds and republishes it/);
   assert.match(read('skills/laneconductor/ops/board.md'), /suggest `\/laneconductor:board refresh`/);
   const help = read('commands/help.md');
-  assert.match(help, /Needs the laneconductor-board add-on: board \(only to refresh\); without it it says so/);
+  assert.match(help, /Needs the laneconductor-board add-on: board \(only to refresh\), explain; without it it says so/);
   assert.match(read('skills/laneconductor/ADD-ONS.md'), /`\/laneconductor:board`, `\/laneconductor:board refresh`/);
 });
 

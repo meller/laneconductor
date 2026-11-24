@@ -26,6 +26,7 @@
   "catalogOnly": {
     "review-plan": "A plugin command that dispatches the read-only plan-reviewer subagent; the skill's routing table has no row for it because it is not a skill procedure.",
     "repair-duplicates": "New in track AM-10143: renames the newer of two folders that share a track number, after a yes. The skill has no routing row for it: it is a repair prompt, not a skill procedure.",
+    "explain": "New in track AM-10157: runs the board add-on's lc-explain script for a track or for the statistics. The skill has no routing row for it: it is a measuring command that shows numbers, not a skill procedure.",
     "help": "New in track AM-10116: lists every command with an example phrase (a FITI-style help). The skill has no routing row for it: asking what LaneConductor can do is not a skill procedure."
   }
 }

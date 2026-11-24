@@ -63,7 +63,7 @@ export const REFERENCES = {
 };
 export const REFERENCE_COMMANDS = Object.keys(REFERENCES);
 /** The commands that keep one read outside the project on purpose: the board script is a file of another plugin (the board add-on). */
-export const BOARD_SCRIPT_COMMANDS = ['board'];
+export const BOARD_SCRIPT_COMMANDS = ['board', 'explain'];
 
 export const REF_NOTICE = 'This command carries the skill text it uses, at the end under "Reference". Do not Glob or Read the plugin\'s install folder (`~/.claude/plugins/...`) to carry it out: that folder is outside the project, and a read there raises a permission question or is denied. The skill file paths named in the command are references only.';
 

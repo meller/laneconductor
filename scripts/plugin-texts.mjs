@@ -36,6 +36,7 @@ export const CONNECTOR_TOOL_PREFIX = `mcp__plugin_${NAMES.parallel}_${SERVER_KEY
 export const TRACK_RUNNER_AGENT = `${NAMES.parallel}:track-runner`;
 export const BOARD_SCRIPT_REL = 'server/bin/lc-board.mjs'; // inside the board add-on
 export const BOARD_SCRIPT_GLOB = `**/${NAMES.board}/**/bin/lc-board.mjs`; // under PLUGINS_CACHE
+export const EXPLAIN_SCRIPT_GLOB = `**/${NAMES.board}/**/bin/lc-explain.mjs`; // under PLUGINS_CACHE (track AM-10157): the explain script is a file of the board add-on too
 export const PLUGINS_CACHE = '~/.claude/plugins/cache'; // installed plugins live in cache/<marketplace>/<plugin>/<version>/; the marketplaces/ clone holds plugins that are only added, not installed
 export const SCAFFOLD_SCRIPT_GLOB = `**/${NAMES.parallel}/**/server/bin/lc-scaffold.mjs`;
 export const toolRef = (tool) => `${CONNECTOR_TOOL_PREFIX}${tool}`;
@@ -400,6 +401,8 @@ const PARALLEL_STEP = (dispatch) => (
 const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too. ${TARGETS}\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
 const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
 const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`. ${BOARD_MISSING_TEXT}`;
+const EXPLAIN_SCRIPT_NOTE = `The explain script belongs to the optional ${NAMES.board} add-on: find it with Glob \`${EXPLAIN_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` (or \`connector/bin/lc-explain.mjs\` in the LaneConductor repository) and run \`node <that path> --repo . --track <number>\`, or \`node <that path> --repo . --statistics\` for the project summary. `
+  + `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: run nothing, do not work out the numbers and do not write the report by hand. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
 const OPEN_NOTE = 'To open it, use the Artifact tool, action `open`, with the stored URL, and give me the link. Opening never calls `publish` or regenerates anything; only `refresh` does.';
 
@@ -473,6 +476,7 @@ export const BASE_EXTRAS = {
   run: [`In Claude Code the add-on's sub-agent is \`${TRACK_RUNNER_AGENT}\`. See "Plugin users" in the skill's \`ops/working-a-track.md\`.`],
   'review-plan': [`Dispatch the \`${NAMES.base}:plan-reviewer\` subagent (read only) with that prompt.`],
   help: [`In Claude Code, type a command as \`/${NAMES.base}:<name>\`, for example \`/${NAMES.base}:plan 10106\`; typing \`/${NAMES.base}:\` lists them all.`],
+  explain: [`In Claude Code, type it as \`/${NAMES.base}:explain 10106\` or \`/${NAMES.base}:explain statistics\` (also \`summary\` or \`project\`); a track missing from the summary needs \`/${NAMES.base}:explain <number>\` first; after \`/${NAMES.base}:board refresh\` the board shows the report as the "Agent run" tab of the track.`, EXPLAIN_SCRIPT_NOTE],
   board: [`In Claude Code, type the refresh as \`/${NAMES.base}:board refresh\`.`, PUBLISH_NOTE, OPEN_NOTE, BOARD_SCRIPT_NOTE],
 };
 
@@ -484,7 +488,7 @@ export function connectorLine(cmd) {
   return `If the ${NAMES.parallel} add-on's tools are present (${tools.map((t) => `\`${toolRef(t)}\``).join(', ')}), use them instead of editing the files by hand: they refuse a write when someone edited first (a CONFLICT), so pass \`update_track\` the \`base\` from \`get_track\` and, after a CONFLICT, re-read and retry. If they are not present, the steps above are the whole job.`;
 }
 
-export const BASE_HELP_FOOTER = `Works on its own: every command edits the track files directly. Needs the ${NAMES.board} add-on: board (only to refresh); without it it says so and shows how to get it. With the ${NAMES.parallel} add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.`;
+export const BASE_HELP_FOOTER = `Works on its own: every command edits the track files directly. Needs the ${NAMES.board} add-on: board (only to refresh), explain; without it it says so and shows how to get it. With the ${NAMES.parallel} add-on installed, the commands use its conflict-checked tools and dispatch its track-runner sub-agent.`;
 
 /**
  * The journey in four lines (install, type next, follow the step, what appears at the start), generated from the catalog so the README and

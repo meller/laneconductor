@@ -246,7 +246,7 @@ test('commands that use the connector name its tools only for when they are pres
   const help = read('commands/help.md');
   assert.ok(help.includes(helpLines('LaneConductor commands. Say one in your own words, or use it as a slash command.').join('\n')), 'help.md holds the catalog help lines');
   for (const c of CATALOG) assert.equal(help.split('\n').filter((l) => new RegExp(`^- ${c.name}( |:)`).test(l)).length, 1, `${c.name} listed once in help`);
-  assert.match(help, /Works on its own: every command edits the track files directly\. Needs the laneconductor-board add-on: board \(only to refresh\); without it it says so/);
+  assert.match(help, /Works on its own: every command edits the track files directly\. Needs the laneconductor-board add-on: board \(only to refresh\), explain; without it it says so/);
   // board: finds the board script by Glob, and says so + shows the install commands when it does not exist.
   for (const c of ['board']) {
     const t = read(`commands/${c}.md`);
