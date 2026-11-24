@@ -51,6 +51,14 @@
 - [x] TC-34 (D27): for the same explain.md texts, the `## Recommendations` of statistics.md lists exactly the actions `rankFromExplains` returns (same order, same counts, at most three), the folder name gives the track number (`AM-` prefixed or bare), a folder with no number is left out, the scope is the 10 newest tracks
 - [x] TC-35 (D27): fewer than 3 measured tracks and a quiet project print the drawer's own messages; the model mix, the claim-commit share and the tracks where most rules fired are in the `## Insight` and no longer in the Recommendations
 
+### Phase 12: levels, project lines, sub-agent start context
+- [x] TC-36 (D30): a synthetic main session with 600,001 tokens of context and three sub-agents that start at 13,000 (before the first lane window), 20,000 (in the plan window, working again in the implement window with 250,000) and 55,000: the sub-agent starts of the implement run are 13,000, 20,000 and 55,000, its row says sub-agent with Context at start 20,000 (before the fix 600,001), a row made mostly of main-session replies keeps the main figure, a phase row marked sub-agent shows the median of its own starts, the main session's first-reply figure is unchanged (`explain.test.mjs`, `explain-plan.test.mjs`)
+- [x] TC-29 (D28, rewritten): levels by share of the measured tracks (60 and 30 percent, whole-number arithmetic), every action that fired on one track or more is listed, High then Medium then Low then count, tokens and rule order, at most five, "Not enough tracks (N of 3)" and "No change suggested" kept, an action of two tracks of ten is Low (`explain-rank.test.mjs`, `board-recommend.test.mjs`)
+- [x] TC-30 (D28): the drawer shows a High, Medium or Low badge per action, at most five rows, an unknown level draws no badge, Discuss all names the level (`board-recommend.test.mjs`)
+- [x] TC-37 (D29): the `lane-facts` block (round trip, an older file or another version is null, malformed entries dropped, only the words where and context) and the two Insight lines with their counts and medians, the "not counted" note, "not measured yet", shared windows and runs with no reply left out (`explain-plan.test.mjs`, `explain-recommend.test.mjs`)
+- [x] TC-38 (D28): statistics.md lists the same actions as the drawer with the same levels; the Low action of two tracks of ten and the Medium action of one track of three are in it (`explain-recommend.test.mjs`)
+- [x] Real data (read-only): `lc-explain --repo <main folder> --track 10146 --no-write --now 2026-11-24T12:00:00Z` implement row 56,029 (before 788,792) and 10143 12,842 (before 418,606); the built script on a throwaway copy of the 15 real reports lists the same three actions with the same levels in statistics.md and in board.json `rec`
+
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals
 - [x] No prompt, message or file content appears in any output
