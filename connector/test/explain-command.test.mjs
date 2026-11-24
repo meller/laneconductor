@@ -63,6 +63,13 @@ test('TC-2c (D4): a track the checkout does not have gets a plain answer: no suc
   assert.match(t, /write nothing and pull nothing yourself/);
 });
 
+test('TC-2d (D5): a single track shows its short plan, its suggestions and its Insight lines by default', () => {
+  const t = read('commands/explain.md');
+  assert.match(t, /3\. For a track, show the short plan as the script printed it: its table, the suggestion lines below it \(at most three\), one line each, and then its Insight lines \(the `## Insight` section: time, work, context, sub-agents, the biggest lane and phase\), one line each, so the Insight comes by default/);
+  assert.match(t, /3b\. For the project summary, show how many tracks it summarized/);
+  for (const line of explain().procedure.split('\n')) assert.ok(line.length < 600, `a procedure line is ${line.length} characters (the directory precheck rejects 600 and more)`);
+});
+
 test('TC-3: the generated command names the script glob and, for a missing add-on, both install commands each in its own block', () => {
   const t = read('commands/explain.md');
   assert.ok(t.startsWith('---\ndescription: '));
