@@ -1,10 +1,10 @@
 # Track AM-10157: /laneconductor:explain: a base slash command that runs the board add-on's lc-explain
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 90%
 **Verdict**: pass
-**Phase**: Implemented, reviewed and gated 2026-11-24; waiting for the owner's word to merge and push (task 9 decided: release now); task 10 (the posts) follows the release
+**Phase**: Released 2026-11-24 (base 1.9.18, parallel 1.9.18 on origin/main); task 10 (the posts): the site post is deployed, the LinkedIn post waits for the owner's manual test
 **Track Kind**: feature
 **Type**: dev
 **Priority**: normal
