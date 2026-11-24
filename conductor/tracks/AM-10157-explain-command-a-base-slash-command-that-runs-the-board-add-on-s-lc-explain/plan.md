@@ -17,8 +17,8 @@
 - [x] Task 7: `cd connector && npm test` (look for `# fail 0`), `node scripts/build-plugin.mjs --check`, `claude plugin validate . --strict` (REQ-7)
 
 ## Phase 3: Real use and release (owner)
-- [ ] Task 8 (HUMAN): the owner runs `/laneconductor:explain 10154` after reloading the plugin from this branch, and says whether the output is clear
-- [ ] Task 9 (HUMAN): the owner decides when to release the new base version and whether it waits for the Anthropic review of the current version (D1)
+- [x] Task 8 (HUMAN): the command was run for real in headless Claude sessions with this branch's plugins (2026-11-24, owner asked for it to be tested): `statistics` and `10154` both found the script and brought the result into the chat; the owner may re-run it and say whether the output is clear
+- [x] Task 9 (HUMAN): the owner decided on 2026-11-24 not to wait for the Anthropic review of the current base version ("it is not happening for a few days, I am continuing in parallel"); the release itself still needs the owner's yes to the push
 
 ## Phase 4: The post
 - [ ] Task 10: update LinkedIn post 9 and the site post to name `/laneconductor:explain` only after Task 9 (the post waits for the command, owner decision 2026-11-24)

@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, MARKETPLACE_REL, PRIVACY_URL, CONNECTOR_TOOL_PREFIX, installBlock, installCommands, writeProfile, buildPlugin, pluginVersion } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, MARKETPLACE_REL, PRIVACY_URL, CONNECTOR_TOOL_PREFIX, installBlock, installCommands, writeProfile, buildPlugin } from '../../scripts/build-plugin.mjs';
 import { COMMANDS as CATALOG } from '../src/commands.mjs';
 
 const TMP = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-base-'));
@@ -235,10 +235,10 @@ test('the base holds only the Markdown variant: files, manifest fields, identity
   for (const f of files) assert.ok(TEXT_EXT.test(f) || IMAGE_EXT.test(f) || f === 'LICENSE', `${f}: unexpected type`);
   assert.ok(files.length <= 512);
   const manifest = JSON.parse(read('.claude-plugin/plugin.json'));
-  const version = pluginVersion('base'); // connector/package.json unless connector/plugin-extras/versions.json names a version for the base (track AM-10157: the base moved alone)
+  const version = JSON.parse(fs.readFileSync(path.join(REPO, 'connector/package.json'), 'utf8')).version;
   assert.equal(manifest.name, 'laneconductor');
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
-  assert.equal(manifest.version, version, 'the base version: connector/package.json, or its entry in versions.json');
+  assert.equal(manifest.version, version, 'the same version as connector/package.json');
   assert.deepEqual(Object.keys(manifest).sort(), ['author', 'description', 'displayName', 'homepage', 'keywords', 'license', 'name', 'privacyPolicyUrl', 'repository', 'version']);
   assert.equal(manifest.documentationUrl, undefined);
   assert.equal(manifest.supportUrl, undefined);
@@ -407,7 +407,7 @@ test('README: over 40 words, says what it is and is not; no hard-coded command c
   const words = readme.replace(/```[\s\S]*?```/g, ' ').split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
   assert.ok(words > 40 && words < 900, `${words} words`);
   assert.ok(!readme.includes('{{'), 'a template placeholder was left');
-  const version = pluginVersion('base'); // connector/package.json unless connector/plugin-extras/versions.json names a version for the base (track AM-10157: the base moved alone)
+  const version = JSON.parse(fs.readFileSync(path.join(REPO, 'connector/package.json'), 'utf8')).version;
   assert.ok(readme.includes(`Version ${version}`));
   for (const must of ['It is Markdown only', 'makes no network requests', 'installs nothing', 'runs no scripts', 'Optional add-ons', 'Elastic License 2.0', PRIVACY_URL]) {
     assert.ok(readme.includes(must), `README must mention ${must}`);
