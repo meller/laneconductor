@@ -3,7 +3,7 @@
   "versions": {
     "laneconductor": "1.9.20",
     "laneconductor-analytics-monitoring": "0.2.0",
-    "laneconductor-board": "1.10.20",
+    "laneconductor-board": "1.10.21",
     "laneconductor-firebase": "0.1.0",
     "laneconductor-gemini": "0.1.1",
     "laneconductor-node-postgres": "0.1.0",

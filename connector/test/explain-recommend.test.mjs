@@ -9,6 +9,7 @@ import {
   LONG_CONTEXT, LOW_SUB_SHARE, MECHANICAL_SHARE, MIN_TOOL_CALLS, SMALL_REPLY_OUTPUT, BIG_REPLY_OUTPUT, THINKING_SHARE, SLOW_STEP_MS,
 } from '../src/explain.mjs';
 import { markUnrecordedStatistics } from '../src/board-docs.mjs';
+import { rankFromExplains, MAX_ACTIONS } from '../src/explain-rank.mjs';
 
 const MIN = 60000;
 const NOW = '2026-11-22T08:00:00.000Z';
@@ -208,40 +209,103 @@ const stats = (items) => renderStatistics(items, { now: NOW });
 const item = (n, runs, phases) => ({ folder: `AM-${n}-t${n}`, text: explainOf(`AM-${n}-t${n}`, runs, phases) });
 const statsReco = (text) => /^## Recommendations\n([\s\S]*?)(?=^> |^## Tracks)/m.exec(text)?.[1] ?? null;
 
-test('TC-24: statistics.md has ## Recommendations right after the Insight: model mix of all replies, unclaimed share, tracks where most rules fired', () => {
+const statsInsight = (text) => /^## Insight\n([\s\S]*?)(?=^## )/m.exec(text)?.[1] ?? null;
+const bullets = (body) => (body ?? '').split('\n').filter((l) => l.startsWith('- '));
+/** The drawer's answer for the same explain.md texts: the number is the one of the folder name, as lc-board.mjs reads it from the track. */
+const drawerOf = (items) => rankFromExplains(items.map((i) => ({ number: Number(/(\d+)-/.exec(i.folder)[1]), text: i.text })));
+
+test('TC-24: statistics.md has ## Recommendations right after the Insight, and the Insight holds the model mix of all replies, the unclaimed share and the tracks where most rules fired (D27)', () => {
   const a = item(801, [run({ claimed: false, models: { [SONNET]: 15, [OPUS]: 5 }, efforts: { high: 20 } }), run({ lane: 'plan', models: { [SONNET]: 20 } })]);
   const b = item(802, [run({ models: { [HAIKU]: 10, synthetic: 10 }, tools: { Agent: 5 } })]);
   const c = item(803, [run({ claimed: false, firstContext: 900000, sub: { responses: 0, output: 0 }, efforts: { high: 20 }, slowest: [{ tool: 'Bash', ms: 9 * MIN, at: '2026-11-20T10:12:00.000Z' }] })]);
   const text = stats([a, b, c]);
   const heads = text.split('\n').filter((l) => l.startsWith('## ')).slice(0, 3);
   assert.deepEqual(heads, ['## Insight', '## Recommendations', '## Tracks']);
-  const body = statsReco(text);
-  assert.match(body, /rule-based/);
+  const insight = statsInsight(text);
   // replies: sonnet 15 + 20 + 20 = 55, opus 5, haiku 10, synthetic 10: 80 in all
-  assert.match(body, /Model mix of all replies \(3 tracks with model data, 80 replies\): claude-sonnet-5-5 55 \(69%\), claude-haiku-4-5-20251001 10 \(13%\), synthetic 10 \(13%\), claude-opus-5 5 \(6%\)/);
-  assert.match(body, /Lane runs with no claim commit: 2 of 4 \(50%\)/);
-  assert.match(body, /Tracks where most rules fired: AM-803 \(4 rules\), AM-801 \(2 rules\)/);
+  assert.match(insight, /^- Model mix of all replies \(3 tracks with model data, 80 replies\): claude-sonnet-5-5 55 \(69%\), claude-haiku-4-5-20251001 10 \(13%\), synthetic 10 \(13%\), claude-opus-5 5 \(6%\)\.$/m);
+  assert.match(insight, /^- Lane runs with no claim commit: 2 of 4 \(50%\): claim the lane when starting it so its time is measured, not inferred\.$/m);
+  assert.match(insight, /^- Tracks where most rules fired: AM-803 \(4 rules\), AM-801 \(2 rules\)\.$/m);
+  assert.match(insight, /3 tracks have statistics/, 'the earlier Insight lines stay');
+  const body = statsReco(text);
+  for (const gone of [/Model mix of all replies/, /Lane runs with no claim commit/, /Tracks where most rules fired/, /No rule fired on any track/, /no model data/i]) assert.ok(!gone.test(body), `${gone} moved to the Insight`);
 });
 
-test('TC-24: tracks written before the model fields say so, never 0 or NaN', () => {
+test('TC-24 (D27): the Recommendations are exactly the actions of the board drawer: same order, same counts, at most three', () => {
+  // 801 to 805 all unclaimed (claim 5 of 5), long context in 801 to 804 (where 4), high effort on mechanical work in 801 to 803 and a slow step in 801 to 803 (3 each: four rules over the threshold)
+  const items = [];
+  for (let k = 1; k <= 5; k += 1) {
+    items.push(item(800 + k, [run({
+      claimed: false,
+      ...(k <= 4 ? { firstContext: 900000, sub: { responses: 0, output: 0 } } : {}),
+      ...(k <= 3 ? { efforts: { high: 20 }, slowest: [{ tool: 'Bash', ms: 9 * MIN, at: '2026-11-20T10:12:00.000Z' }] } : {}),
+    })]));
+  }
+  const want = drawerOf(items);
+  assert.equal(want.state, 'ok');
+  assert.equal(want.actions.length, MAX_ACTIONS, 'the drawer shows three although more rules reached the threshold');
+  const got = statsReco(stats(items));
+  assert.deepEqual(bullets(got), want.actions.map((a) => `- ${a.title}: ${a.text}.`));
+  assert.match(bullets(got)[0], /5 of 5 tracks have lane runs with no claim commit/);
+  assert.match(got, /Tracks looked at \(newest first\): 805, 804, 803, 802, 801\./);
+  // the drawer is made from the same function: a bare folder name gives the same number, so the same list
+  const bare = items.map((x) => ({ folder: x.folder.replace(/^AM-/, ''), text: x.text }));
+  assert.deepEqual(bullets(statsReco(stats(bare))), bullets(got));
+});
+
+test('TC-24 (D27): the scope is the last 10 tracks by number, as the drawer has it', () => {
+  const items = [];
+  for (let k = 1; k <= 12; k += 1) items.push(item(800 + k, [run({ claimed: k > 2 })])); // 801 and 802 unclaimed: the 10 newest (803 to 812) are all claimed
+  const want = drawerOf(items);
+  assert.equal(want.state, 'quiet');
+  const got = statsReco(stats(items));
+  assert.ok(got.includes(want.message), want.message);
+  assert.match(want.message, /last 10 tracks/);
+  assert.deepEqual(bullets(got), []);
+});
+
+test('TC-24 (D27): not enough tracks and nothing to suggest use the messages of the drawer', () => {
+  const few = [item(801, [run({ claimed: false })]), item(802, [run({ claimed: false })])];
+  const wantFew = drawerOf(few);
+  assert.equal(wantFew.state, 'few');
+  assert.ok(statsReco(stats(few)).includes(wantFew.message));
+  assert.match(wantFew.message, /Not enough tracks with statistics yet \(2 of 3\)/);
+  assert.ok(statsReco(stats([])).includes(drawerOf([]).message));
+  const quiet = [item(801, [run()]), item(802, [run()]), item(803, [run()])];
+  const wantQuiet = drawerOf(quiet);
+  assert.equal(wantQuiet.state, 'quiet');
+  assert.ok(statsReco(stats(quiet)).includes(wantQuiet.message));
+  assert.deepEqual(bullets(statsReco(stats(quiet))), []);
+});
+
+test('TC-24 (D27): a folder with no track number is not ranked, and the statistics still list it', () => {
+  const items = [801, 802, 803].map((k) => item(k, [run({ claimed: false })]));
+  const stray = { folder: 'scratch-notes', text: explainOf('AM-999-t999', [run({ claimed: false })]) };
+  const got = statsReco(stats([...items, stray]));
+  assert.deepEqual(bullets(got), bullets(statsReco(stats(items))));
+  assert.match(got, /Tracks looked at \(newest first\): 803, 802, 801\./);
+});
+
+test('TC-24: tracks written before the model fields say so in the Insight, never 0 or NaN', () => {
   const old = { folder: 'AM-810-t810', text: explainOf('AM-810-t810', [run()]).replace(/^## Model use\n[\s\S]*?(?=^## )/m, '').replace(/^## Recommendations\n[\s\S]*?(?=^> Generated by)/m, '') };
   const fresh = item(811, [run({ claimed: false })]);
-  const body = statsReco(stats([old, fresh]));
+  const body = statsInsight(stats([old, fresh]));
   assert.match(body, /1 track has no model data \(an older explain\.md\)/);
   assert.match(body, /Model mix of all replies \(1 track with model data, 20 replies\)/);
   assert.match(body, /Lane runs with no claim commit: 1 of 2 \(50%\)/);
   assert.match(body, /Tracks where most rules fired: AM-811 \(1 rule\)/);
   assert.ok(!/NaN|Infinity|undefined/.test(body));
-  const none = statsReco(stats([old]));
+  assert.ok(!/NaN|Infinity|undefined/.test(statsReco(stats([old, fresh]))));
+  const none = statsInsight(stats([old]));
   assert.match(none, /No track has model data yet/);
   assert.match(none, /no track has recommendations yet/i);
   assert.ok(!/NaN|Infinity|undefined/.test(none));
 });
 
 test('TC-24: no rule fired on any track, and no track at all', () => {
-  const body = statsReco(stats([item(801, [run()]), item(802, [run()])]));
-  assert.match(body, /No rule fired on any track/);
-  assert.match(body, /Lane runs with no claim commit: 0 of 2 \(0%\)/);
+  const text = stats([item(801, [run()]), item(802, [run()])]);
+  assert.match(statsInsight(text), /No rule fired on any track/);
+  assert.match(statsInsight(text), /Lane runs with no claim commit: 0 of 2 \(0%\)/);
   assert.match(stats([]), /## Recommendations/);
   assert.match(stats([]), /No track has statistics yet/);
 });

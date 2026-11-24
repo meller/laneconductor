@@ -1,6 +1,7 @@
 // Track AM-10155 Phase 9 (D21, D22, D23): the recommendations across the last tracks, for the board's "Agent recommendations" drawer.
 // Pure. The input is, per track, the facts block of its explain.md (rule ids and whole numbers, see recommendFacts in explain.mjs); the output is
 // at most three ranked actions with one number each. Nothing here reads a transcript or any text of a track.
+import { trackNumberOfFolder } from './tracks.mjs';
 import { RULE_IDS, LONG_CONTEXT, SLOW_STEP_MS, fmtMs, parseRecommendFacts } from './explain.mjs';
 
 /** How many of the newest tracks that have an explain.md the drawer looks at (D21). */
@@ -13,7 +14,8 @@ export const MAX_ACTIONS = 3;
 const num = (v) => Number(v).toLocaleString('en-US');
 
 /** For each rule id: a title, the line that says how many tracks it applies to, and one plain sentence for the agent to apply (the Copy button). */
-const ACTIONS = {
+// Built on first use: explain.mjs imports this file (the statistics summary shows the same ranking), so its constants are not ready while this module loads.
+const buildActions = () => ({
   where: {
     title: 'Run long lane work in a sub-agent or a fresh session',
     line: (c, m) => `${c} of ${m} tracks ran a lane with over ${num(LONG_CONTEXT)} tokens of history in the main session`,
@@ -44,7 +46,9 @@ const ACTIONS = {
     line: (c, m) => `${c} of ${m} tracks have lane runs with no claim commit`,
     copy: 'Set the lane to running when starting it, so the lane run has a claim commit and its time is measured, not inferred.',
   },
-};
+});
+let actionsCache = null;
+const actionOf = (id) => (actionsCache ??= buildActions())[id];
 
 /**
  * @param {{ number: number, facts: { v: 1, rules: { id: string, tokens: number }[] } | null }[]} tracks one entry per track that has an explain.md; `facts` is null when its explain.md has no facts block (not measured)
@@ -61,7 +65,7 @@ export function rankRecommendations(tracks, { window = RECOMMEND_WINDOW, min = M
     const hit = measured.filter((t) => t.facts.rules.some((x) => x.id === id));
     if (hit.length < min) continue;
     const tokens = hit.reduce((s, t) => s + t.facts.rules.filter((x) => x.id === id).reduce((a, x) => a + x.tokens, 0), 0);
-    actions.push({ id, title: ACTIONS[id].title, count: hit.length, tokens, text: ACTIONS[id].line(hit.length, measured.length), copy: ACTIONS[id].copy });
+    actions.push({ id, title: actionOf(id).title, count: hit.length, tokens, text: actionOf(id).line(hit.length, measured.length), copy: actionOf(id).copy });
   }
   // Most tracks first, then the most tokens; the order of RULE_IDS (a stable sort) settles the rest.
   actions.sort((a, b) => b.count - a.count || b.tokens - a.tokens);
@@ -72,4 +76,16 @@ export function rankRecommendations(tracks, { window = RECOMMEND_WINDOW, min = M
 /** The same from explain.md texts: `items` is [{ number, text }]; a text with no facts block is not measured. */
 export function rankFromExplains(items, opts) {
   return rankRecommendations(items.map((it) => ({ number: it.number, facts: parseRecommendFacts(it.text) })), opts);
+}
+
+/**
+ * The plain lines of the `## Recommendations` of statistics.md (D27): the same ranking as the board's drawer, over the same last tracks.
+ * `items` is [{ folder, text }] as readExplains gives it; the number of a track is the one of its folder name (AM-10154-x and 10154-x both give 10154),
+ * and a folder with no number is not a track and is left out. At most three bullet lines, or the drawer's own message for the not-enough and quiet states.
+ */
+export function rankedStatisticsLines(items) {
+  const numbered = items.map((it) => ({ number: trackNumberOfFolder(it.folder), text: it.text })).filter((it) => it.number !== null);
+  const r = rankFromExplains(numbered);
+  if (r.state !== 'ok') return [r.message, ''];
+  return [...r.actions.map((a) => `- ${a.title}: ${a.text}.`), '', `Tracks looked at (newest first): ${r.tracks.join(', ')}.`, ''];
 }
