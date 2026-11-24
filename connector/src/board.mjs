@@ -275,7 +275,7 @@ export function boardPageData(board, { docFolders = [], doneShards = null, docsD
     ...(projectDocs.length ? { project_docs: projectDocs.map(({ k, t, f }) => ({ k, t, f })) } : {}),
     ...(projectDocs.length && wf ? { wf } : {}),
     ...(next ? { next } : {}),
-    ...(rec ? { rec: { state: rec.state, message: rec.message, measured: rec.measured, not_measured: rec.notMeasured, min: rec.min, tracks: rec.tracks, actions: rec.actions.map(({ id, title, count, text, copy }) => ({ id, title, count, text, copy })) } } : {}),
+    ...(rec ? { rec: { state: rec.state, message: rec.message, measured: rec.measured, not_measured: rec.notMeasured, min: rec.min, tracks: rec.tracks, actions: rec.actions.map(({ id, title, level, count, text, copy }) => ({ id, title, level, count, text, copy })) } } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
 }

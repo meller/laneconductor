@@ -4,7 +4,7 @@
 //   TC-28 the recommend-facts block holds only rule ids and numbers; no content reaches it
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderExplain, renderStatistics, parseExplain, recommend, shortPlan, recommendFacts, parseRecommendFacts, RULE_IDS, FIX_LINES_MAX } from '../src/explain.mjs';
+import { renderExplain, renderStatistics, parseExplain, recommend, shortPlan, recommendFacts, parseRecommendFacts, laneFacts, parseLaneFacts, RULE_IDS, FIX_LINES_MAX } from '../src/explain.mjs';
 import { scanText } from '../src/scan.mjs';
 
 const MIN = 60000;
@@ -209,4 +209,55 @@ test('TC-28: recommendFacts and parseRecommendFacts round-trip; a file without a
   assert.equal(parseRecommendFacts('```json recommend-facts\n{"v":2,"rules":[]}\n```'), null, 'an unknown version is not read');
   const odd = parseRecommendFacts('```json recommend-facts\n{"v":1,"rules":[{"id":"bogus","lane":null,"n":1,"tokens":1,"count":1},{"id":"claim","lane":"x y","n":"7","tokens":-1,"count":1.5},{"id":"claim","lane":null,"n":3,"tokens":9,"count":1}]}\n```');
   assert.deepEqual(odd.rules, [{ id: 'claim', lane: null, n: 3, tokens: 9, count: 1 }], 'unknown ids and malformed entries are dropped');
+});
+
+// ---- TC-36 (D30): the Context at start of a phase row marked sub-agent is the median of the sub-agents' own starts, as for a lane run row ----
+test('TC-36 (D30): a phase row marked sub-agent shows the median of its sub-agents\' own starts; a main-session phase row keeps the main figure; the expensive mark follows the shown number', () => {
+  const sub = phase({ label: 'Phase 2: Second', key: 'Phase 2', firstContext: 700000, subStarts: [50000, 60000, 58000], wallMs: 50 * MIN, responses: 6, sub: { responses: 6, output: 10 } });
+  const rows = rowsOf(planOf(renderExplain(result([run()], [phase({ firstContext: 120000 }), sub]), { now: NOW })));
+  assert.deepEqual(rows[1].slice(1, 6), ['main session', '30m', '1,000', '120,000', 'expensive'], 'the main figure, and the biggest shown number');
+  assert.deepEqual(rows[2].slice(1, 6), ['sub-agent', '50m', '1,000', '58,000', ''], 'was 700,000 before: the main session\'s first reply');
+});
+
+test('TC-36 (D30): a lane run row marked sub-agent with no known start keeps the first-reply figure (older hand-made results)', () => {
+  const rows = rowsOf(planOf(renderExplain(result([run({ lane: 'implement', firstContext: 500000, sub: { responses: 15, output: 100 }, subStarts: [] })]), { now: NOW })));
+  assert.equal(rows[1][4], '500,000');
+});
+
+// ---- TC-37 (D29): the lane-facts block: where each lane run ran and its context at start, whole numbers only ----
+const laneBlock = (text) => /^```json lane-facts\n([\s\S]*?)\n```$/m.exec(text)?.[1] ?? null;
+
+test('TC-37 (D29): explain.md carries a lane-facts block after recommend-facts: one entry per lane run with replies that is not a shared window, with where and the context shown in the short plan', () => {
+  const runs = [
+    run({ lane: 'plan', firstContext: 50000 }),
+    run({ lane: 'implement', firstContext: 700000, sub: { responses: 15, output: 100 }, subStarts: [50000, 60000] }),
+    run({ lane: 'review', shared: true }),
+    run({ lane: 'done', responses: 0, firstContext: 0, subStarts: [], sub: { responses: 0, output: 0 } }),
+  ];
+  const text = renderExplain(result(runs), { now: NOW });
+  const raw = laneBlock(text);
+  assert.ok(raw, 'the block is there');
+  assert.ok(text.indexOf('```json recommend-facts') < text.indexOf('```json lane-facts'), 'after the recommendation facts, which stay as they were');
+  assert.ok(text.trimEnd().endsWith('```'));
+  assert.deepEqual(JSON.parse(raw), { v: 1, runs: [{ where: 'main', context: 50000 }, { where: 'sub-agent', context: 55000 }] });
+  assert.deepEqual(Object.keys(JSON.parse(factsOf(text))).sort(), ['rules', 'v'], 'the recommend-facts block is unchanged');
+  assert.deepEqual(laneFacts(result(runs)), JSON.parse(raw));
+  assert.deepEqual(parseLaneFacts(text), laneFacts(result(runs)), 'round trip');
+});
+
+test('TC-37 (D29): a file with no lane-facts block, a broken one or another version is not measured (null); a malformed entry is dropped', () => {
+  assert.equal(parseLaneFacts('# Agent run: x\n\n```json recommend-facts\n{"v":1,"rules":[]}\n```\n'), null);
+  assert.equal(parseLaneFacts('```json lane-facts\n{not json\n```'), null);
+  assert.equal(parseLaneFacts('```json lane-facts\n{"v":2,"runs":[]}\n```'), null);
+  const odd = parseLaneFacts('```json lane-facts\n{"v":1,"runs":[{"where":"main","context":5},{"where":"elsewhere","context":5},{"where":"sub-agent","context":-1},{"where":"sub-agent","context":"7"},{"where":"sub-agent","context":7.5},{"where":"sub-agent","context":0}]}\n```');
+  assert.deepEqual(odd.runs, [{ where: 'main', context: 5 }, { where: 'sub-agent', context: 0 }]);
+  assert.deepEqual(parseLaneFacts('```json lane-facts\n{"v":1,"runs":[]}\n```'), { v: 1, runs: [] }, 'measured, no lane run with replies');
+});
+
+test('TC-37 (D29): the lane-facts block holds only the words where and context, and the file still passes the privacy scan', () => {
+  const email = 'jane.private@corp-secret.example';
+  const text = renderExplain(result([run({ lane: `Weird ${email}`, firstContext: 700000 })]), { now: NOW });
+  const raw = laneBlock(text);
+  for (const s of [email, 'Weird', 'corp-secret']) assert.ok(!raw.includes(s));
+  assert.deepEqual(Object.keys(JSON.parse(raw).runs[0]).sort(), ['context', 'where']);
 });

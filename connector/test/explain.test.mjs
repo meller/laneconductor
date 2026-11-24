@@ -292,3 +292,49 @@ test('TC-14: with no main message in the window the first response falls back to
   assert.equal(impl.firstContext, 4 + 400 + 4000);
   assert.equal(impl.responses, 2);
 });
+
+// ---- TC-36 (D30): a sub-agent row reports the sub-agent's OWN first-reply context, not the main session's, and not a mid-run reply.
+function startProjects(repo) {
+  const projects = tmp('lc-explain-start-');
+  const folder = path.join(projects, repo.replace(/[^A-Za-z0-9]/g, '-'));
+  const session = '33333333-aaaa-bbbb-cccc-000000000003';
+  fs.mkdirSync(path.join(folder, session, 'subagents'), { recursive: true });
+  const line = (o) => response({ session, cwd: repo, blocks: [{ type: 'text', text: 'ok' }], ...o });
+  // the main session is long: 600,001 tokens of context at its first reply of the implement run
+  fs.writeFileSync(path.join(folder, `${session}.jsonl`), jl(...[{ ts: at('10:10'), usage: [1, 20, 0, 600000] }, { ts: at('10:50'), usage: [1, 20, 0, 610000] }].flatMap((o) => line(o))));
+  const agent = (id, replies) => {
+    fs.writeFileSync(path.join(folder, session, 'subagents', `agent-${id}.jsonl`), jl(...replies.flatMap((o) => line({ branch: `worktree-agent-${id}`, side: id, ...o }))));
+    fs.writeFileSync(path.join(folder, session, 'subagents', `agent-${id}.meta.json`), JSON.stringify({ description: 'track-runner: implement track 777' }));
+  };
+  // aa began at 08:00, before the first lane window (09:05): 13,000 tokens at its first reply, and 300,000 when it replies again inside the implement window
+  agent('aa', [{ ts: at('08:00'), usage: [1, 10, 0, 12999] }, { ts: at('10:25'), usage: [2, 20, 0, 300000] }, { ts: at('10:26'), usage: [2, 20, 0, 301000] }]);
+  // cc began inside the implement window with 55,000
+  agent('cc', [{ ts: at('10:30'), usage: [2, 20, 1000, 53998] }, { ts: at('10:31'), usage: [2, 20, 0, 60000] }]);
+  // dd began in the plan window (09:20) with 20,000 and kept working in the implement window with 250,000
+  agent('dd', [{ ts: at('09:20'), usage: [2, 20, 0, 19998] }, { ts: at('10:40'), usage: [2, 20, 0, 250000] }]);
+  return projects;
+}
+
+test('TC-36 (D30): the sub-agent starts of a run are the first replies of the sub-agents themselves, even one before the first lane window; the main session keeps its own figure', async () => {
+  const repo = fixtureRepo();
+  const r = await analyze(repo, startProjects(repo));
+  const impl = r.runs.find((x) => x.lane === 'implement');
+  assert.equal(impl.firstContext, 600001, 'the first reply of the MAIN session is unchanged');
+  assert.deepEqual([...impl.subStarts].sort((a, b) => a - b), [13000, 20000, 55000], 'aa: 08:00 (before the cut), dd: 09:20 (the plan window), cc: 10:30; not 300,000 / 250,000 / 55,000');
+  assert.equal(impl.sub.responses, 5);
+  assert.equal(impl.responses, 7);
+});
+
+test('TC-36 (D30): the Context at start of a row marked sub-agent is the median of the sub-agents\' own starts; a main-session row keeps the main figure', async () => {
+  const repo = fixtureRepo();
+  const r = await analyze(repo, startProjects(repo));
+  const rows = (text) => /^## Short plan\n([\s\S]*?)(?=^## )/m.exec(text)[1].split('\n').filter((l) => l.startsWith('|') && !/^\|[\s|-]+$/.test(l)).map((l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+  const impl = rows(renderExplain(r)).find((x) => x[0] === 'implement');
+  assert.equal(impl[1], 'sub-agent');
+  assert.equal(impl[4], '20,000', 'median of 13,000, 20,000 and 55,000; before the fix 600,001 (the main session)');
+  // the same run made mostly of main-session replies keeps the main figure
+  const main = { ...r, runs: r.runs.map((x) => (x.lane === 'implement' ? { ...x, responses: 20, sub: { responses: 2, output: 1 } } : x)) };
+  const m = rows(renderExplain(main)).find((x) => x[0] === 'implement');
+  assert.equal(m[1], 'main session');
+  assert.equal(m[4], '600,001');
+});

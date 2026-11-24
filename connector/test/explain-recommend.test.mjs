@@ -231,7 +231,7 @@ test('TC-24: statistics.md has ## Recommendations right after the Insight, and t
   for (const gone of [/Model mix of all replies/, /Lane runs with no claim commit/, /Tracks where most rules fired/, /No rule fired on any track/, /no model data/i]) assert.ok(!gone.test(body), `${gone} moved to the Insight`);
 });
 
-test('TC-24 (D27): the Recommendations are exactly the actions of the board drawer: same order, same counts, at most three', () => {
+test('TC-24 (D27, D28): the Recommendations are exactly the actions of the board drawer: same order, same counts, same levels', () => {
   // 801 to 805 all unclaimed (claim 5 of 5), long context in 801 to 804 (where 4), high effort on mechanical work in 801 to 803 and a slow step in 801 to 803 (3 each: four rules over the threshold)
   const items = [];
   for (let k = 1; k <= 5; k += 1) {
@@ -243,10 +243,12 @@ test('TC-24 (D27): the Recommendations are exactly the actions of the board draw
   }
   const want = drawerOf(items);
   assert.equal(want.state, 'ok');
-  assert.equal(want.actions.length, MAX_ACTIONS, 'the drawer shows three although more rules reached the threshold');
+  assert.equal(want.actions.length, 4, 'D28: every action that fired is listed (here four, under the cap of five)');
+  assert.ok(want.actions.length <= MAX_ACTIONS);
+  assert.deepEqual(want.actions.map((a) => [a.id, a.count, a.level]), [['claim', 5, 'High'], ['where', 4, 'High'], ['lower-effort', 3, 'High'], ['allow-command', 3, 'High']]);
   const got = statsReco(stats(items));
-  assert.deepEqual(bullets(got), want.actions.map((a) => `- ${a.title}: ${a.text}.`));
-  assert.match(bullets(got)[0], /5 of 5 tracks have lane runs with no claim commit/);
+  assert.deepEqual(bullets(got), want.actions.map((a) => `- ${a.level}: ${a.title} (${a.text}).`));
+  assert.match(bullets(got)[0], /^- High: Set the lane to running when starting it \(5 of 5 tracks have lane runs with no claim commit\)\.$/);
   assert.match(got, /Tracks looked at \(newest first\): 805, 804, 803, 802, 801\./);
   // the drawer is made from the same function: a bare folder name gives the same number, so the same list
   const bare = items.map((x) => ({ folder: x.folder.replace(/^AM-/, ''), text: x.text }));
@@ -338,4 +340,51 @@ test('TC-24: parseExplainExtras reads the model mix and the rules fired, and nul
 test('TC-25: statistics recommendations hold only numbers, model ids and track labels', () => {
   const body = statsReco(stats([item(801, [run({ claimed: false })])]));
   assert.ok(!/@|sk-ant|api03|secret|<|>/.test(body));
+});
+
+// ---- TC-37 (D29): two project-level lines in the Insight of statistics.md, from the lane-facts block of each explain.md; and TC-38 (D28) the levels in statistics.md ----
+const withoutLaneFacts = (text) => text.replace(/^```json lane-facts\n[\s\S]*?\n```\n?/m, '');
+const subRun = (over = {}) => run({ lane: 'implement', firstContext: 700000, sub: { responses: 15, output: 900 }, subStarts: [50000, 60000], ...over });
+const lineOf = (body, start) => bullets(body).find((l) => l.startsWith(`- ${start}`)) ?? null;
+
+test('TC-37 (D29): the Insight counts lane runs by where they ran, the main-session runs that began long, and the median context at start of main and sub-agent runs', () => {
+  const a = item(801, [subRun(), run({ lane: 'plan', firstContext: 450000, sub: { responses: 0, output: 0 } })]);
+  const b = item(802, [run({ firstContext: 100000, sub: { responses: 2, output: 5 } })]);
+  const c = { folder: 'AM-803-t803', text: withoutLaneFacts(explainOf('AM-803-t803', [subRun()])) };
+  const body = statsInsight(stats([a, b, c]));
+  assert.equal(lineOf(body, 'Lane runs by where they ran'), '- Lane runs by where they ran: 1 in a sub-agent, 2 in the main session (33 percent in a sub-agent); 1 of 3 tracks not counted (an older explain.md without these numbers).');
+  assert.equal(lineOf(body, 'Main-session lane runs'), `- Main-session lane runs that started with ${LONG_CONTEXT.toLocaleString('en-US')} tokens of context or more: 1 of 2; median context at start: 275,000 in the main session, 55,000 in a sub-agent.`);
+});
+
+test('TC-37 (D29): with every track measured there is no "not counted" note; a shared window and a run with no reply are not counted', () => {
+  const a = item(801, [subRun(), run({ lane: 'plan', shared: true }), run({ lane: 'review', responses: 0, firstContext: 0, sub: { responses: 0, output: 0 }, subStarts: [] })]);
+  const b = item(802, [run({ firstContext: 100000, sub: { responses: 2, output: 5 } })]);
+  const body = statsInsight(stats([a, b]));
+  assert.equal(lineOf(body, 'Lane runs by where they ran'), '- Lane runs by where they ran: 1 in a sub-agent, 1 in the main session (50 percent in a sub-agent).');
+  assert.match(lineOf(body, 'Main-session lane runs'), /: 0 of 1; median context at start: 100,000 in the main session, 55,000 in a sub-agent\.$/);
+});
+
+test('TC-37 (D29): no track with these numbers says so in both lines, never 0 percent or NaN; a project with no explain.md has neither line', () => {
+  const old = [801, 802].map((k) => ({ folder: `AM-${k}-t${k}`, text: withoutLaneFacts(explainOf(`AM-${k}-t${k}`, [run()])) }));
+  const body = statsInsight(stats(old));
+  assert.equal(lineOf(body, 'Lane runs by where they ran'), '- Lane runs by where they ran: not measured yet (2 tracks have an older explain.md without these numbers): regenerate the explain.md files.');
+  assert.match(lineOf(body, 'Main-session lane runs'), /: not measured yet\.$/);
+  assert.ok(!/NaN|Infinity|undefined/.test(body));
+  assert.equal(lineOf(statsInsight(stats([])), 'Lane runs by where they ran'), null);
+});
+
+test('TC-37 (D29): the sub-agent median is of the starts of the sub-agents, not the main session figure; a run with no reply or no known start has no start figure', () => {
+  const a = item(801, [subRun({ firstContext: 900000, subStarts: [40000, 50000, 70000] })]);
+  const body = statsInsight(stats([a]));
+  assert.match(lineOf(body, 'Main-session lane runs'), /: 0 of 0; median context at start: none in the main session, 50,000 in a sub-agent\.$/);
+});
+
+test('TC-38 (D28): the Recommendations of statistics.md list an action that fired on one track of three with its level, and the "where" action of two tracks of ten is Low', () => {
+  const items = [];
+  for (let k = 1; k <= 10; k += 1) items.push(item(900 + k, [run(k <= 2 ? { firstContext: 900000, sub: { responses: 0, output: 0 } } : {})]));
+  const got = statsReco(stats(items));
+  assert.deepEqual(bullets(got), [`- Low: Run long lane work in a sub-agent or a fresh session (2 of 10 tracks ran a lane with over ${LONG_CONTEXT.toLocaleString('en-US')} tokens of history in the main session).`]);
+  assert.deepEqual(drawerOf(items).actions.map((a) => [a.id, a.count, a.level]), [['where', 2, 'Low']]);
+  const three = [item(1, [run({ claimed: false })]), item(2, [run()]), item(3, [run()])];
+  assert.deepEqual(bullets(statsReco(stats(three))), ['- Medium: Set the lane to running when starting it (1 of 3 tracks have lane runs with no claim commit).']);
 });

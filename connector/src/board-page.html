@@ -266,6 +266,10 @@ td .act { border-top: 0; padding-top: 0; }
 .rc ol.rclist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .rc li.recrow { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .rc .rctitle { font-weight: 600; overflow-wrap: anywhere; }
+.rc .lvl { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 7px; margin-right: 8px; border-radius: 999px; border: 1px solid var(--line); vertical-align: 1px; }
+.rc .lvl-high { color: var(--ink); background: var(--accent-soft); border-color: var(--accent); }
+.rc .lvl-medium { color: var(--ink); background: var(--surface); }
+.rc .lvl-low { color: var(--muted); background: transparent; }
 .rc .rcnum, .rc .rcsee { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
 .rc .copy { font: inherit; font-size: 12px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
 .rc .copy:focus-visible, .exfold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1554,16 +1558,16 @@ td .act { border-top: 0; padding-top: 0; }
   }
 
   // ---- Agent recommendations (D21 to D24): board.json `rec` was worked out when the board was built, from the facts of the last tracks that have agent run
-  // statistics ({ state few | quiet | ok, message, measured, not_measured, min, tracks, actions [{ id, title, count, text, copy }] }). The page shows at most
-  // three actions, each with one number line and a Copy button for one plain sentence. Text only, never markup. A malformed rec leaves the button hidden.
+  // statistics ({ state few | quiet | ok, message, measured, not_measured, min, tracks, actions [{ id, title, level, count, text, copy }] }). The page shows at most
+  // five actions (D28), each with a level badge (High, Medium or Low), one number line and a Copy button for one plain sentence. Text only, never markup. A malformed rec leaves the button hidden.
   var RC = (function () {
     var r = D.rec, str = function (v) { return typeof v === 'string' ? v : ''; }, cnt = function (v) { return Number.isInteger(v) && v >= 0 ? v : 0; };
     if (!r || typeof r !== 'object' || ['few', 'quiet', 'ok'].indexOf(r.state) < 0 || (r.actions !== undefined && !Array.isArray(r.actions))) return null;
     return {
       state: r.state, message: str(r.message), measured: cnt(r.measured), notMeasured: cnt(r.not_measured), min: cnt(r.min) || 3,
       tracks: (Array.isArray(r.tracks) ? r.tracks : []).filter(function (x) { return Number.isInteger(x); }).slice(0, 20),
-      actions: (r.actions || []).filter(function (a) { return a && typeof a.title === 'string' && a.title && typeof a.text === 'string' && typeof a.copy === 'string' && a.copy; }).slice(0, 3)
-        .map(function (a) { return { title: a.title, text: a.text, copy: a.copy }; }),
+      actions: (r.actions || []).filter(function (a) { return a && typeof a.title === 'string' && a.title && typeof a.text === 'string' && typeof a.copy === 'string' && a.copy; }).slice(0, 5)
+        .map(function (a) { return { title: a.title, text: a.text, copy: a.copy, level: ['High', 'Medium', 'Low'].indexOf(a.level) >= 0 ? a.level : '' }; }),
     };
   })();
   // D25: a Discuss button only copies a plain prompt (no model call, nothing is sent): the agent says which actions apply, discusses each, and changes nothing without a yes.
@@ -1583,12 +1587,15 @@ td .act { border-top: 0; padding-top: 0; }
       RC.actions.forEach(function (a) {
         var li = el('li', 'recrow'), row = el('div', 'actrow'), code = el('code', 'actc', a.copy), note = el('span', 'copied');
         note.setAttribute('role', 'status');
-        li.appendChild(el('div', 'rctitle', a.title)); li.appendChild(el('div', 'rcnum', a.text));
+        var head = el('div', 'rctitle');
+        if (a.level) { var lv = el('span', 'lvl lvl-' + a.level.toLowerCase(), a.level); lv.setAttribute('title', 'How many of the tracks looked at this action fired on'); head.appendChild(lv); }
+        head.appendChild(el('span', null, a.title));
+        li.appendChild(head); li.appendChild(el('div', 'rcnum', a.text));
         var cb = el('button', 'copy', 'Copy'); cb.type = 'button'; cb.setAttribute('aria-label', 'Copy the sentence: ' + a.copy);
         cb.addEventListener('click', function (e) { e.stopPropagation(); copyText(a.copy, code, note); });
         row.appendChild(code); row.appendChild(cb); row.appendChild(note); li.appendChild(row); list.appendChild(li); bodyLinks.push(cb);
       });
-      var all = RC.actions.map(function (a, i) { return (i + 1) + '. ' + a.copy; }).join(' ');
+      var all = RC.actions.map(function (a, i) { return (i + 1) + '. ' + (a.level ? a.level + ': ' : '') + a.copy; }).join(' ');
       discussButton(box, 'Here are the actions the Agent recommendations of this board suggest from the last ' + RC.tracks.length + ' tracks: ' + all + ' ' + DISCUSS_TAIL, 'Discuss all', 'Copy a prompt that lists these actions and asks Claude to discuss them with you');
       box.appendChild(list);
     } else {

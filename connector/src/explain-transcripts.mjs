@@ -48,17 +48,20 @@ export function trackOfLine(branch, cwd) {
 }
 
 /**
- * Reads one transcript file. Returns { messages, results, count } where
+ * Reads one transcript file. Returns { messages, results, count, start } where
  *  messages: Map id -> { id, ts, session, agent, owner, usage: {output, fresh, cacheCreated, cacheRead}, model, effort, thinking, tools: [{ id, name, ts, fileKey }] }
  *    (effort: a level or null; thinking: the thinking token count or null when the reply does not record it)
  *  results:  Map toolUseId -> ts (ms)
  *  count:    lines that were in this repository (cwd under `roots`)
- * `agentOwner` is the track number the sub-agent's meta file names, or null.
+ *  start:    { ts, context } of the FIRST reply in the file in this repository, whatever its time (not cut by `since`): a sub-agent file is one agent,
+ *            so this is the context that agent started with (fresh + cache created + cache read of its first reply); null when the file has none
+ * `agentOwner` is the track number the sub-agent's meta file names, or null; `wantStart` (a sub-agent file) also works out `start`.
  */
-export async function readTranscriptFile(file, { roots, agentOwner = null, since = 0 }) {
+export async function readTranscriptFile(file, { roots, agentOwner = null, since = 0, wantStart = false }) {
   const messages = new Map();
   const results = new Map();
   const skipped = { outsideRepo: 0 };
+  const early = new Map(); // message id -> { ts, ctx parts } of every reply in this repository, at any time (D30)
   let inRepo = 0;
   const rl = readline.createInterface({ input: fs.createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
   for await (const line of rl) {
@@ -68,7 +71,14 @@ export async function readTranscriptFile(file, { roots, agentOwner = null, since
     let o;
     try { o = JSON.parse(line); } catch { continue; }
     const ts = Date.parse(o.timestamp);
-    if (Number.isNaN(ts) || ts < since) continue;
+    if (Number.isNaN(ts)) continue;
+    if (wantStart && isAssistant && typeof o.message?.id === 'string' && within(o.cwd, roots)) {
+      const u0 = o.message.usage ?? {};
+      const e0 = early.get(o.message.id) ?? { ts, fresh: 0, cacheCreated: 0, cacheRead: 0 };
+      e0.ts = Math.min(e0.ts, ts); e0.fresh = Math.max(e0.fresh, num(u0.input_tokens)); e0.cacheCreated = Math.max(e0.cacheCreated, num(u0.cache_creation_input_tokens)); e0.cacheRead = Math.max(e0.cacheRead, num(u0.cache_read_input_tokens));
+      early.set(o.message.id, e0);
+    }
+    if (ts < since) continue;
     if (!within(o.cwd, roots)) { if (isAssistant && o.message?.id) skipped.outsideRepo += 1; continue; }
     if (isUser) {
       for (const c of Array.isArray(o.message?.content) ? o.message.content : []) {
@@ -101,7 +111,9 @@ export async function readTranscriptFile(file, { roots, agentOwner = null, since
       e.tools.push({ id: c.id, name, ts, fileKey: fp });
     }
   }
-  return { messages, results, count: inRepo, skipped };
+  let first = null;
+  for (const e0 of early.values()) if (!first || e0.ts < first.ts) first = e0;
+  return { messages, results, count: inRepo, skipped, start: first ? { ts: first.ts, context: first.fresh + first.cacheCreated + first.cacheRead } : null };
 }
 
 /** The track number a sub-agent's meta file names ("... track 10155 ..."), or null. Only the digits are kept. */
@@ -148,14 +160,14 @@ export async function collectMessages({ projectsDir, roots, root, track, sinceMs
   let mainFiles = 0;
   let subFiles = 0;
   for (const f of files) {
-    const r = await readTranscriptFile(f.file, { roots, agentOwner: f.owner, since: sinceMs });
+    const r = await readTranscriptFile(f.file, { roots, agentOwner: f.owner, since: sinceMs, wantStart: f.sub });
     skipped.outsideRepo += r.skipped.outsideRepo;
     if (r.count) { if (f.sub) subFiles += 1; else mainFiles += 1; }
     for (const [k, v] of r.results) results.set(k, v);
     for (const m of r.messages.values()) {
       if (m.owner !== null && m.owner !== track) { skipped.otherTrack += 1; continue; }
       if (m.session) sessions.add(m.session);
-      messages.push({ ...m, sub: f.sub });
+      messages.push({ ...m, sub: f.sub, startContext: f.sub && r.start ? r.start.context : null });
     }
   }
   return { messages, results, skipped, sessions: [...sessions].sort(), mainFiles, subFiles };

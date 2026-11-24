@@ -1,15 +1,25 @@
 // Track AM-10155 Phase 9 (D21, D22, D23): the recommendations across the last tracks, for the board's "Agent recommendations" drawer.
 // Pure. The input is, per track, the facts block of its explain.md (rule ids and whole numbers, see recommendFacts in explain.mjs); the output is
-// at most three ranked actions with one number each. Nothing here reads a transcript or any text of a track.
+// the ranked actions, each with a level (D28) and one number. Nothing here reads a transcript or any text of a track.
 import { trackNumberOfFolder } from './tracks.mjs';
 import { RULE_IDS, LONG_CONTEXT, SLOW_STEP_MS, fmtMs, parseRecommendFacts } from './explain.mjs';
 
 /** How many of the newest tracks that have an explain.md the drawer looks at (D21). */
 export const RECOMMEND_WINDOW = 10;
-/** An action needs at least this many tracks, and so does the whole list (D22). */
+/** The whole list needs at least this many measured tracks (D22, kept by D28); an action itself needs one track, and its level says how many. */
 export const MIN_TRACKS = 3;
-/** The most actions shown (D21). */
-export const MAX_ACTIONS = 3;
+/** The most actions listed (D28; it was three in D21). */
+export const MAX_ACTIONS = 5;
+/** D28: an action is High when it fired on at least this percent of the measured tracks looked at, Medium from MEDIUM_SHARE up to it, Low below that (one track or more). */
+export const HIGH_SHARE = 60;
+export const MEDIUM_SHARE = 30;
+const LEVEL_ORDER = { High: 0, Medium: 1, Low: 2 };
+
+/** The level of an action that fired on `count` of `measured` tracks (whole-number arithmetic: 3 of 5 is exactly 60 percent). */
+export function levelOf(count, measured) {
+  if (count * 100 >= HIGH_SHARE * measured) return 'High';
+  return count * 100 >= MEDIUM_SHARE * measured ? 'Medium' : 'Low';
+}
 
 const num = (v) => Number(v).toLocaleString('en-US');
 
@@ -52,7 +62,7 @@ const actionOf = (id) => (actionsCache ??= buildActions())[id];
 
 /**
  * @param {{ number: number, facts: { v: 1, rules: { id: string, tokens: number }[] } | null }[]} tracks one entry per track that has an explain.md; `facts` is null when its explain.md has no facts block (not measured)
- * @returns {{ state: 'few' | 'quiet' | 'ok', message: string, measured: number, notMeasured: number, min: number, tracks: number[], actions: { id: string, title: string, count: number, tokens: number, text: string, copy: string }[] }}
+ * @returns {{ state: 'few' | 'quiet' | 'ok', message: string, measured: number, notMeasured: number, min: number, tracks: number[], actions: { id: string, title: string, level: 'High' | 'Medium' | 'Low', count: number, tokens: number, text: string, copy: string }[] }}
  *   `tracks` are the numbers looked at, newest (highest number) first; `measured` is how many of them carry facts.
  */
 export function rankRecommendations(tracks, { window = RECOMMEND_WINDOW, min = MIN_TRACKS, max = MAX_ACTIONS } = {}) {
@@ -63,12 +73,12 @@ export function rankRecommendations(tracks, { window = RECOMMEND_WINDOW, min = M
   const actions = [];
   for (const id of RULE_IDS) {
     const hit = measured.filter((t) => t.facts.rules.some((x) => x.id === id));
-    if (hit.length < min) continue;
+    if (!hit.length) continue;
     const tokens = hit.reduce((s, t) => s + t.facts.rules.filter((x) => x.id === id).reduce((a, x) => a + x.tokens, 0), 0);
-    actions.push({ id, title: actionOf(id).title, count: hit.length, tokens, text: actionOf(id).line(hit.length, measured.length), copy: actionOf(id).copy });
+    actions.push({ id, title: actionOf(id).title, level: levelOf(hit.length, measured.length), count: hit.length, tokens, text: actionOf(id).line(hit.length, measured.length), copy: actionOf(id).copy });
   }
-  // Most tracks first, then the most tokens; the order of RULE_IDS (a stable sort) settles the rest.
-  actions.sort((a, b) => b.count - a.count || b.tokens - a.tokens);
+  // D28: High, then Medium, then Low; within a level the most tracks, then the most tokens; the order of RULE_IDS (a stable sort) settles the rest.
+  actions.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || b.count - a.count || b.tokens - a.tokens);
   if (!actions.length) return { ...base, state: 'quiet', message: `No change suggested across the last ${looked.length} tracks.` };
   return { ...base, state: 'ok', message: '', actions: actions.slice(0, max) };
 }
@@ -81,11 +91,11 @@ export function rankFromExplains(items, opts) {
 /**
  * The plain lines of the `## Recommendations` of statistics.md (D27): the same ranking as the board's drawer, over the same last tracks.
  * `items` is [{ folder, text }] as readExplains gives it; the number of a track is the one of its folder name (AM-10154-x and 10154-x both give 10154),
- * and a folder with no number is not a track and is left out. At most three bullet lines, or the drawer's own message for the not-enough and quiet states.
+ * and a folder with no number is not a track and is left out. One bullet line per action (D28: its level, its title and its count line; at most five), or the drawer's own message for the not-enough and quiet states.
  */
 export function rankedStatisticsLines(items) {
   const numbered = items.map((it) => ({ number: trackNumberOfFolder(it.folder), text: it.text })).filter((it) => it.number !== null);
   const r = rankFromExplains(numbered);
   if (r.state !== 'ok') return [r.message, ''];
-  return [...r.actions.map((a) => `- ${a.title}: ${a.text}.`), '', `Tracks looked at (newest first): ${r.tracks.join(', ')}.`, ''];
+  return [...r.actions.map((a) => `- ${a.level}: ${a.title} (${a.text}).`), '', `Tracks looked at (newest first): ${r.tracks.join(', ')}.`, ''];
 }

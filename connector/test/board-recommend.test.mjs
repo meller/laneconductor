@@ -65,7 +65,7 @@ test('TC-29: board.json `rec` ranks the facts of the last tracks, finished track
   assert.equal(board.rec.state, 'ok');
   assert.equal(board.rec.measured, 10);
   assert.deepEqual(board.rec.tracks, [912, 911, 910, 909, 908, 907, 906, 905, 904, 903], 'the ten newest');
-  assert.deepEqual(board.rec.actions.map((a) => [a.id, a.count]), [['claim', 10], ['where', 6]]);
+  assert.deepEqual(board.rec.actions.map((a) => [a.id, a.count, a.level]), [['claim', 10, 'High'], ['where', 6, 'High']], 'D28: the level is in board.json');
   assert.ok(board.rec.actions.every((a) => a.title && a.text && a.copy));
   assert.ok(!JSON.stringify(board.rec).includes('Agent run:'), 'no explain text');
 });
@@ -81,10 +81,13 @@ test('TC-29: fewer than 3 measured tracks: the message and no action; with no ex
   assert.deepEqual(none.tracks, []);
 });
 
-test('TC-29: nothing over the threshold: "No change suggested across the last N tracks."', () => {
-  const rec = site(fixture([[901, 'implement', 'running', quietFacts], [902, 'plan', 'queue', quietFacts], [903, 'done', 'success', quietFacts], [904, 'done', 'success', claim]])).board.rec;
+test('TC-29 (D28): nothing fired on any track: "No change suggested across the last N tracks."; one track is enough for a Low action', () => {
+  const rec = site(fixture([[901, 'implement', 'running', quietFacts], [902, 'plan', 'queue', quietFacts], [903, 'done', 'success', quietFacts], [904, 'done', 'success', quietFacts]])).board.rec;
   assert.equal(rec.state, 'quiet');
   assert.equal(rec.message, 'No change suggested across the last 4 tracks.');
+  const low = site(fixture([[901, 'implement', 'running', quietFacts], [902, 'plan', 'queue', quietFacts], [903, 'done', 'success', quietFacts], [904, 'done', 'success', quietFacts], [905, 'done', 'success', quietFacts], [906, 'done', 'success', quietFacts], [907, 'done', 'success', quietFacts], [908, 'done', 'success', claim]])).board.rec;
+  assert.equal(low.state, 'ok');
+  assert.deepEqual(low.actions.map((a) => [a.id, a.count, a.level]), [['claim', 1, 'Low']]);
 });
 
 test('TC-29: an explain.md without the block (older) is not measured; one with a secret match is left out of the count and never published', () => {
@@ -185,7 +188,7 @@ function ten(extra = {}) {
   return site(fixture(spec, extra));
 }
 
-test('TC-30: the drawer lists at most three actions, each with one number line and a Copy button; the copy is one plain sentence; the tracks looked at are named', async () => {
+test('TC-30: the drawer lists the ranked actions (at most five, D28), each with one number line and a Copy button; the copy is one plain sentence; the tracks looked at are named', async () => {
   const { dir } = ten();
   const written = [];
   stubGlobal('navigator', { clipboard: { writeText(t) { written.push(t); return Promise.resolve(); } } });
@@ -204,6 +207,7 @@ test('TC-30: the drawer lists at most three actions, each with one number line a
     assert.equal(rows.length, 2, 'claim and where reached 3 tracks; nothing else fired');
     assert.match(rows[0].textContent, /9 of 10 tracks have lane runs with no claim commit/);
     assert.match(rows[1].textContent, /7 of 10 tracks ran a lane with over 400,000 tokens/);
+    assert.deepEqual(rows.map((r) => all(r, cls('lvl')).map((b) => b.textContent)), [['High'], ['High']], 'D28: a level badge on each action');
     const copies = all(body, (x) => x.tag === 'button' && x._text === 'Copy');
     assert.equal(copies.length, 2);
     copies[1].handlers.click({ stopPropagation() {} });
@@ -218,6 +222,28 @@ test('TC-30: the drawer lists at most three actions, each with one number line a
     assert.equal(ids.detail.hidden, true);
     assert.equal(ids.__doc.activeElement, ids['rec-btn'], 'focus goes back to the button');
   } finally { unstub(); }
+});
+
+test('TC-30 (D28): a Low and a Medium action are listed with their badge, the list holds five at most, an unknown level shows no badge', async () => {
+  const spec = [];
+  const rules = (k) => [...(k <= 2 ? ['where'] : []), ...(k <= 4 ? ['lower-effort'] : []), ...(k <= 1 ? ['lighter-model', 'larger-model', 'allow-command'] : []), 'claim'];
+  for (let k = 1; k <= 10; k += 1) spec.push([900 + k, 'done', 'success', factsOf(rules(k))]);
+  const { dir, board } = site(fixture(spec));
+  assert.deepEqual(board.rec.actions.map((a) => [a.id, a.count, a.level]), [['claim', 10, 'High'], ['lower-effort', 4, 'Medium'], ['where', 2, 'Low'], ['lighter-model', 1, 'Low'], ['larger-model', 1, 'Low']]);
+  const ids = await runPage(stub(dir));
+  ids['rec-btn'].handlers.click();
+  const rows = all(ids['d-body'], cls('recrow'));
+  assert.equal(rows.length, 5);
+  assert.deepEqual(rows.map((r) => all(r, cls('lvl')).map((b) => b.textContent).join('')), ['High', 'Medium', 'Low', 'Low', 'Low']);
+  assert.match(rows[2].textContent, /2 of 10 tracks ran a lane with over 400,000 tokens/);
+  ids['d-close'].onclick();
+  const odd = { ...board.rec, actions: [{ ...board.rec.actions[0], level: 'Urgent' }, { ...board.rec.actions[1], level: undefined }, ...board.rec.actions.slice(2)] };
+  const ids2 = await runPage(stub(dir, { ...dataOf(dir), rec: odd }));
+  ids2['rec-btn'].handlers.click();
+  const rows2 = all(ids2['d-body'], cls('recrow'));
+  assert.equal(rows2.length, 5);
+  assert.deepEqual(rows2.map((r) => all(r, cls('lvl')).length), [0, 0, 1, 1, 1], 'only High, Medium and Low are drawn');
+  ids2['d-close'].onclick();
 });
 
 test('TC-30: the not-enough and no-change states say so and show no Copy button', async () => {
@@ -321,6 +347,7 @@ test('TC-33: the Agent recommendations drawer has a "Discuss all" button that co
     assert.equal(written.length, 1);
     const prompt = written[0];
     assert.match(prompt, /claim commit/, 'it carries the shown actions');
+    assert.match(prompt, /1\. High: /, 'D28: with the level of each');
     assert.match(prompt, /sub-agent or a fresh session/);
     assert.match(prompt, /which of the recommended actions apply to this project/i);
     assert.match(prompt, /discuss each/i);
