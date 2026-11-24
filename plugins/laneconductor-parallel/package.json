@@ -1,6 +1,6 @@
 {
   "name": "laneconductor-parallel",
-  "version": "1.9.18",
+  "version": "1.9.19",
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

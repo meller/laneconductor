@@ -56,6 +56,13 @@ test('TC-2: the procedure handles a track number, the word statistics, an empty 
 
 // ---- Phase 1 and 2: the generated command of the base plugin (TC-3, TC-4, TC-5) ----
 
+test('TC-2c (D4): a track the checkout does not have gets a plain answer: no such track here, maybe behind origin, the five newest tracks, nothing written or pulled', () => {
+  const t = read('commands/explain.md');
+  assert.match(t, /If the script prints `No track folder for number N`, say in one line that this checkout has no track N \(it may be behind origin: `git pull`\)/);
+  assert.match(t, /list the five newest tracks that do exist here \(the highest numbers under `conductor\/tracks\/`\), and ask which one I mean/);
+  assert.match(t, /write nothing and pull nothing yourself/);
+});
+
 test('TC-3: the generated command names the script glob and, for a missing add-on, both install commands each in its own block', () => {
   const t = read('commands/explain.md');
   assert.ok(t.startsWith('---\ndescription: '));
