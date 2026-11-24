@@ -11,7 +11,7 @@
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: `isSafeToAutoResolveBookkeepingConflict` only recognizes main's divergence as a safe sync-mirror artifact when it's limited to `**Lane**:`-style header lines; it doesn't recognize the same mirroring…
 
 ## Problem

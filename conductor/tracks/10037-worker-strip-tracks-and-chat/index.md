@@ -10,7 +10,7 @@
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Worker strip on the lanes view shows each worker's running track (active workers sorted first) and its last-context track; clicking deep-dives into the track or opens a chat with the worker (reusing…
 
 ## Problem

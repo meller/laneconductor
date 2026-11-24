@@ -83,7 +83,7 @@ not run; the "drive the real thing" bar is met instead via manual CLI verificati
 
 - [x] **`lc new` live test**: `node bin/lc.mjs new "Test Author Prefix" "..."` →
   created `AM-10024-test-author-prefix/` with correct `**Author**: AM` and
-  `**Created By**: asaf.meller@gmail.com` in `index.md`. Folder cleaned up after.
+  `**Created By**: 2565050+meller@users.noreply.github.com` in `index.md`. Folder cleaned up after.
 
 - [x] **`lc status` live test**: ran `node bin/lc.mjs status` against real
   `conductor/tracks/` directory containing legacy (`10017`, `1102`), KAN-prefixed

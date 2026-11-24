@@ -7,7 +7,7 @@
 **Type**: dev
 **Track Kind**: bug
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Live incident (2026-08-30, tracks 10039 + 10040 simultaneously): dispatched lane actions were actively running (live PIDs, fresh heartbeats, growing logs) while the Kanban board showed both tracks…
 
 ## Problem

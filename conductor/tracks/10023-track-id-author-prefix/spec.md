@@ -9,7 +9,7 @@ When two users work in parallel on the same project and both create tracks, they
 Prefix track folder names and display IDs with the author's initials, derived from `git config user.name`. The true unique identity is `(user_email, track_number)` — email from `git config user.email`. Initials are display-only; two users with the same initials is a cosmetic coincidence, not a correctness issue.
 
 **Examples:**
-- Asaf Meller (asaf.meller@gmail.com) creates track 10022 → folder `AM-10022-slug/`, display `AM-10022`
+- Asaf Meller (2565050+meller@users.noreply.github.com) creates track 10022 → folder `AM-10022-slug/`, display `AM-10022`
 - Bob Jones (bob@example.com) creates track 10022 → folder `BJ-10022/`, display `BJ-10022`
 - No collision on filesystem or in git
 

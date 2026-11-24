@@ -6,7 +6,7 @@
 **Phase**: New
 **Type**: dev
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Third executor behind track 10039's seam: lane actions run as GitHub Actions workflow runs, authenticated to Anthropic via GitHub OIDC + Workload Identity Federation — zero stored Anthropic secrets…
 
 ## Problem

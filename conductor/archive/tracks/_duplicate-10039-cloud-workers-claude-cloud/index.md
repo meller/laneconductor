@@ -8,7 +8,7 @@
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Cloud-runtime workers executing lane actions in Managed Agents sessions (pivot after Phase 1 NO-GO on claude.ai/code). Executor seam over the existing worker; track=session 1:1; per-user Anthropic…
 
 ## Problem

@@ -10,7 +10,7 @@
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: resolveTrackFolder()'s tracksMetadata is loaded once per worker process and never invalidated. A long-lived worker whose cache predates a track's creation permanently can't resolve that track's…
 
 ## Problem

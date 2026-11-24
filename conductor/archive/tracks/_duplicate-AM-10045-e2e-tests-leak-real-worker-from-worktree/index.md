@@ -11,7 +11,7 @@
 **Track Kind**: bug
 **Workspace**: main
 **Author**: AM
-**Created By**: asaf.meller@gmail.com
+**Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Root cause confirmed: test sandboxes are plain non-git dirs inside the checkout, so from a worktree the worker's cwd normalization resolves them to the PRIMARY checkout and chdirs there before…
 
 ## Problem
