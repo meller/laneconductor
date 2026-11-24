@@ -67,3 +67,10 @@
 - [x] Task 42 (test first): the Statistics tab has a **Discuss actions from stats** button at the top that copies a plain prompt (read statistics.md and its Recommendations, say which apply, discuss each, change nothing without a yes; no private path or name) (D25)
 - [x] Task 43 (test first): the Agent recommendations drawer has a **Discuss all** copy button with the same kind of prompt over the actions shown (D25)
 - [x] Task 44: board add-on 1.10.20, `build-plugin`, `--check`, tests, strict validation; base and parallel plugins unchanged (REQ-7)
+
+## Phase 11: one set of recommendations (owner, 2026-11-24)
+- [x] Task 45: read `explain-rank.mjs`, `renderStatistics` and its helpers in `explain.mjs`, how `lc-board.mjs` calls `rankFromExplains`, and the tests that assert the old statistics Recommendations text (D27)
+- [x] Task 46 (test first): for the same explain.md texts the `## Recommendations` of `renderStatistics` lists exactly the drawer's actions (same order, counts, at most 3), the not-enough and quiet states use the drawer's messages, the Insight holds the model mix, the claim-commit share and the rules-fired line and the Recommendations no longer do; six tests failed before the change
+- [x] Task 47: `renderStatistics` takes its Recommendations from `rankedStatisticsLines` in `explain-rank.mjs` (the same `rankFromExplains`), the number of each item read from its folder name with `trackNumberOfFolder`; the descriptive lines move to the Insight; the single-track report and the board page are unchanged (D27)
+- [x] Task 48: board add-on 1.10.21 only (`versions.json`), `node scripts/build-plugin.mjs` and `--check`; base and parallel plugins show an empty diff
+- [x] Task 49: `npm test`, `claude plugin validate . --strict`, no leaked processes started here; the built script run on a throwaway copy of the real explain.md files shows the new Insight and Recommendations

@@ -47,6 +47,10 @@
 - [x] TC-32 (D25): the Statistics tab has the Discuss actions from stats button, it copies a plain prompt that names conductor/statistics.md and Recommendations and asks for a yes before any change, with no private path or name
 - [x] TC-33 (D25): the Agent recommendations drawer has a Discuss all button that copies a prompt over the shown actions; the not-enough and no-change states have none
 
+### Phase 11: one set of recommendations
+- [x] TC-34 (D27): for the same explain.md texts, the `## Recommendations` of statistics.md lists exactly the actions `rankFromExplains` returns (same order, same counts, at most three), the folder name gives the track number (`AM-` prefixed or bare), a folder with no number is left out, the scope is the 10 newest tracks
+- [x] TC-35 (D27): fewer than 3 measured tracks and a quiet project print the drawer's own messages; the model mix, the claim-commit share and the tracks where most rules fired are in the `## Insight` and no longer in the Recommendations
+
 ## Acceptance Criteria
 - [x] The script runs on a real finished track and the numbers match the transcript totals
 - [x] No prompt, message or file content appears in any output
