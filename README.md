@@ -262,3 +262,5 @@ commands; they are not documented here. Use that tag if you want to run it.
 
 This project is licensed under the [Elastic License 2.0](LICENSE): free to use, modify and
 self-host; the one restriction is offering it to third parties as a hosted or managed service.
+
+LaneConductor is provided as is, without warranty, as the license says. It runs agents that can edit files and run commands in your project: you are responsible for what they do and for reviewing before you merge.
