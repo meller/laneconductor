@@ -461,6 +461,31 @@
             justify-content: center;
         }
 
+        .preview-shot {
+            width: 100%;
+            max-width: 900px;
+            margin: 0;
+        }
+
+        .preview-shot img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow:
+                0 0 0 1px rgba(139, 92, 246, 0.12),
+                0 40px 80px rgba(0, 0, 0, 0.6),
+                0 0 60px rgba(139, 92, 246, 0.08);
+        }
+
+        .preview-shot figcaption {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--ink-muted);
+        }
+
         .preview-window {
             width: 100%;
             max-width: 900px;
@@ -1883,84 +1908,12 @@
         </div>
     </section>
 
-    <!-- DASHBOARD PREVIEW -->
+    <!-- DASHBOARD PREVIEW: the real board, example data (replaces a hand-made mock) -->
     <div class="preview-section container">
-        <div class="preview-window fade-in">
-            <div class="preview-titlebar">
-                <div class="tb-dot red"></div>
-                <div class="tb-dot yellow"></div>
-                <div class="tb-dot green"></div>
-                <span class="preview-titlebar-label">LaneConductor board · example tracks</span>
-                <span class="preview-titlebar-badge">snapshot</span>
-            </div>
-            <div class="preview-body">
-                <div class="preview-lanes">
-                    <!-- Backlog -->
-                    <div>
-                        <div class="preview-lane-header">Backlog</div>
-                        <div class="preview-card">
-                            <div class="pc-track">#014</div>
-                            <div class="pc-title">Auth Caching</div>
-                            <div class="pc-progress">
-                                <div class="pc-progress-inner blue" style="width:0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Implement -->
-                    <div>
-                        <div class="preview-lane-header" style="color:#3b82f6;">Implement</div>
-                        <div class="preview-card">
-                            <div class="pc-track">#015</div>
-                            <div class="pc-title">Streaming API</div>
-                            <div class="pc-badge implement">implement</div>
-                            <div class="pc-progress" style="margin-top:8px;">
-                                <div class="pc-progress-inner blue" style="width:60%"></div>
-                            </div>
-                        </div>
-                        <div class="preview-card">
-                            <div class="pc-track">#016</div>
-                            <div class="pc-title">Landing Page</div>
-                            <div class="pc-badge implement">implement</div>
-                            <div class="pc-progress" style="margin-top:8px;">
-                                <div class="pc-progress-inner blue" style="width:30%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Review -->
-                    <div>
-                        <div class="preview-lane-header" style="color:#f59e0b;">Review</div>
-                        <div class="preview-card">
-                            <div class="pc-track">#012</div>
-                            <div class="pc-title">DB Migration</div>
-                            <div class="pc-badge review">review</div>
-                            <div class="pc-progress" style="margin-top:8px;">
-                                <div class="pc-progress-inner amber" style="width:90%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Done -->
-                    <div>
-                        <div class="preview-lane-header" style="color:#10b981;">Done</div>
-                        <div class="preview-card">
-                            <div class="pc-track">#011</div>
-                            <div class="pc-title">Login rate limit</div>
-                            <div class="pc-badge done">done</div>
-                            <div class="pc-progress" style="margin-top:8px;">
-                                <div class="pc-progress-inner green" style="width:100%"></div>
-                            </div>
-                        </div>
-                        <div class="preview-card">
-                            <div class="pc-track">#009</div>
-                            <div class="pc-title">Settings page</div>
-                            <div class="pc-badge done">done</div>
-                            <div class="pc-progress" style="margin-top:8px;">
-                                <div class="pc-progress-inner green" style="width:100%"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <figure class="preview-shot fade-in">
+            <a href="/docs/example-board-overview.webp"><img src="/docs/example-board-overview.webp" width="1360" height="680" alt="The LaneConductor board for an example project, 'Reports app (example data)', with six tracks. Cards sit in the backlog, plan, implement, review and quality-gate lanes, each with a running or queue label, a progress bar and the current phase." /></a>
+            <figcaption>Example data: six invented tracks. Select the image to enlarge it.</figcaption>
+        </figure>
     </div>
 
     <!-- PILLARS / WHY -->
