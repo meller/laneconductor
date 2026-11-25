@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The AI engineer, the software developer role and the Jevons paradox | LaneConductor</title>
+    <meta name="description" content="Every wave of automation was said to end a job, and each time someone was needed to run and tune it. What that means for the AI engineer, and the Jevons paradox behind it." />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="https://laneconductor.com/posts/the-ai-engineer-and-the-jevons-paradox.html" />
+    <meta property="og:title" content="The AI engineer, the software developer role and the Jevons paradox" />
+    <meta property="og:description" content="Every wave of automation was said to end a job, and each time someone was needed to run and tune it. What that means for the AI engineer, and the Jevons paradox behind it." />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://laneconductor.com/posts/the-ai-engineer-and-the-jevons-paradox.html" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg:#09090b; --bg-card:#111113; --border:rgba(255,255,255,.07); --ink:#f4f4f5; --ink-muted:#a1a1aa; --ink-faint:#52525b; --purple:#8b5cf6; --cyan:#22d3ee;
+                --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,system-ui,sans-serif; --font-mono:'Menlo','Monaco','Courier New',monospace; }
+        body { font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.7; -webkit-font-smoothing:antialiased; min-height:100vh; }
+        nav { border-bottom:1px solid var(--border); }
+        .nav-inner { max-width:880px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+        .nav-links { display:flex; gap:22px; list-style:none; font-size:14px; }
+        a { color:var(--cyan); text-decoration:none; } a:hover { text-decoration:underline; }
+        main { max-width:720px; margin:0 auto; padding:48px 20px 80px; }
+        h1 { font-size:clamp(28px,5vw,40px); line-height:1.2; margin-bottom:8px; letter-spacing:-0.02em; }
+        .meta { color:var(--ink-faint); font-size:14px; margin-bottom:32px; }
+        p { margin-bottom:20px; color:var(--ink); }
+        code { font-family:var(--font-mono); font-size:.9em; color:var(--cyan); background:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+        .note { margin-top:40px; padding-top:20px; border-top:1px solid var(--border); color:var(--ink-muted); font-size:15px; }
+        .post-list { list-style:none; } .post-list li { padding:20px 0; border-bottom:1px solid var(--border); }
+        .post-list .t { font-size:20px; font-weight:600; } .post-list .d { color:var(--ink-faint); font-size:14px; margin:4px 0 8px; } .post-list .s { color:var(--ink-muted); }
+        figure { margin: 8px 0 28px; } figure img { display:block; width:100%; height:auto; border:1px solid var(--border); border-radius:8px; }
+        figcaption { margin-top:8px; color:var(--ink-faint); font-size:13px; }
+        footer { max-width:720px; margin:0 auto; padding:0 20px 40px; color:var(--ink-faint); font-size:13px; }
+    
+        table { width:100%; border-collapse:collapse; margin:8px 0 28px; font-size:15px; }
+        th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+        th { color:var(--ink-muted); font-weight:600; }
+        .src { font-size:.85em; color:var(--ink-muted); }
+        strong { color:var(--ink); }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-inner">
+            <a href="/" class="nav-logo"><img src="/logo.png" alt="LaneConductor" style="height:24px;width:auto;" /></a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/wiki.html">Docs</a></li>
+                <li><a href="/posts/">Posts</a></li>
+                <li><a href="https://github.com/meller/laneconductor">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main>
+        <article>
+            <h1>The AI engineer, the software developer role and the Jevons paradox</h1>
+            <div class="meta">2026-11-25 &middot; notes from building LaneConductor</div>
+            <p>There is a fear around AI in engineering, and I hear it in two forms: "AI will take my job", and "I don't do engineering any more, the agent writes the code and I approve it". I think the second one is where a new kind of engineering starts, and I have seen this shape before.</p>
+            <p><strong>Every wave of automation was said to end a job.</strong> I remember it with the cloud (nobody would need to run physical servers), with CI and CD, with Terraform and infrastructure as code (nobody would need to do operations by hand). The word "NoOps" came out of that. A 2012 InfoQ article  <a class="src" href="https://www.infoq.com/news/2012/03/NoOps">[Abel Avram, March 2012]</a> already called the label misleading: the change was toward more automation, not toward no operations staff, and the cloud providers themselves employ many operations specialists. In 2020 a piece about autonomous databases  <a class="src" href="https://www.itpro.com/uk/data-insights/databases/355256/are-autonomous-databases-the-doom-of-database-administrators">[ITPro, 8 April 2020]</a> said the DBA role was unlikely to be erased, but that its responsibilities would shift, and that a freed workforce is not guaranteed a job. A 2023 survey that HashiCorp commissioned from Forrester Consulting (almost 1,000 practitioners and decision makers) shows the same shape in the cloud era: 43 percent named lack of needed skills as a top factor in avoidable cloud spend, and its advice was to upskill platform teams, not to do without them  <a class="src" href="https://www.hashicorp.com/blog/hashicorp-state-of-cloud-strategy-survey-2023-maturity-drives-operational-efficiency">[HashiCorp, "State of Cloud Strategy Survey 2023", 12 June 2023]</a>. It does not talk about Terraform itself, so the Terraform memory above stays a memory.</p>
+            <p><strong>What stayed was the person who runs and tunes the automation.</strong> A DBA does not type every query. They read the plan (<code>EXPLAIN</code>), watch capacity, set limits, and keep an audit trail. The work moved from doing the task to making the automation efficient and safe. I still get the occasional DevOps and DBA job offer today. The jobs exist, even though the same title means something quite different from what it meant ten years ago. That is only my own experience, not data, but it is the shape I expect for the AI engineer: the title stays and the content changes.</p>
+            <p><strong>There is an economics idea behind this, and it is the optimistic part.</strong> When something gets cheaper to do, people often do more of it, and the total grows. It is called the Jevons paradox, after an observation about coal in 1865: more efficient steam engines raised the demand for coal instead of lowering it  <a class="src" href="https://energyhistory.yale.edu/w-stanley-jevons-the-coal-question-1865/">[Yale Energy History summary of "The Coal Question"]</a>. A later example is the bank teller. James Bessen wrote in 2015 that ATMs cut the tellers needed per urban branch from 20 to 13 between 1988 and 2004, but the number of urban branches grew 43 percent, and the tasks the machine did not take over (talking to customers) became more valuable  <a class="src" href="https://www.imf.org/external/pubs/ft/fandd/2015/03/bessen.htm">[IMF Finance &amp; Development, March 2015]</a>. If code gets cheaper to write, I expect more software to be asked for, not less. That is my reasoning, not a law: it depends on demand growing enough, and a job that is fully automated does go away. And the transition is real for people whose work changes under them. A freed workforce is not automatically a working one, as the 2020 article says. This is why I would rather learn the new part of the work than argue about whether the old part will stay.</p>
+            <p><strong>The same idea applies to the energy AI uses.</strong> The International Energy Agency's report "Energy and AI" (2025) puts data centres at about 1.5 percent of the world's electricity in 2024, 415 TWh, and projects it to more than double to about 945 TWh by 2030  <a class="src" href="https://www.iea.org/reports/energy-and-ai/executive-summary">[source]</a>. When a cheaper model came out in early 2025, Microsoft's CEO, Satya Nadella, wrote on LinkedIn and X "Jevons paradox strikes again!", meaning, in his words, that as AI gets more efficient its use will skyrocket  <a class="src" href="https://www.geekwire.com/2025/microsoft-ceo-says-ai-use-will-skyrocket-with-more-efficiency-amid-craze-over-deepseek/">[GeekWire, Taylor Soper, 27 January 2025]</a>. Economists did not agree that it would work out that way for energy: one said it depends on whether AI replaces human work or complements it, and another noted that training uses far more energy than a single question does  <a class="src" href="https://news.northeastern.edu/2025/02/07/jevons-paradox-ai-future">[Northeastern Global News, 7 February 2025]</a>. It also runs the other way: AI at this scale would not be possible without cheap energy, so energy is both what makes it work and what it consumes more of. The natural expectation is that more efficient energy needs fewer people. What I see is the opposite: we keep consuming more, because progress depends on things becoming cheaper, and the work grows with the consumption. The IEA's World Energy Employment 2025 report says energy employment grew 2.2 percent in 2024, to 76 million jobs, nearly twice the 1.3 percent of the whole economy, and that about 60 percent of companies report labour shortages  <a class="src" href="https://www.iea.org/reports/world-energy-employment-2025/executive-summary">[source]</a>. That is not only AI, and I found no split for data centres. Some jobs are replaced along the way. The bank tellers are an example: there were fewer per branch, so some positions at some branches did go. I cannot say what happened to the individual people. That is my own reasoning, not a prediction. I do not know which way the total goes. I only notice that it is the same question from a second side.</p>
+            <p><strong>Agent work looks the same to me.</strong> The person who runs it needs the same habits, and these are the tools I am building for them:</p>
+            <table><thead><tr><th>What a DBA does</th><th>What it looks like for agent work</th></tr></thead><tbody><tr><td>Reads the query plan</td><td><code>lc-explain</code>: where each step spent its time and tokens</td></tr><tr><td>Keeps schema and migrations</td><td>spec, plan and test files in git</td></tr><tr><td>Constraints and checks before release</td><td>a quality gate and a test per phase</td></tr><tr><td>Capacity planning</td><td>context length per reply, usage limits</td></tr><tr><td>Isolation and replicas</td><td>sub-agents in their own git worktrees</td></tr><tr><td>Audit log and runbooks</td><td><code>history.md</code> and the lane guides</td></tr></tbody></table>
+            <p>I do not mean the job is the same. I mean the shape is: someone has to measure the automation, decide before it runs, and tune it after.</p>
+            <p><strong>The role is still being written.</strong> In 2023 the Latent Space essay "The Rise of the AI Engineer"  <a class="src" href="https://latent.space/p/ai-engineer">[source]</a> predicted a new subdiscipline of software engineering, compared it with the SRE, the DevOps engineer and the data engineer, and said the title was the emerging one, not a settled one. I agree it is not settled. I do not know what a good AI engineer's day looks like in five years, and I do not think anyone does yet.</p>
+            <p><strong>Engineering was never a trade for nostalgia.</strong> If you wanted to keep doing things the old way, you would still be punching cards somewhere, and it does not work like that. It is for people who like to explore, to use new things and to invent, and who then go on with the progress. That is my view, and it is why I find this moment interesting and not only worrying.</p>
+            <p><strong>What I am doing about it.</strong> I am looking for tools and habits an AI engineer could use to make the work in a company more efficient, and LaneConductor is one of them: the plan before, the ticks during, the numbers after, and the decisions written down before the run. If you like exploring this, with measurements and not slogans, I would like to hear from you. The source is public on GitHub, free to use and modify: <a href="https://github.com/meller/laneconductor">https://github.com/meller/laneconductor</a></p>
+            <p class="note">LaneConductor is a personal project and a pattern being explored. Plans, tracks and the board are plain files in git, and the plugin's source is public on GitHub, free to use and modify. <a href="/?src=post-11">Read how it works</a> or see the <a href="/wiki.html">docs</a>.</p>
+        </article>
+    </main>
+</body>
+</html>
