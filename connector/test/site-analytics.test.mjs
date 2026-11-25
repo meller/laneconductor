@@ -15,8 +15,8 @@ const PAGES = ['index.html', 'wiki.html', 'posts/index.html', 'posts/stop-guessi
 
 /** Minimal browser: just what analytics.js touches. `stored` seeds localStorage; `search` is the page's query string. */
 function fakeBrowser({ id = '', stored = null, search = '', pathname = '/', withNote = true } = {}) {
-  const code = SRC.replace("const GA_MEASUREMENT_ID = '';", `const GA_MEASUREMENT_ID = '${id}';`);
-  if (id) assert.notEqual(code, SRC, 'the id substitution happened (else the id cases would pass vacuously)');
+  const code = SRC.replace(/const GA_MEASUREMENT_ID = '[^']*';/, `const GA_MEASUREMENT_ID = '${id}';`);
+  assert.match(code, new RegExp(`const GA_MEASUREMENT_ID = '${id}';`), 'the id substitution happened (else the id cases would pass vacuously)');
   const writes = [];
   const store = (seed) => {
     const m = new Map(Object.entries(seed || {}));
@@ -68,11 +68,10 @@ function fakeBrowser({ id = '', stored = null, search = '', pathname = '/', with
 }
 const events = (b) => b.layer().filter((e) => e[0] === 'event').map((e) => [e[1], e[2]]);
 
-test('analytics.js exists, is loaded by all five pages, and ships with an empty measurement id', () => {
+test('analytics.js exists, is loaded by all five pages, and carries the measurement id of the property', () => {
   assert.ok(fs.existsSync(path.join(landing, 'analytics.js')));
   for (const p of PAGES) assert.ok(read(p).includes('<script src="/analytics.js" defer></script>'), `${p} loads /analytics.js`);
-  assert.match(SRC, /const GA_MEASUREMENT_ID = '';/, 'the committed id is empty until the owner sets one (task 2.1)');
-  assert.ok(!/G-[A-Z0-9]{6,}/.test(SRC.replace(/'G-\[A-Z0-9\]\+'/, '')), 'no real id in the file');
+  assert.match(SRC, /const GA_MEASUREMENT_ID = 'G-B9TZ5RYLP4';/, 'the id of the property LaneConductor site (task 2.1, a public value)');
 });
 
 test('analytics.js never grants advertising consent, turns Google signals off, and has no dependencies', () => {

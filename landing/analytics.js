@@ -2,7 +2,8 @@
  * Site analytics (track AM-10149, REQ-2): Google Analytics 4 through Google's own tag (gtag.js), started only after the
  * visitor presses Accept on a small notice. No build step, no dependencies. The plugins have no analytics; this is the site only.
  *
- * - GA_MEASUREMENT_ID empty (as committed): this script does nothing at all: no notice, no request, no storage, no listener.
+ * - GA_MEASUREMENT_ID empty: this script does nothing at all: no notice, no request, no storage, no listener. The id of the
+ *   property 'LaneConductor site' (a public value, visible in the page source) is set below.
  * - Before Accept nothing is loaded or stored. The only thing kept is the visitor's choice, in localStorage 'lc_consent'
  *   ('granted' or 'denied'), a first-party record that is named in the sentence in the footer of index.html (#analytics-note).
  * - Decline: gtag.js is never loaded.
@@ -17,7 +18,7 @@
 (function () {
   'use strict';
 
-  const GA_MEASUREMENT_ID = '';
+  const GA_MEASUREMENT_ID = 'G-B9TZ5RYLP4';
 
   var CONSENT_KEY = 'lc_consent';
   var SRC_KEY = 'lc_src';
