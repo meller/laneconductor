@@ -9,7 +9,7 @@
 | Show HN Score | 100 | per launch | tracking | Track 1052 — actual: 1 |
 | Reddit Post Upvotes | 50 | per post | tracking | Track 1053 — posts removed (karma), megathread live |
 | LinkedIn Reactions | 50 | per post | tracking | Track 1069 — 1 reaction, 119 impressions (7h) |
-| LinkedIn Post 9 | 50 | per post | tracking | Track 10149 — posted 2026-11-25; 61 impressions and no reactions or comments at the first reading (about 1h). Window to 2026-12-09, kill rule: fewer than 5 new stars |
+| LinkedIn Post 9 | 50 | per post | tracking | Track 10149 — posted 2026-11-25; 61 impressions and no reactions or comments at the first reading (about 15 minutes after posting); 71 impressions, 40 members reached (65% out of network) and no engagement at 19 minutes. Window to 2026-12-09, kill rule: fewer than 5 new stars |
 | GitHub clones (14 days) | tracking | rolling | tracking | Track 10149 — 2,702 clones (540 unique) on 2026-11-25; the closest proxy for installs, since adding the marketplace clones the repository |
 | DEV.to Reactions | 30 | per post | tracking | Track 1070 — pending publish |
 
