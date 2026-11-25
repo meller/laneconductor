@@ -2,7 +2,7 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 40%
+**Progress**: 53%
 **Phase**: Started 2026-11-20 (owner: go). Depends On 10148 dropped: only the directory install count (4.1) and half the KPI wait for the listing. First weekly snapshot taken; sitemap.xml and robots.txt prepared (not deployed). Analytics: Google Analytics 4 with consent (the Otralingo pattern), Search Console by an HTML file. Waiting on the owner for the GA4 measurement id and the Search Console verification file, and for the first campaign channel and kill number.
 **Track Kind**: feature
 **Type**: marketing

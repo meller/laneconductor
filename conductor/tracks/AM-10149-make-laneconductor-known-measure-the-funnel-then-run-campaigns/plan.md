@@ -12,8 +12,8 @@
 - [x] Task 2.2: Add the Google tag to landing/index.html and landing/wiki.html after a consent notice (the Otralingo pattern, ads features off), and the events: copy-install click, GitHub button click, "Read the full comparison" click, wiki click (prepared 2026-11-25 as landing/analytics.js, loaded by index, wiki and the two posts and the posts index; the measurement id is empty until task 2.1, so it does nothing yet; live check is 2.6)
 - [x] Task 2.3: One sentence on the site saying what is counted (page views and those clicks, only after the visitor accepts; no ads features), after checking the tool's own behaviour (footer sentence #analytics-note in landing/index.html, shown only once an id is set; not deployed)
 - [x] Task 2.4: Real `landing/sitemap.xml` and `landing/robots.txt` added 2026-11-20 with a test (not deployed; a file is served before the catch-all rewrite); check with curl after the deploy
-- [ ] Task 2.5 (HUMAN): Add laneconductor.com in Search Console as a URL-prefix property and send the agent the verification file or meta tag (no DNS record needed); the agent adds it, and after the deploy the owner verifies and submits the sitemap
-- [ ] Task 2.6 (HUMAN): Say "deploy"; then deploy from a clean worktree of main and verify live (tool receives a visit; events fire)
+- [x] Task 2.5 (HUMAN): Add laneconductor.com in Search Console as a URL-prefix property and send the agent the verification file or meta tag (no DNS record needed); the agent adds it, and after the deploy the owner verifies and submits the sitemap
+- [x] Task 2.6 (HUMAN): Say "deploy"; then deploy from a clean worktree of main and verify live (tool receives a visit; events fire)
 
 ## Phase 3: First campaign (the demo post)
 
