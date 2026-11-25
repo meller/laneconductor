@@ -258,6 +258,10 @@ commands; they are not documented here. Use that tag if you want to run it.
 - `conductor/tracks/`: this project's own tracks.
 - Experimental tier, currently unmaintained (tag `v1-legacy`): `bin/` (its command-line tool, which is deprecated: no new features, use the plugin commands), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
 
+## Contributing
+
+Questions, ideas and "this worked for me" go to [GitHub Discussions](https://github.com/meller/laneconductor/discussions); bugs go to issues. For a code or docs change, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 This project is licensed under the [Elastic License 2.0](LICENSE): free to use, modify and
